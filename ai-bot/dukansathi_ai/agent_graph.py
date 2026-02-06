@@ -621,7 +621,8 @@ async def chat_node(state: AgentState):
             You are Sathi AI, the personal AI assistant for {business_name}.
             User said: "{last_msg}"
             HISTORY: {history_text}
-            RULES: Warm greeting in user's language/Hinglish. Use "Boss". No symbols/commas.
+            RULES: Warm greeting in user's language/Hinglish. Use "Boss". No symbols/commas. 
+            IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
             """
     elif category == "CAPABILITY":
          input_prompt = f"""
@@ -642,7 +643,8 @@ async def chat_node(state: AgentState):
         DATA: {specialist_data}
         USER: "{last_msg}"
         HISTORY: {history_text}
-        RULES: Answer using Data. If empty, say 'No data found'. Match language. Use "Boss". No symbols/commas.
+        RULES: Answer using Data. If empty, say 'No data found'. Match language. Use "Boss". No symbols/commas. REMEMBER: YOU ARE SATHI AI.
+        IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
         """
 
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
@@ -706,7 +708,7 @@ MEMORY_STORE = {}
 
 async def process_user_input(text: str, user_token: str) -> str:
     """
-    Main entry point for Moltbot - processes user input and returns response
+    Main entry point for Sathi AI - processes user input and returns response
     
     This function:
     1. Maintains conversation history per user
