@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 import sys
+import asyncio
 import base64
 import logging
 import io
@@ -45,7 +46,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai-bot'))
 try:
     from voice_service import transcribe_audio, speak_text
     from dukansathi_ai.agent_graph import process_user_input, perform_history_cleanup
-    import asyncio
+    from dukansathi_ai.agent_graph import process_user_input, perform_history_cleanup
 except Exception as e:
     logger.error(f"Failed to import AI modules: {e}")
     import traceback
