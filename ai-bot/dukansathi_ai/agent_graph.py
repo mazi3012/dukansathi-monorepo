@@ -618,16 +618,19 @@ async def chat_node(state: AgentState):
     
     if category == "GREETING":
          input_prompt = f"""
-            You are Sathi AI, assistant for {business_name}.
+            You are Moltbot, the personal AI assistant for {business_name}.
             User said: "{last_msg}"
             HISTORY: {history_text}
             RULES: Warm greeting in user's language/Hinglish. Use "Boss". No symbols/commas.
             """
     elif category == "CAPABILITY":
          input_prompt = f"""
-            You are Sathi AI, assistant for {business_name}.
+            You are Moltbot, the personal AI assistant for {business_name}.
             User asked about capabilities.
-            RULES: List features (sales, inventory, invoices). Use "Boss". No symbols/commas.
+            RULES: 
+            1. Say: "Boss, I can help you with:"
+            2. List: Sales tracking, Inventory management, and Invoice generation.
+            3. Keep it short. Use "Boss". No symbols/commas.
             """
     else: # BUSINESS / Fallback
         # Data Retrieval
