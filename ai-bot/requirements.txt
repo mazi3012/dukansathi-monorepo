@@ -1,0 +1,17 @@
+# Dukan Sathi AI Bot (Moltbot) - Python Dependencies
+# Purpose: Python packages required for the AI agent
+# Updated: 2026-02-05
+
+# AI - Gemini via Vertex AI
+langchain-google-vertexai==2.0.10
+langchain-core==0.3.28
+langgraph==0.2.59
+google-auth==2.37.0
+google-cloud-aiplatform==1.75.0
+
+# Database
+supabase==2.9.1
+
+# Utilities
+python-dotenv==1.0.0
+pydantic>=2.9,<2.10  # Compatible with langchain-google-vertexai
