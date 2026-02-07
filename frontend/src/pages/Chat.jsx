@@ -333,14 +333,16 @@ const Chat = () => {
                         onMouseUp={stopRecording}
                         onTouchStart={startRecording}
                         onTouchEnd={stopRecording}
-                        className={`p-2.5 rounded-full shadow-md transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-500 text-white'
+                        onMouseLeave={() => isListening && stopRecording()}
+                        className={`p-2.5 rounded-full shadow-md transition-all select-none ${isListening
+                                ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200'
+                                : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
                             }`}
                     >
                         <Mic size={20} />
                     </button>
                 )}
             </div>
-
         </div>
     );
 };

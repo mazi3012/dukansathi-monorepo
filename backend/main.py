@@ -207,6 +207,7 @@ async def chat_websocket(websocket: WebSocket):
             content = data.get("content", "")
             user_token = data.get("access_token", "default_token")
             user_id = data.get("user_id", "")
+            voice_id = data.get("voice_id", "hi-IN-MadhurNeural") # Default to Madhur
             
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
@@ -304,8 +305,8 @@ async def chat_websocket(websocket: WebSocket):
             audio_response = None
             if message_type == "voice":
                 try:
-                    audio_response = await speak_text(ai_response_text)
-                    print(f"🔊 TTS Generated: {len(audio_response) if audio_response else 0} bytes")
+                    audio_response = await speak_text(ai_response_text, voice=voice_id)
+                    print(f"🔊 TTS Generated: {len(audio_response) if audio_response else 0} bytes (Voice: {voice_id})")
                 except Exception as e:
                     print(f"⚠️ TTS Error (non-fatal): {e}")
 

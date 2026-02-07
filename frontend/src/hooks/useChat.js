@@ -7,6 +7,13 @@ export const useChat = () => {
     const [isListening, setIsListening] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [ws, setWs] = useState(null);
+    const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
+
+    // Function to change voice
+    const changeVoice = (newVoice) => {
+        setVoice(newVoice);
+        localStorage.setItem('voice_id', newVoice);
+    };
 
     // Refs
     const mediaRecorderRef = useRef(null);
@@ -105,10 +112,11 @@ export const useChat = () => {
             type: 'text',
             content: text,
             user_id: userId,
-            access_token: session?.access_token // Sending token too just in case
+            access_token: session?.access_token, // Sending token too just in case
+            voice_id: voice
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
-    }, [ws]);
+    }, [ws, voice]);
 
     const sendImage = useCallback(async (file) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -155,7 +163,8 @@ export const useChat = () => {
                                 type: 'voice',
                                 content: base64,
                                 user_id: userId,
-                                access_token: session?.access_token
+                                access_token: session?.access_token,
+                                voice_id: voice
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
@@ -186,6 +195,8 @@ export const useChat = () => {
         stopRecording,
         isListening,
         isThinking,
-        setMessages
+        setMessages,
+        voice,
+        changeVoice
     };
 };
