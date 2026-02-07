@@ -9,12 +9,14 @@ export const useChat = () => {
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
+    const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
     // Function to toggle mute
     const toggleMute = () => {
         setIsMuted(prev => {
             const newState = !prev;
             localStorage.setItem('isMuted', newState);
+            isMutedRef.current = newState; // Keep ref in sync for callbacks
 
             // Stop current audio if muting
             if (newState && lastAudioRef.current) {
@@ -125,8 +127,9 @@ export const useChat = () => {
 
     // Helper: Play Base64 Audio with Blob/URL
     const playAudio = useCallback((base64Data) => {
-        if (isMuted) {
-            console.log("🔇 Audio is muted, skipping playback.");
+        // Use Ref value to avoid stale closure trap
+        if (isMutedRef.current) {
+            console.log("🔇 Audio is muted (checked via Ref), skipping playback.");
             return;
         }
 
