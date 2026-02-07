@@ -165,6 +165,23 @@ def optimize_image(image_bytes: bytes, max_size: int = 1024, quality: int = 80) 
         print(f"⚠️ Image optimization failed: {e}")
         return image_bytes # Return original if optimization fails
 
+def clean_text_for_tts(text: str) -> str:
+    """Remove JSON blocks and special markers from text for clean speech"""
+    if not text:
+        return ""
+    
+    # 1. Remove $$ACTION_JSON$$ ... $$END_JSON$$ blocks
+    import re
+    cleaned = re.sub(r'\$\$ACTION_JSON\$\$.*?\$\$END_JSON\$\$', '', text, flags=re.DOTALL)
+    
+    # 2. Clean up extra whitespace/newlines
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    
+    # 3. Handle simple Hindi/English abbreviations if needed (e.g., ₹ -> rupees)
+    cleaned = cleaned.replace('₹', 'rupees')
+    
+    return cleaned
+
 # Helper: Upload to Supabase Storage
 async def upload_to_storage(bucket: str, file_path: str, file_bytes: bytes, mime_type: str = 'image/jpeg') -> str:
     """Upload file to Supabase Storage and return Public URL"""
@@ -301,14 +318,22 @@ async def chat_websocket(websocket: WebSocket):
                 await websocket.send_json({"type": "error", "content": f"AI Error: {str(e)}"})
                 continue
 
-            # 5. Convert AI Response to Speech (TTS) - only for voice input
+            # 5. Convert AI Response to Speech (TTS)
+            # We now clean the text (remove JSON) and generate audio for ALL responses if voice_id is present
             audio_response = None
-            if message_type == "voice":
-                try:
-                    audio_response = await speak_text(ai_response_text, voice=voice_id)
-                    print(f"🔊 TTS Generated: {len(audio_response) if audio_response else 0} bytes (Voice: {voice_id})")
-                except Exception as e:
-                    print(f"⚠️ TTS Error (non-fatal): {e}")
+            try:
+                tts_text = clean_text_for_tts(ai_response_text)
+                if tts_text:
+                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...' with voice: {voice_id}")
+                    audio_response = await speak_text(tts_text, voice=voice_id)
+                    if audio_response:
+                        print(f"✅ TTS Success: {len(audio_response)} bytes")
+                    else:
+                        print(f"❌ TTS Failed: speak_text returned None")
+                else:
+                    print("ℹ️ TTS Skipped: Cleaned text is empty (likely just JSON)")
+            except Exception as e:
+                print(f"⚠️ TTS Exception: {e}")
 
             # 6. Send Response to Client
             response_payload = {
