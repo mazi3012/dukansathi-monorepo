@@ -18,6 +18,7 @@ export const useChat = () => {
     // Refs
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
+    const lastAudioRef = useRef(null);
 
     useEffect(() => {
         const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000/ws/chat';
@@ -67,8 +68,29 @@ export const useChat = () => {
 
                     // Play Audio if present
                     if (data.audio) {
-                        const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
-                        audio.play().catch(e => console.error("Audio error:", e));
+                        console.log("🔊 Received audio data, attempting playback...");
+
+                        // Stop any existing audio
+                        if (lastAudioRef.current) {
+                            lastAudioRef.current.pause();
+                            lastAudioRef.current = null;
+                        }
+
+                        try {
+                            const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
+                            lastAudioRef.current = audio;
+
+                            audio.oncanplaythrough = () => {
+                                console.log("✅ Audio ready to play");
+                                audio.play().catch(e => {
+                                    console.error("❌ Audio playback failed (Interaction needed?):", e);
+                                });
+                            };
+
+                            audio.onerror = (e) => console.error("❌ Audio source error:", e);
+                        } catch (err) {
+                            console.error("❌ Failed to create Audio object:", err);
+                        }
                     }
                 } else if (data.type === 'transcription') {
                     // Update the last "user-audio" placeholder or add new
