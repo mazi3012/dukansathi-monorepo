@@ -88,7 +88,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
                             <NavItem to="/customers" icon={Users} label="Customers" onClick={onClose} />
                             <NavItem to="/chat" icon={MessageSquare} label="AI Assistant" onClick={onClose} />
-                            <NavItem to="/profile" icon={User} label="Profile" onClick={onClose} />
+                            <NavItem to="/profile" icon={Settings} label="Settings" onClick={onClose} />
                         </div>
 
                         {/* Footer */}

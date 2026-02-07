@@ -11,6 +11,7 @@ const Chat = () => {
     const [businessProfile, setBusinessProfile] = useState(null);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
+    const timerRef = useRef(null);
     const navigate = useNavigate();
 
     // Auto-scroll
@@ -329,14 +330,31 @@ const Chat = () => {
                     </button>
                 ) : (
                     <button
-                        onMouseDown={startRecording}
-                        onMouseUp={stopRecording}
-                        onTouchStart={startRecording}
-                        onTouchEnd={stopRecording}
-                        onMouseLeave={() => isListening && stopRecording()}
+                        onMouseDown={() => {
+                            timerRef.current = setTimeout(() => {
+                                startRecording();
+                            }, 500); // Wait 500ms before starting
+                        }}
+                        onMouseUp={() => {
+                            if (timerRef.current) clearTimeout(timerRef.current);
+                            if (isListening) stopRecording();
+                        }}
+                        onTouchStart={() => {
+                            timerRef.current = setTimeout(() => {
+                                startRecording();
+                            }, 500);
+                        }}
+                        onTouchEnd={() => {
+                            if (timerRef.current) clearTimeout(timerRef.current);
+                            if (isListening) stopRecording();
+                        }}
+                        onMouseLeave={() => {
+                            if (timerRef.current) clearTimeout(timerRef.current);
+                            if (isListening) stopRecording();
+                        }}
                         className={`p-2.5 rounded-full shadow-md transition-all select-none ${isListening
-                                ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200'
-                                : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
+                            ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200'
+                            : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
                             }`}
                     >
                         <Mic size={20} />
