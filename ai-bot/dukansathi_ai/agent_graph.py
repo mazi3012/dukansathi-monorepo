@@ -26,6 +26,7 @@ from google.oauth2 import service_account
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import asyncio
 
 load_dotenv()
 
@@ -305,13 +306,13 @@ async def save_chat_message(user_id: str, role: str, message: str):
 
 def categorize_query(msg_lower: str) -> str:
     """
-    Categorize user query into GREETING, CAPABILITY, or BUSINESS
+    Categorize user query into GREETING, CAPABILITY, IDENTITY, or CHAT
     
     Args:
         msg_lower: Lowercase user message
         
     Returns:
-        Category string: "GREETING", "CAPABILITY", or "BUSINESS"
+        Category string: "GREETING", "CAPABILITY", "IDENTITY", "BUSINESS", or "CHAT"
     """
     import re
     
@@ -336,12 +337,21 @@ def categorize_query(msg_lower: str) -> str:
     
     # Business query patterns
     business_keywords = [
-        "price", "stock", "customer", "sale", "bill", "invoice",
-        "draft", "order", "revenue", "profit", "total", "kitna",
-        "dikhao", "batao", "check", "find", "create", "make", "show",
-        "list", "how many", "kitne", "kya hai", "konsa", "add", "update",
-        "who", "they", "them", "he", "she", "it", "give me", "contact",
-        "spend", "spent", "credit", "balance", "phone", "number"
+        "price", "cost", "selling", "margin", "tax", "stock", "quantity", "inventory", 
+        "customer", "client", "buyer", "sale", "sell", "sold", "bill", "invoice", "receipt",
+        "draft", "order", "purchase", "revenue", "profit", "loss", "expense", "total", "amount",
+        "kitna", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
+        "list", "report", "summary", "count", "number", "how many", "status", "due", "pending",
+        "paid", "payment", "transaction", "history", "record", "entry", "data", "info", "details",
+        "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
+        "who bought", "what did", "product", "item", "good", "service", "sku", "code",
+        "spend", "spent", "credit", "balance", "money", "cash", "upi", "card", "bank"
+    ]
+
+    # Identity inquiry patterns
+    identity_keywords = [
+        "what is your name", "who are you", "your name", "tumhara naam", 
+        "aapka naam", "who am i talking to", "identity", "intro", "introduction"
     ]
     
     # Action intent patterns (High priority for create/update)
@@ -361,6 +371,10 @@ def categorize_query(msg_lower: str) -> str:
     if any(msg_lower.startswith(k) or msg_lower == k for k in greeting_keywords):
         return "GREETING"
     
+    # Check for identity inquiries
+    if any(k in msg_lower for k in identity_keywords):
+        return "IDENTITY"
+    
     # Check for capability inquiries
     if any(k in msg_lower for k in capability_keywords):
         return "CAPABILITY"
@@ -369,12 +383,12 @@ def categorize_query(msg_lower: str) -> str:
     if any(k in words for k in business_keywords):
         return "BUSINESS"
     
-    # Default to greeting if very short (1-3 words) and no business intent
-    if len(msg_lower.split()) <= 3:
-        return "GREETING"
-    
-    # Otherwise treat as business query
-    return "BUSINESS"
+    # Job/Career inquiries (often mistaken for business)
+    if "hiring" in msg_lower or "job" in msg_lower or "vacancy" in msg_lower or "career" in msg_lower:
+        return "CHAT"
+
+    # Default to CHAT for general conversation
+    return "CHAT"
 
 
 async def extract_action_params(user_query: str, history_context: str = "") -> str:
@@ -505,41 +519,49 @@ async def action_node(state: AgentState):
                 qty = item.get("quantity", 0)
                 
                 # Default values
-                price = 0
+                item["price"] = 0
+                item["total"] = 0
+                return item
+
+            async def fetch_product_details(item):
+                """Helper to fetch details for a single item"""
+                prod_name = item.get("product_name", "")
+                qty = item.get("quantity", 0)
+                user_id_local = user_id # Capture from closure
                 
-                # Fetch price from DB if supabase is available
+                # Default values
+                price = 0
+                tax_percent = 0
+                hsn_code = ""
+                official_name = prod_name
+                
                 if supabase and prod_name:
                     try:
                         # Sanitize product name for search safely
                         safe_name = re.sub(r'[^\w\s]', '', prod_name) # Remove special chars
                         
                         if safe_name:
-                             logger.info(f"DEBUG: Searching for product: {safe_name}")
-                             
                              # Strategy: Exact/Case-Insensitive Match ONLY to avoid 500 Errors
-                             # Wildcards (%) seem to be causing 500 internal errors on this instance
                              try:
                                  # Try 1: Case-insenstive exact match
-                                 res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").ilike("name", safe_name).eq("user_id", user_id).limit(1).execute()
+                                 res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").ilike("name", safe_name).eq("user_id", user_id_local).limit(1).execute()
                                  
                                  # Try 2: If no data, maybe simple EQ? (Usually covered by ilike but just in case)
                                  if not res.data:
-                                     res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").eq("name", safe_name).eq("user_id", user_id).limit(1).execute()
+                                     res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").eq("name", safe_name).eq("user_id", user_id_local).limit(1).execute()
                              
                              except Exception as search_err:
-                                 logger.error(f"DEBUG: Search query failed: {search_err}")
+                                 logger.error(f"DEBUG: Search query failed for {safe_name}: {search_err}")
                                  res = None
 
                              if res and res.data and len(res.data) > 0:
                                 db_prod = res.data[0]
                                 price = float(db_prod.get("selling_price", 0))
+                                tax_percent = float(db_prod.get("tax_percent", 0))
+                                hsn_code = db_prod.get("hsn_code", "")
+                                official_name = db_prod.get("name", prod_name)
                                 
-                                # Hydrate other fields
-                                item["tax_percent"] = float(db_prod.get("tax_percent", 0))
-                                item["hsn_code"] = db_prod.get("hsn_code", "")
-                                item["product_name"] = db_prod.get("name", prod_name) # Use official name
-                                
-                                logger.info(f"DEBUG: Found {item['product_name']}: Price={price}, Tax={item['tax_percent']}%")
+                                logger.info(f"DEBUG: Found {official_name}: Price={price}, Tax={tax_percent}%")
                              else:
                                 logger.info(f"DEBUG: Product not found: {safe_name}")
                         else:
@@ -547,19 +569,28 @@ async def action_node(state: AgentState):
                              
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
-                        # Don't fail the whole request, just use 0 price
                 
                 # Update item
                 item["price"] = price
-                item["total"] = price * qty # Basic line total (excl tax usually, or handled by frontend)
-                updated_items.append(item)
-                total_amount += (price * qty)
+                item["tax_percent"] = tax_percent
+                item["hsn_code"] = hsn_code
+                item["product_name"] = official_name
+                item["total"] = price * qty # Basic line total
+                return item
+
+            # Execute all item lookups in parallel
+            tasks = [fetch_product_details(item) for item in action_data["items"]]
+            updated_items = await asyncio.gather(*tasks)
+            
+            # Calculate total
+            for item in updated_items:
+                total_amount += item["total"]
             
             # Update main object
             action_data["items"] = updated_items
             action_data["total_amount"] = total_amount
             updated_json_str = json.dumps(action_data)
-            logger.info(f"DEBUG: Hydrated JSON: {updated_json_str}")
+            logger.info(f"DEBUG: Hydrated JSON (Parallel): {updated_json_str}")
 
     except Exception as e:
         logger.error(f"ERROR hydrating action JSON: {e}")
@@ -632,6 +663,27 @@ async def chat_node(state: AgentState):
             1. Say: "Boss, I can help you with:"
             2. List: Making Invoices, Tracking Inventory, Managing Customers, Adding/Updating Dues, and Answering business questions.
             3. Keep it short. Use "Boss". No symbols/commas.
+            """
+    elif category == "IDENTITY":
+         input_prompt = f"""
+            You are Sathi AI, the personal AI assistant for {business_name}.
+            User asked: "{last_msg}"
+            RULES: 
+            1. State clearly "I am Sathi AI, your helpful assistant Boss."
+            2. Keep it short. Use "Boss". No symbols/commas.
+            """
+    elif category == "CHAT":
+        input_prompt = f"""
+            You are Sathi AI, the personal AI assistant for {business_name}.
+            User said: "{last_msg}"
+            HISTORY: {history_text}
+            RULES: 
+            1. Respond naturally to the user's chat. Be helpful, polite, and professional.
+            2. Match the user's language (Hindi/English/Hinglish).
+            3. Use "Boss" occasionally to maintain persona.
+            4. Do NOT make up database data. If they ask something you don't know, say so.
+            5. If they seem to want to do business (like "add item"), guide them to be specific.
+            6. Keep it concise. No symbols/commas.
             """
     else: # BUSINESS / Fallback
         # Data Retrieval

@@ -47,8 +47,26 @@ const Chat = () => {
                 let customerId = null;
                 if (actionData.customer_name) {
                     const { data: cust } = await supabase.from('customers')
-                        .select('id').ilike('name', actionData.customer_name).eq('user_id', user.id).single();
-                    customerId = cust?.id;
+                        .select('id').ilike('name', actionData.customer_name.trim()).eq('user_id', user.id).maybeSingle();
+
+                    if (cust) {
+                        customerId = cust.id;
+                    } else {
+                        // AUTO-CREATE CUSTOMER
+                        const { data: newCust, error: createError } = await supabase.from('customers').insert({
+                            user_id: user.id,
+                            name: actionData.customer_name.trim(),
+                            phone: null, // Phone unknown at this stage
+                            address: null
+                        }).select('id').single();
+
+                        if (!createError && newCust) {
+                            customerId = newCust.id;
+                            console.log("Auto-created new customer:", actionData.customer_name);
+                        } else {
+                            console.error("Failed to auto-create customer:", createError);
+                        }
+                    }
                 }
 
                 // Create Sale Header
