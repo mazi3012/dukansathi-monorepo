@@ -1,12 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
 
 const Chat = () => {
-    const { messages, setMessages, sendMessage, sendImage, startRecording, stopRecording, isListening, isThinking } = useChat();
+    const {
+        messages,
+        setMessages,
+        sendMessage,
+        sendImage,
+        startRecording,
+        stopRecording,
+        isListening,
+        isThinking,
+        isMuted,
+        toggleMute
+    } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
     const messagesEndRef = useRef(null);
@@ -314,6 +325,14 @@ const Chat = () => {
                     className="hidden"
                     accept="image/*"
                 />
+
+                <button
+                    onClick={toggleMute}
+                    className={`p-2 transition-colors ${isMuted ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-indigo-600'}`}
+                    title={isMuted ? "Unmute AI" : "Mute AI"}
+                >
+                    {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                </button>
 
                 <input
                     type="text"

@@ -8,6 +8,24 @@ export const useChat = () => {
     const [isThinking, setIsThinking] = useState(false);
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
+    const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
+
+    // Function to toggle mute
+    const toggleMute = () => {
+        setIsMuted(prev => {
+            const newState = !prev;
+            localStorage.setItem('isMuted', newState);
+
+            // Stop current audio if muting
+            if (newState && lastAudioRef.current) {
+                lastAudioRef.current.pause();
+                if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
+                lastAudioRef.current = null;
+            }
+
+            return newState;
+        });
+    };
 
     // Function to change voice
     const changeVoice = (newVoice) => {
@@ -107,6 +125,11 @@ export const useChat = () => {
 
     // Helper: Play Base64 Audio with Blob/URL
     const playAudio = useCallback((base64Data) => {
+        if (isMuted) {
+            console.log("🔇 Audio is muted, skipping playback.");
+            return;
+        }
+
         try {
             // Stop any existing audio
             if (lastAudioRef.current) {
@@ -237,6 +260,8 @@ export const useChat = () => {
         isThinking,
         setMessages,
         voice,
-        changeVoice
+        changeVoice,
+        isMuted,
+        toggleMute
     };
 };
