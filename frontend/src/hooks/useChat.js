@@ -69,28 +69,7 @@ export const useChat = () => {
                     // Play Audio if present
                     if (data.audio) {
                         console.log("🔊 Received audio data, attempting playback...");
-
-                        // Stop any existing audio
-                        if (lastAudioRef.current) {
-                            lastAudioRef.current.pause();
-                            lastAudioRef.current = null;
-                        }
-
-                        try {
-                            const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
-                            lastAudioRef.current = audio;
-
-                            audio.oncanplaythrough = () => {
-                                console.log("✅ Audio ready to play");
-                                audio.play().catch(e => {
-                                    console.error("❌ Audio playback failed (Interaction needed?):", e);
-                                });
-                            };
-
-                            audio.onerror = (e) => console.error("❌ Audio source error:", e);
-                        } catch (err) {
-                            console.error("❌ Failed to create Audio object:", err);
-                        }
+                        playAudio(data.audio);
                     }
                 } else if (data.type === 'transcription') {
                     // Update the last "user-audio" placeholder or add new
@@ -119,7 +98,46 @@ export const useChat = () => {
 
         return () => {
             socket.close();
+            if (lastAudioRef.current) {
+                lastAudioRef.current.pause();
+                if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
+            }
         };
+    }, []);
+
+    // Helper: Play Base64 Audio with Blob/URL
+    const playAudio = useCallback((base64Data) => {
+        try {
+            // Stop any existing audio
+            if (lastAudioRef.current) {
+                lastAudioRef.current.pause();
+                if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
+                lastAudioRef.current = null;
+            }
+
+            // Convert Base64 to Blob
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+
+            const audio = new Audio(url);
+            lastAudioRef.current = audio;
+
+            audio.onplay = () => console.log("✅ Audio playback started successfully");
+            audio.onerror = (e) => console.error("❌ Audio Error:", e);
+
+            audio.play().catch(err => {
+                console.warn("⚠️ Audio.play() blocked by browser. This usually requires a user click first.");
+                console.error(err);
+            });
+        } catch (err) {
+            console.error("❌ Error in playAudio helper:", err);
+        }
     }, []);
 
     const sendMessage = useCallback(async (text) => {
