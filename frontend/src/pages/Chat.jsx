@@ -16,7 +16,9 @@ const Chat = () => {
         isListening,
         isThinking,
         isMuted,
-        toggleMute
+        toggleMute,
+        unlockAudio,
+        isPlaying
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
@@ -41,6 +43,23 @@ const Chat = () => {
         };
         fetchProfile();
     }, []);
+
+    // Unlock Audio Context on First User Interaction
+    useEffect(() => {
+        const handleUnlock = () => {
+            unlockAudio();
+            window.removeEventListener('touchstart', handleUnlock);
+            window.removeEventListener('click', handleUnlock);
+        };
+
+        window.addEventListener('touchstart', handleUnlock);
+        window.addEventListener('click', handleUnlock);
+
+        return () => {
+            window.removeEventListener('touchstart', handleUnlock);
+            window.removeEventListener('click', handleUnlock);
+        };
+    }, [unlockAudio]);
 
     const handleSend = () => {
         if (!input.trim()) return;
@@ -310,6 +329,13 @@ const Chat = () => {
                 )}
             </div>
 
+            {/* Status Indicator */}
+            {(isThinking || isPlaying) && (
+                <div className="px-4 py-1 text-xs font-medium text-slate-500 animate-pulse">
+                    {isThinking ? "Thinking..." : "Speaking..."}
+                </div>
+            )}
+
             {/* Input Area */}
             <div className="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
                 <button
@@ -328,10 +354,11 @@ const Chat = () => {
 
                 <button
                     onClick={toggleMute}
-                    className={`p-2 transition-colors ${isMuted ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-indigo-600'}`}
+                    className={`p-2 transition-colors relative ${isMuted ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-indigo-600'}`}
                     title={isMuted ? "Unmute AI" : "Mute AI"}
                 >
-                    {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                    {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
+                    {isPlaying && <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full animate-ping" />}
                 </button>
 
                 <input

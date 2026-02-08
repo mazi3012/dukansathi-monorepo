@@ -6,6 +6,7 @@ export const useChat = () => {
     ]);
     const [isListening, setIsListening] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
@@ -39,6 +40,19 @@ export const useChat = () => {
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const lastAudioRef = useRef(null);
+    const audioContextRef = useRef(null); // Ref for AudioContext to manage unlocking
+
+    // Helper: Unlock Audio Context (Fix for Mobile Autoplay)
+    const unlockAudio = useCallback(() => {
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume().then(() => {
+                console.log("🔊 AudioContext Resumed/Unlocked");
+            });
+        }
+    }, []);
 
     useEffect(() => {
         const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000/ws/chat';
@@ -154,12 +168,20 @@ export const useChat = () => {
             const audio = new Audio(url);
             lastAudioRef.current = audio;
 
-            audio.onplay = () => console.log("✅ Audio playback started successfully");
-            audio.onerror = (e) => console.error("❌ Audio Error:", e);
+            audio.onplay = () => {
+                console.log("✅ Audio playback started successfully");
+                setIsPlaying(true);
+            };
+            audio.onended = () => setIsPlaying(false);
+            audio.onerror = (e) => {
+                console.error("❌ Audio Error:", e);
+                setIsPlaying(false);
+            };
 
             audio.play().catch(err => {
                 console.warn("⚠️ Audio.play() blocked by browser. This usually requires a user click first.");
                 console.error(err);
+                setIsPlaying(false);
             });
         } catch (err) {
             console.error("❌ Error in playAudio helper:", err);
@@ -167,6 +189,9 @@ export const useChat = () => {
     }, []);
 
     const sendMessage = useCallback(async (text) => {
+        // Unlock audio context immediately on user action
+        unlockAudio();
+
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         setIsThinking(true);
 
@@ -209,6 +234,9 @@ export const useChat = () => {
 
     // Simplified Audio Recording Logic
     const startRecording = async () => {
+        // Unlock audio context immediately
+        unlockAudio();
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
@@ -265,6 +293,8 @@ export const useChat = () => {
         voice,
         changeVoice,
         isMuted,
-        toggleMute
+        toggleMute,
+        unlockAudio,
+        isPlaying
     };
 };
