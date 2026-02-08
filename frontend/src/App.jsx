@@ -11,6 +11,7 @@ import Profile from './pages/Profile';
 import CustomerDetails from './pages/CustomerDetails';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="customers/:id" element={<CustomerDetails />} />
           <Route path="sales" element={<Sales />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

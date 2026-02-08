@@ -225,6 +225,7 @@ async def chat_websocket(websocket: WebSocket):
             user_token = data.get("access_token", "default_token")
             user_id = data.get("user_id", "")
             voice_id = data.get("voice_id", "hi-IN-MadhurNeural") # Default to Madhur
+            voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
             
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
@@ -324,8 +325,8 @@ async def chat_websocket(websocket: WebSocket):
             try:
                 tts_text = clean_text_for_tts(ai_response_text)
                 if tts_text:
-                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...' with voice: {voice_id}")
-                    audio_response = await speak_text(tts_text, voice=voice_id)
+                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...' with voice: {voice_id}, rate: {voice_rate}")
+                    audio_response = await speak_text(tts_text, voice=voice_id, rate=voice_rate)
                     if audio_response:
                         print(f"✅ TTS Success: {len(audio_response)} bytes")
                     else:

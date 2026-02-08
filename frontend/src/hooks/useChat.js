@@ -9,6 +9,7 @@ export const useChat = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
+    const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
@@ -30,10 +31,14 @@ export const useChat = () => {
         });
     };
 
-    // Function to change voice
-    const changeVoice = (newVoice) => {
+    // Function to change voice (now just updates local state, Settings.jsx handles persistence)
+    const changeVoice = (newVoice, newSpeed) => {
         setVoice(newVoice);
         localStorage.setItem('voice_id', newVoice);
+        if (newSpeed) {
+            setVoiceSpeed(newSpeed);
+            localStorage.setItem('voice_speed', newSpeed);
+        }
     };
 
     // Refs
@@ -84,6 +89,24 @@ export const useChat = () => {
                     setMessages([
                         { type: 'ai', text: 'Namaste! Main Sathi AI hoon. Boliye main aapki kya madad kar sakta hoon?' }
                     ]);
+                }
+
+                // Fetch User Settings (Voice & Speed)
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('voice_id, voice_speed')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profile) {
+                    if (profile.voice_id) {
+                        setVoice(profile.voice_id);
+                        localStorage.setItem('voice_id', profile.voice_id);
+                    }
+                    if (profile.voice_speed) {
+                        setVoiceSpeed(profile.voice_speed);
+                        localStorage.setItem('voice_speed', profile.voice_speed);
+                    }
                 }
             }
         };
@@ -239,10 +262,11 @@ export const useChat = () => {
             content: text,
             user_id: userId,
             access_token: session?.access_token, // Sending token too just in case
-            voice_id: voice
+            voice_id: voice,
+            voice_rate: voiceSpeed
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
-    }, [ws, voice]);
+    }, [ws, voice, voiceSpeed]);
 
     const sendImage = useCallback(async (file) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -293,7 +317,8 @@ export const useChat = () => {
                                 content: base64,
                                 user_id: userId,
                                 access_token: session?.access_token,
-                                voice_id: voice
+                                voice_id: voice,
+                                voice_rate: voiceSpeed
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
