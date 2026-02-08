@@ -25,6 +25,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from PIL import Image
 
+from pydantic import BaseModel
+
+from supabase import create_client, Client
+
 # Configure logging immediately
 logging.basicConfig(
     level=logging.INFO,
@@ -40,12 +44,24 @@ logger = logging.getLogger(__name__)
 def print(*args, **kwargs):
     logger.info(" ".join(map(str, args)))
 
-# Add the ai-bot package to path so we can import it
+# Add the ai-bot package AND backend directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai-bot'))
+sys.path.insert(0, os.path.dirname(__file__))
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+# Initialize Supabase Client
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_SERVICE_KEY")
+supabase: Client = None
+if url and key:
+    supabase = create_client(url, key)
+else:
+    logger.warning("Supabase credentials missing. Cleanup tasks may fail.")
 
 try:
     from voice_service import transcribe_audio, speak_text
-    from dukansathi_ai.agent_graph import process_user_input, perform_history_cleanup
     from dukansathi_ai.agent_graph import process_user_input, perform_history_cleanup
 except Exception as e:
     logger.error(f"Failed to import AI modules: {e}")
@@ -55,9 +71,6 @@ except Exception as e:
     async def process_user_input(*args): return "AI Module Load Failed"
     async def transcribe_audio(*args): return "STT Module Load Failed"
     async def speak_text(*args): return None
-
-# Load environment variables
-load_dotenv()
 
 # Load environment variables
 load_dotenv()

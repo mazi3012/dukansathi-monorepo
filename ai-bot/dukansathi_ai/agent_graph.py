@@ -428,8 +428,8 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
     
     try:
         # Use Flash for SQL gen as it's faster
-    llm = get_llm("gemini-2.0-flash-001")
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
+        llm = get_llm("gemini-2.0-flash-001")
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
         json_str = response.content.replace("```json", "").replace("```", "").strip()
         return json_str
     except Exception as e:
