@@ -11,7 +11,7 @@ async def test_websocket():
             
             message = {
                 "type": "text",
-                "content": "Hello Moltbot",
+                "content": "Add customer Suresh phone 9999999999",
                 "access_token": "test_token_12345"
             }
             

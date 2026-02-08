@@ -25,6 +25,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from PIL import Image
 
+# Load environment variables FIRST
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 from pydantic import BaseModel
 
 from supabase import create_client, Client
@@ -48,8 +51,7 @@ def print(*args, **kwargs):
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai-bot'))
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Load environment variables
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 
 # Initialize Supabase Client
 url: str = os.environ.get("SUPABASE_URL")
@@ -72,8 +74,7 @@ except Exception as e:
     async def transcribe_audio(*args): return "STT Module Load Failed"
     async def speak_text(*args): return None
 
-# Load environment variables
-load_dotenv()
+
 
 # Create FastAPI app
 app = FastAPI(

@@ -28,6 +28,13 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 import asyncio
 from functools import lru_cache
+import re
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 load_dotenv()
 
@@ -148,6 +155,19 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
         # Load service account credentials
         creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
         
+        # Try to find credentials if default path doesn't exist
+        if not os.path.exists(creds_path):
+             # Check backend folder relative to CWD or script
+             potential_paths = [
+                 "backend/service_account.json", 
+                 "../backend/service_account.json",
+                 os.path.join(os.path.dirname(__file__), "../../backend/service_account.json")
+             ]
+             for path in potential_paths:
+                 if os.path.exists(path):
+                     creds_path = path
+                     break
+
         if not os.path.exists(creds_path):
             creds = None
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -430,7 +450,16 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
         # Use Flash for SQL gen as it's faster
         llm = get_llm("gemini-2.0-flash-001")
         response = await llm.ainvoke([HumanMessage(content=prompt)])
-        json_str = response.content.replace("```json", "").replace("```", "").strip()
+        
+        # Robust JSON extraction using regex
+        content = response.content
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            json_str = match.group(0)
+            return json_str
+            
+        # Fallback: simple cleanup if regex fails (unlikely if JSON is present)
+        json_str = content.replace("```json", "").replace("```", "").strip()
         return json_str
     except Exception as e:
         print(f"ERROR extracting params: {e}")
@@ -795,7 +824,6 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
         "language": "hi-EN",  # Hinglish by default
         "user_token": user_token,
         "model": model
-        "user_token": user_token
     }
     
     try:
@@ -817,9 +845,7 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
         return ai_response
         
     except Exception as e:
-        print(f"CRITICAL ERROR in process_user_input: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"CRITICAL ERROR in process_user_input: {e}", exc_info=True)
         return "Sorry Boss, my brain is offline."
 
 
