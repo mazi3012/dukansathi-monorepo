@@ -98,17 +98,45 @@ const Settings = () => {
         saveSettings(selectedVoice, voiceSpeed);
     };
 
-    // Preview Voice Function
-    const previewVoice = () => {
+    // Preview Voice Function (Server-Side)
+    const previewVoice = async () => {
         const text = selectedVoice.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
-        const utterance = new SpeechSynthesisUtterance(text);
-        // Attempt to match native voice fallback if available, mostly for immediate feedback
-        const voices = window.speechSynthesis.getVoices();
-        const nativeVoice = voices.find(v => v.lang.includes(selectedVoice.split('-')[1])); // rough match
-        if (nativeVoice) utterance.voice = nativeVoice;
-        utterance.rate = 1.0 + (voiceSpeed / 100);
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
+
+        try {
+            // Visual feedback
+            const btn = document.getElementById('preview-btn');
+            if (btn) btn.disabled = true;
+
+            // 1. Fetch Audio Blob (Base64)
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/tts-preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: text,
+                    voice_id: selectedVoice,
+                    rate: (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%'
+                })
+            });
+
+            if (!response.ok) throw new Error("Preview failed");
+
+            const data = await response.json();
+
+            // 2. Play Audio
+            const audio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
+            audio.onended = () => { if (btn) btn.disabled = false; };
+            await audio.play();
+
+        } catch (error) {
+            console.error("Preview Error:", error);
+            // Fallback to native if server fails
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0 + (voiceSpeed / 100);
+            window.speechSynthesis.speak(utterance);
+
+            const btn = document.getElementById('preview-btn');
+            if (btn) btn.disabled = false;
+        }
     };
 
     if (loading) {
@@ -199,10 +227,11 @@ const Settings = () => {
 
                     {/* Preview Button */}
                     <button
+                        id="preview-btn"
                         onClick={previewVoice}
-                        className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"
+                        className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <Play size={16} fill="currentColor" /> Test Voice (Browser Preview)
+                        <Play size={16} fill="currentColor" /> Test Voice (Server Preview)
                     </button>
 
                 </div>

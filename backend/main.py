@@ -204,6 +204,28 @@ async def upload_to_storage(bucket: str, file_path: str, file_bytes: bytes, mime
         raise e
 
 # WebSocket endpoint for AI chat
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: str
+    rate: str = "+0%"
+
+@app.post("/api/tts-preview")
+async def tts_preview(request: TTSRequest):
+    """
+    Generate a one-off TTS preview for the settings page.
+    """
+    try:
+        # Use existing service
+        base64_audio = await speak_text(request.text, request.voice_id, request.rate)
+        if not base64_audio:
+            raise HTTPException(status_code=500, detail="Failed to generate audio")
+            
+        return {"audio_base64": base64_audio}
+    except Exception as e:
+        print(f"Preview Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.websocket("/ws/chat")
 async def chat_websocket(websocket: WebSocket):
     """
