@@ -100,10 +100,13 @@ export const useChat = () => {
                     setIsThinking(false);
                     setMessages(prev => [...prev, { type: 'ai', text: data.content }]);
 
-                    // Play Audio if present
+                    // Play Audio if present, else fallback to Native TTS
                     if (data.audio) {
                         console.log("🔊 Received audio data, attempting playback...");
                         playAudio(data.audio);
+                    } else {
+                        console.log("⚠️ No server audio, falling back to Native TTS");
+                        speakNative(data.content);
                     }
                 } else if (data.type === 'transcription') {
                     // Update the last "user-audio" placeholder or add new
@@ -139,6 +142,38 @@ export const useChat = () => {
         };
     }, []);
 
+    // Helper: Browser Native TTS Fallback
+    const speakNative = useCallback((text) => {
+        if (isMutedRef.current || !text) return;
+
+        // Cancel any current speaking
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Try to find a Hindi or Indian English voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.includes('hi-IN') || v.lang.includes('en-IN')) || voices[0];
+
+        if (preferredVoice) utterance.voice = preferredVoice;
+
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        utterance.onstart = () => setIsPlaying(true);
+        utterance.onend = () => setIsPlaying(false);
+        utterance.onerror = (e) => {
+            console.error("Native TTS Error:", e);
+            setIsPlaying(false);
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }, []);
+
+    useEffect(() => {
+        // Pre-load voices
+        window.speechSynthesis.getVoices();
+    }, []);
     // Helper: Play Base64 Audio with Blob/URL
     const playAudio = useCallback((base64Data) => {
         // Use Ref value to avoid stale closure trap
