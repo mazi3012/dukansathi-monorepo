@@ -10,8 +10,28 @@ export const useChat = () => {
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
+    const [model, setModel] = useState(localStorage.getItem('model_id') || 'gemini-2.0-flash-001');
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
+
+    // Listen for settings changes from Settings.jsx
+    useEffect(() => {
+        const handleSettingsChange = () => {
+            console.log("🔄 Detecting Settings Change...");
+            setVoice(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
+            setVoiceSpeed(localStorage.getItem('voice_speed') || '+0%');
+            setModel(localStorage.getItem('model_id') || 'gemini-2.0-flash-001');
+        };
+
+        window.addEventListener('settings-changed', handleSettingsChange);
+        // Also listen to storage events (cross-tab)
+        window.addEventListener('storage', handleSettingsChange);
+
+        return () => {
+            window.removeEventListener('settings-changed', handleSettingsChange);
+            window.removeEventListener('storage', handleSettingsChange);
+        };
+    }, []);
 
     // Function to toggle mute
     const toggleMute = () => {
@@ -261,7 +281,8 @@ export const useChat = () => {
             user_id: userId,
             access_token: session?.access_token, // Sending token too just in case
             voice_id: voice,
-            voice_rate: voiceSpeed
+            voice_rate: voiceSpeed,
+            model: model
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
     }, [ws, voice, voiceSpeed]);
@@ -316,7 +337,8 @@ export const useChat = () => {
                                 user_id: userId,
                                 access_token: session?.access_token,
                                 voice_id: voice,
-                                voice_rate: voiceSpeed
+                                voice_rate: voiceSpeed,
+                                model: model
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);

@@ -1,44 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const VOICE_OPTIONS = [
-    // Hindi Voices
-    { id: 'hi-IN-MadhurNeural', label: 'Hindi - Male (Madhur)', lang: 'Hindi', gender: 'Male' },
-    { id: 'hi-IN-SwaraNeural', label: 'Hindi - Female (Swara)', lang: 'Hindi', gender: 'Female' },
+    {
+        language: 'Hindi (India)',
+        voices: [
+            { id: 'hi-IN-MadhurNeural', label: 'Madhur (Male)', gender: 'Male' },
+            { id: 'hi-IN-SwaraNeural', label: 'Swara (Female)', gender: 'Female' }
+        ]
+    },
+    {
+        language: 'English (India)',
+        voices: [
+            { id: 'en-IN-PrabhatNeural', label: 'Prabhat (Male)', gender: 'Male' },
+            { id: 'en-IN-NeerjaNeural', label: 'Neerja (Female)', gender: 'Female' }
+        ]
+    }
+];
 
-    // Indian English Voices
-    { id: 'en-IN-PrabhatNeural', label: 'English (India) - Male (Prabhat)', lang: 'English', gender: 'Male' },
-    { id: 'en-IN-NeerjaNeural', label: 'English (India) - Female (Neerja)', lang: 'English', gender: 'Female' }
+const MODEL_OPTIONS = [
+    { id: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (Fastest)', description: 'Best for quick chats and simple actions.' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Smarter)', description: 'Better reasoning for complex business queries.' }
 ];
 
 const Settings = () => {
     const [selectedVoice, setSelectedVoice] = useState('hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0); // 0 means +0%, range -50 to +50
+    const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-001');
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [user, setUser] = useState(null);
+    const [playingVoice, setPlayingVoice] = useState(null); // ID of currently playing preview
 
-    // Load Settings from Supabase
+    // Load Settings
     useEffect(() => {
         const loadSettings = async () => {
             try {
+                // 1. Load from LocalStorage (Fast)
+                const localVoice = localStorage.getItem('voice_id');
+                const localSpeed = localStorage.getItem('voice_speed');
+                const localModel = localStorage.getItem('model_id');
+
+                if (localVoice) setSelectedVoice(localVoice);
+                if (localModel) setSelectedModel(localModel);
+                if (localSpeed) {
+                    const speed = parseInt(localSpeed.replace('%', ''));
+                    if (!isNaN(speed)) setVoiceSpeed(speed);
+                }
+
+                // 2. Load from Supabase (Sync)
                 const { data: { session } } = await supabase.auth.getSession();
-                if (!session) return;
+                if (!session) {
+                    setLoading(false);
+                    return;
+                }
                 setUser(session.user);
 
                 const { data, error } = await supabase
                     .from('profiles')
-                    .select('voice_id, voice_speed')
+                    .select('voice_id, voice_speed, model_id')
                     .eq('id', session.user.id)
                     .single();
 
                 if (data) {
-                    if (data.voice_id) setSelectedVoice(data.voice_id);
-                    // Parse speed string "+10%" -> 10
+                    if (data.voice_id) {
+                        setSelectedVoice(data.voice_id);
+                        localStorage.setItem('voice_id', data.voice_id);
+                    }
+                    if (data.model_id) {
+                        setSelectedModel(data.model_id);
+                        localStorage.setItem('model_id', data.model_id);
+                    }
                     if (data.voice_speed) {
                         const speed = parseInt(data.voice_speed.replace('%', ''));
-                        if (!isNaN(speed)) setVoiceSpeed(speed);
+                        if (!isNaN(speed)) {
+                            setVoiceSpeed(speed);
+                            localStorage.setItem('voice_speed', data.voice_speed);
+                        }
                     }
                 }
             } catch (err) {
@@ -51,72 +91,69 @@ const Settings = () => {
         loadSettings();
     }, []);
 
-
     const [hasChanges, setHasChanges] = useState(false);
+
+    const markChange = () => setHasChanges(true);
 
     const saveSettings = async () => {
         setSaving(true);
         try {
             const speedStr = (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%';
 
-            // Local updates
+            // 1. Local Persistence
             localStorage.setItem('voice_id', selectedVoice);
             localStorage.setItem('voice_speed', speedStr);
+            localStorage.setItem('model_id', selectedModel);
 
-            // Persist to Supabase
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    voice_id: selectedVoice,
-                    voice_speed: speedStr,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', user.id);
+            // 2. Dispatch Event for useChat.js
+            window.dispatchEvent(new Event('settings-changed'));
+            window.dispatchEvent(new Event('storage')); // Fallback for some listeners
 
-            if (error) throw error;
+            // 3. Cloud Persistence
+            if (user) {
+                // Upsert logic handles both insert/update
+                const { error } = await supabase
+                    .from('profiles')
+                    .upsert({
+                        id: user.id,
+                        voice_id: selectedVoice,
+                        voice_speed: speedStr,
+                        model_id: selectedModel, // Requires migration
+                        updated_at: new Date().toISOString()
+                    });
+
+                if (error) {
+                    console.warn("Cloud save warning (column might be missing):", error.message);
+                    // Don't throw if just column missing, local save is enough for now
+                }
+            }
+
             setHasChanges(false);
-            alert("Settings saved successfully!");
+            // alert("Settings saved!"); 
+            // Better UX: Show button state
 
         } catch (err) {
             console.error("Error saving settings:", err);
-            alert("Failed to save settings");
+            alert("Failed to save settings to cloud (Local save worked)");
         } finally {
             setSaving(false);
         }
     };
 
-    // Handler for Voice Selection
-    const handleVoiceChange = (voiceId) => {
-        setSelectedVoice(voiceId);
-        setHasChanges(true);
-    };
+    // Preview Voice
+    const previewVoice = async (voiceId) => {
+        if (playingVoice) return; // Prevent multiple clicks
+        setPlayingVoice(voiceId);
 
-    // Handler for Speed Slider
-    const handleSpeedChange = (e) => {
-        const newSpeed = parseInt(e.target.value);
-        setVoiceSpeed(newSpeed);
-        setHasChanges(true);
-    };
-
-    // No auto-save on commit
-    const handleSpeedCommit = () => { };
-
-    // Preview Voice Function (Server-Side)
-    const previewVoice = async () => {
-        const text = selectedVoice.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
+        const text = voiceId.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
 
         try {
-            // Visual feedback
-            const btn = document.getElementById('preview-btn');
-            if (btn) btn.disabled = true;
-
-            // 1. Fetch Audio Blob (Base64)
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/tts-preview`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text: text,
-                    voice_id: selectedVoice,
+                    voice_id: voiceId,
                     rate: (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%'
                 })
             });
@@ -124,21 +161,19 @@ const Settings = () => {
             if (!response.ok) throw new Error("Preview failed");
 
             const data = await response.json();
-
-            // 2. Play Audio
             const audio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
-            audio.onended = () => { if (btn) btn.disabled = false; };
+
+            audio.onended = () => setPlayingVoice(null);
+            audio.onerror = () => setPlayingVoice(null);
             await audio.play();
 
         } catch (error) {
             console.error("Preview Error:", error);
-            // Fallback to native if server fails
+            setPlayingVoice(null);
+            // Fallback
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0 + (voiceSpeed / 100);
+            utterance.rate = 1.0;
             window.speechSynthesis.speak(utterance);
-
-            const btn = document.getElementById('preview-btn');
-            if (btn) btn.disabled = false;
         }
     };
 
@@ -151,98 +186,156 @@ const Settings = () => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
+        <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
             {/* Header */}
-            <div className="bg-white p-4 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                    <User size={20} />
+            <div className="bg-white p-4 border-b border-slate-100 flex items-center justify-between shadow-sm z-10">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                        <User size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-800">Settings</h1>
+                        <p className="text-xs text-slate-500">Preferences & Configuration</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-xl font-bold text-slate-800">Settings</h1>
-                    <p className="text-xs text-slate-500">Manage your preferences</p>
-                </div>
+
+                {/* Save Button (Always Visible) */}
+                <button
+                    onClick={saveSettings}
+                    disabled={saving || !hasChanges}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all ${hasChanges
+                            ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                >
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                    {saving ? 'Saving...' : 'Save Changes'}
+                </button>
             </div>
 
-            <div className="p-4 space-y-6 overflow-y-auto pb-20">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24">
 
-                {/* Voice Settings Section */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <Volume2 className="text-indigo-600" size={20} />
-                            <h2 className="font-semibold text-slate-700">AI Voice</h2>
-                        </div>
-                        {saving && <span className="text-xs text-emerald-600 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Saving...</span>}
+                {/* 1. AI Model Selection */}
+                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Brain className="text-indigo-600" size={20} />
+                        <h2 className="font-semibold text-slate-800">AI Model</h2>
                     </div>
 
-                    <p className="text-sm text-slate-500 mb-6">
-                        Choose the voice and speed for Sathi AI.
-                    </p>
-
-                    {/* Voice Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                        {VOICE_OPTIONS.map((voice) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {MODEL_OPTIONS.map((opt) => (
                             <button
-                                key={voice.id}
-                                onClick={() => handleVoiceChange(voice.id)}
-                                className={`relative flex items-center p-3 rounded-xl border transition-all text-left ${selectedVoice === voice.id
-                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                key={opt.id}
+                                onClick={() => { setSelectedModel(opt.id); markChange(); }}
+                                className={`relative p-4 rounded-xl border text-left transition-all ${selectedModel === opt.id
+                                        ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                        : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
                                     }`}
                             >
-                                <div className={`w-3 h-3 rounded-full mr-3 ${selectedVoice === voice.id ? 'bg-indigo-600' : 'bg-slate-300'}`} />
-                                <div>
-                                    <div className={`font-medium text-sm ${selectedVoice === voice.id ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                        {voice.label}
+                                <div className="font-semibold text-slate-800 mb-1">{opt.label}</div>
+                                <div className="text-xs text-slate-500 leading-relaxed">{opt.description}</div>
+                                {selectedModel === opt.id &&
+                                    <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
+                                        <Check size={12} className="text-white" />
                                     </div>
-                                    <div className="text-xs opacity-60 text-slate-500">{voice.lang} • {voice.gender}</div>
-                                </div>
-                                {selectedVoice === voice.id && <Check size={16} className="absolute top-3 right-3 text-indigo-600" />}
+                                }
                             </button>
                         ))}
                     </div>
+                </section>
 
-                    {/* Speed Control */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="text-sm font-medium text-slate-700">Voice Speed</label>
-                            <span className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
-                                {voiceSpeed > 0 ? '+' : ''}{voiceSpeed}%
-                            </span>
+                {/* 2. Voice Selection */}
+                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Volume2 className="text-indigo-600" size={20} />
+                        <h2 className="font-semibold text-slate-800">Voice</h2>
+                    </div>
+
+                    <div className="space-y-6">
+                        {VOICE_OPTIONS.map((group) => (
+                            <div key={group.language}>
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">{group.language}</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {group.voices.map((voice) => (
+                                        <div
+                                            key={voice.id}
+                                            className={`relative flex items-center p-3 rounded-xl border transition-all ${selectedVoice === voice.id
+                                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {/* Selection Click Area */}
+                                            <div
+                                                className="flex-1 flex items-center cursor-pointer"
+                                                onClick={() => { setSelectedVoice(voice.id); markChange(); }}
+                                            >
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${selectedVoice === voice.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    <User size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className={`font-medium text-sm ${selectedVoice === voice.id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                        {voice.label}
+                                                    </div>
+                                                    <div className="text-xs opacity-60 text-slate-500">{voice.gender}</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Preview Button */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); previewVoice(voice.id); }}
+                                                disabled={playingVoice !== null}
+                                                className={`p-2 rounded-full hover:bg-white hover:shadow-sm transition-all ml-2 ${playingVoice === voice.id ? 'text-emerald-500 animate-pulse' : 'text-slate-400'}`}
+                                            >
+                                                {playingVoice === voice.id ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
+                                            </button>
+
+                                            {selectedVoice === voice.id &&
+                                                <div className="absolute top-2 right-2">
+                                                    {/* Checkmark indicator usually here but design is clean without it too */}
+                                                </div>
+                                            }
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* 3. Speed Control */}
+                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-2">
+                            <Gauge className="text-indigo-600" size={20} />
+                            <h2 className="font-semibold text-slate-800">Speaking Speed</h2>
                         </div>
+                        <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                            {voiceSpeed > 0 ? '+' : ''}{voiceSpeed}%
+                        </span>
+                    </div>
+
+                    <div className="px-2">
                         <input
                             type="range"
                             min="-50"
                             max="50"
                             step="5"
                             value={voiceSpeed}
-                            onChange={handleSpeedChange}
-                            onMouseUp={handleSpeedCommit}
-                            onTouchEnd={handleSpeedCommit}
+                            onChange={(e) => { setVoiceSpeed(parseInt(e.target.value)); markChange(); }}
                             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                         />
-                        <div className="flex justify-between text-xs text-slate-400 mt-1">
-                            <span>Slower</span>
-                            <span>Normal</span>
-                            <span>Faster</span>
+                        <div className="flex justify-between text-xs text-slate-400 mt-2 font-medium">
+                            <span>Slower (-50%)</span>
+                            <span>Normal (0%)</span>
+                            <span>Faster (+50%)</span>
                         </div>
                     </div>
+                </section>
 
-                    {/* Preview Button */}
-                    <button
-                        id="preview-btn"
-                        onClick={previewVoice}
-                        className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Play size={16} fill="currentColor" /> Test Voice (Server Preview)
-                    </button>
-
-                </div>
-
-                {/* More settings placeholders */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 opacity-60">
-                    <h2 className="font-semibold text-slate-700 mb-2">Notification Settings</h2>
-                    <p className="text-xs text-slate-400">Coming Soon...</p>
+                {/* Info Footer */}
+                <div className="text-center text-xs text-slate-400 py-6">
+                    <p>Dukan Sathi v1.0 • Powered by Moltbot AI</p>
+                    <p>Voice generated by Microsoft Edge Neural TTS</p>
                 </div>
             </div>
         </div>

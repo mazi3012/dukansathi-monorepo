@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import asyncio
+from functools import lru_cache
 
 load_dotenv()
 
@@ -133,58 +134,42 @@ class AgentState(TypedDict):
     language: str
     user_token: str
     category: str
+    model: str
 
-# Initialize Gemini LLM
-def init_gemini_llm():
+from functools import lru_cache
+
+@lru_cache(maxsize=4)
+def get_llm(model_name: str = "gemini-2.0-flash-001"):
     """
-    Initialize Gemini 2.0 Flash via Vertex AI
-    
-    Why explicit credentials:
-    - More reliable than env var alone
-    - Easier to debug auth issues
-    - Works in Docker containers
-    
-    Returns:
-        ChatVertexAI instance ready for use
+    Get or create a cached Gemini LLM instance.
+    Attributes are cached so we don't re-auth on every token.
     """
     try:
         # Load service account credentials
         creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
         
         if not os.path.exists(creds_path):
-            print(f"WARNING: {creds_path} not found. Using environment auth.")
             creds = None
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
         else:
             creds = service_account.Credentials.from_service_account_file(creds_path)
             project_id = creds.project_id
-            print(f"INFO: Loaded credentials for Project: {project_id}")
         
         # Create Gemini client
-        llm = ChatVertexAI(
-            model_name="gemini-2.0-flash-001",
+        return ChatVertexAI(
+            model_name=model_name,
             project=project_id,
             location="us-central1",
             credentials=creds,
-            temperature=0.7  # Balance between creativity and consistency
+            temperature=0.7 
         )
-        
-        return llm
-        
     except Exception as e:
-        print(f"ERROR initializing Gemini: {e}")
-        raise
+        print(f"ERROR initializing Gemini ({model_name}): {e}")
+        # Return a fallback or re-raise
+        raise e
 
-# Initialize Supabase Client (Service Role for backend operations)
-# We use this to execute the SQL RPC
-from supabase import create_client, Client
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
-
-# Initialize Gemini LLM globally
-llm = init_gemini_llm()
+# No global llm anymore
+# llm = init_gemini_llm()
 
 
 async def generate_sql_query(user_query: str, user_id: str, history_context: str = "") -> str:
@@ -216,6 +201,8 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     SQL: SELECT p.name, si.quantity, si.total_price FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE p.name ILIKE '%rice%' AND s.user_id = '{user_id}'
     """
     
+    # Use Flash for SQL gen as it's faster
+    llm = get_llm("gemini-2.0-flash-001")
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     sql = response.content.replace("```sql", "").replace("```", "").strip()
     # Remove trailing semicolon if present, as it can cause RPC errors
@@ -440,7 +427,9 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
     """
     
     try:
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        # Use Flash for SQL gen as it's faster
+    llm = get_llm("gemini-2.0-flash-001")
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
         json_str = response.content.replace("```json", "").replace("```", "").strip()
         return json_str
     except Exception as e:
@@ -615,6 +604,8 @@ async def action_node(state: AgentState):
     $$ACTION_JSON$$ {{...}} $$END_JSON$$
     """
     
+    # Use Flash for SQL gen as it's faster
+    llm = get_llm("gemini-2.0-flash-001")
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     
     # Save to history
@@ -699,6 +690,9 @@ async def chat_node(state: AgentState):
         IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
         """
 
+    # Use the selected model from state, or default to Flash
+    selected_model = state.get("model", "gemini-2.0-flash-001")
+    llm = get_llm(selected_model)
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     
     # Save to history
@@ -758,7 +752,7 @@ app = workflow.compile()
 # Memory store for conversation history (keyed by user session)
 MEMORY_STORE = {}
 
-async def process_user_input(text: str, user_token: str) -> str:
+async def process_user_input(text: str, user_token: str, model: str = "gemini-2.0-flash-001") -> str:
     """
     Main entry point for Sathi AI - processes user input and returns response
     
@@ -771,6 +765,7 @@ async def process_user_input(text: str, user_token: str) -> str:
     Args:
         text: User's message (Hindi/English)
         user_token: Supabase auth token
+        model: AI Model ID to use
         
     Returns:
         AI response text (may include draft JSON)
@@ -798,6 +793,8 @@ async def process_user_input(text: str, user_token: str) -> str:
     inputs = {
         "messages": memory,
         "language": "hi-EN",  # Hinglish by default
+        "user_token": user_token,
+        "model": model
         "user_token": user_token
     }
     

@@ -248,6 +248,7 @@ async def chat_websocket(websocket: WebSocket):
             user_id = data.get("user_id", "")
             voice_id = data.get("voice_id", "hi-IN-MadhurNeural") # Default to Madhur
             voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
+            model_id = data.get("model", "gemini-2.0-flash-001")
             
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
@@ -259,7 +260,7 @@ async def chat_websocket(websocket: WebSocket):
             if safe_user_id == "anon" and user_token and len(user_token) >= 10:
                 safe_user_id = user_token[-10:]
             
-            print(f"✅ WS Received: Type={message_type}, Length={len(content)}")
+            print(f"✅ WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
 
             user_text = ""
             
@@ -332,7 +333,7 @@ async def chat_websocket(websocket: WebSocket):
             
             # 4. Process with Moltbot AI
             try:
-                ai_response_text = await process_user_input(user_text, user_token)
+                ai_response_text = await process_user_input(user_text, user_token, model=model_id)
                 print(f"✨ AI Response: {ai_response_text[:50]}...")
             except Exception as e:
                 print(f"❌ AI Processing Error: {e}")
