@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import Inventory from './pages/Inventory';
 import Customers from './pages/Customers';
 import Sales from './pages/Sales';
-import Profile from './pages/Profile';
 import CustomerDetails from './pages/CustomerDetails';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
@@ -28,7 +27,6 @@ function App() {
           <Route path="customers" element={<Customers />} />
           <Route path="customers/:id" element={<CustomerDetails />} />
           <Route path="sales" element={<Sales />} />
-          <Route path="profile" element={<Profile />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         {/* Fallback */}
