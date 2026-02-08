@@ -31,13 +31,11 @@ export const useChat = () => {
         });
     };
 
-    // Function to change voice (now just updates local state, Settings.jsx handles persistence)
+    // Function to change voice (updates local state temporarily, Settings.jsx handles persistence)
     const changeVoice = (newVoice, newSpeed) => {
         setVoice(newVoice);
-        localStorage.setItem('voice_id', newVoice);
         if (newSpeed) {
             setVoiceSpeed(newSpeed);
-            localStorage.setItem('voice_speed', newSpeed);
         }
     };
 

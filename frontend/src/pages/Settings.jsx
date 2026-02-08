@@ -51,29 +51,31 @@ const Settings = () => {
         loadSettings();
     }, []);
 
-    const saveSettings = async (voiceId, speed) => {
+
+    const [hasChanges, setHasChanges] = useState(false);
+
+    const saveSettings = async () => {
         setSaving(true);
         try {
-            // Update Local State & Storage immediately for responsiveness
-            setSelectedVoice(voiceId);
-            setVoiceSpeed(speed);
+            const speedStr = (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%';
 
-            const speedStr = (speed >= 0 ? '+' : '') + speed + '%';
-
-            localStorage.setItem('voice_id', voiceId);
+            // Local updates
+            localStorage.setItem('voice_id', selectedVoice);
             localStorage.setItem('voice_speed', speedStr);
 
             // Persist to Supabase
             const { error } = await supabase
                 .from('profiles')
                 .update({
-                    voice_id: voiceId,
+                    voice_id: selectedVoice,
                     voice_speed: speedStr,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', user.id);
 
             if (error) throw error;
+            setHasChanges(false);
+            alert("Settings saved successfully!");
 
         } catch (err) {
             console.error("Error saving settings:", err);
@@ -85,18 +87,19 @@ const Settings = () => {
 
     // Handler for Voice Selection
     const handleVoiceChange = (voiceId) => {
-        saveSettings(voiceId, voiceSpeed);
+        setSelectedVoice(voiceId);
+        setHasChanges(true);
     };
 
-    // Handler for Speed Slider (Debounced persistence would be better, but simple save on change for now)
+    // Handler for Speed Slider
     const handleSpeedChange = (e) => {
         const newSpeed = parseInt(e.target.value);
         setVoiceSpeed(newSpeed);
+        setHasChanges(true);
     };
 
-    const handleSpeedCommit = () => {
-        saveSettings(selectedVoice, voiceSpeed);
-    };
+    // No auto-save on commit
+    const handleSpeedCommit = () => { };
 
     // Preview Voice Function (Server-Side)
     const previewVoice = async () => {
