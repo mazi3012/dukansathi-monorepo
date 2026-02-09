@@ -129,7 +129,7 @@ const Settings = () => {
             }
 
             setHasChanges(false);
-            // alert("Settings saved!"); 
+            alert("Settings saved successfully!");
             // Better UX: Show button state
 
         } catch (err) {

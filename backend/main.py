@@ -278,6 +278,7 @@ async def chat_websocket(websocket: WebSocket):
                 safe_user_id = user_token[-10:]
             
             print(f"✅ WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
+            print(f"🎤 Voice Params: ID={voice_id}, Rate={voice_rate}") # DEBUG LOG
 
             # 1. Handle Voice Input (STT)
             if message_type == "voice" and content:

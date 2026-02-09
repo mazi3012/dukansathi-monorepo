@@ -80,18 +80,15 @@ const VoiceAssist = () => {
                 reader.onloadend = () => {
                     const base64Audio = reader.result.split(',')[1];
                     if (ws && ws.readyState === WebSocket.OPEN) {
-                        reader.onloadend = () => {
-                            const base64Audio = reader.result.split(',')[1];
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                const settings = getSettings();
-                                ws.send(JSON.stringify({
-                                    type: 'voice',
-                                    content: base64Audio,
-                                    ...settings
-                                }));
-                                setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 Processing...' }]);
-                            }
+                        const settings = getSettings();
+                        const payload = {
+                            type: 'voice',
+                            content: base64Audio,
+                            ...settings
                         };
+                        console.log("📤 Sending Voice Payload:", { ...payload, content: "(base64 hidden)" }); // DEBUG LOG
+                        ws.send(JSON.stringify(payload));
+                        setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 Processing...' }]);
                     }
                 };
             };
@@ -113,9 +110,11 @@ const VoiceAssist = () => {
 
     // Load settings from localStorage
     const getSettings = () => {
+        const speed = localStorage.getItem('voice_speed') || '+0%';
+        // Backend expects 'voice_rate', frontend/localstorage uses 'voice_speed'
         return {
             voice_id: localStorage.getItem('voice_id') || 'en-IN-PrabhatNeural',
-            voice_speed: localStorage.getItem('voice_speed') || '+0%',
+            voice_rate: speed,
             model: localStorage.getItem('model_id') || 'gemini-2.0-flash-001'
         };
     };
@@ -124,11 +123,13 @@ const VoiceAssist = () => {
         if (!textInput.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
 
         const settings = getSettings();
-        ws.send(JSON.stringify({
+        const payload = {
             type: 'text',
             content: textInput,
             ...settings
-        }));
+        };
+        console.log("📤 Sending Text Payload:", payload); // DEBUG LOG
+        ws.send(JSON.stringify(payload));
 
         setMessages(prev => [...prev, { type: 'user', text: textInput }]);
         setTextInput('');
