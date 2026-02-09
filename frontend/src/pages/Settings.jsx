@@ -25,7 +25,7 @@ const MODEL_OPTIONS = [
 ];
 
 const Settings = () => {
-    const [selectedVoice, setSelectedVoice] = useState('hi-IN-MadhurNeural');
+    const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0); // 0 means +0%, range -50 to +50
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-001');
 
@@ -204,8 +204,8 @@ const Settings = () => {
                     onClick={saveSettings}
                     disabled={saving || !hasChanges}
                     className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all ${hasChanges
-                            ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5'
-                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         }`}
                 >
                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
@@ -228,8 +228,8 @@ const Settings = () => {
                                 key={opt.id}
                                 onClick={() => { setSelectedModel(opt.id); markChange(); }}
                                 className={`relative p-4 rounded-xl border text-left transition-all ${selectedModel === opt.id
-                                        ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                        : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
                                     }`}
                             >
                                 <div className="font-semibold text-slate-800 mb-1">{opt.label}</div>
@@ -260,8 +260,8 @@ const Settings = () => {
                                         <div
                                             key={voice.id}
                                             className={`relative flex items-center p-3 rounded-xl border transition-all ${selectedVoice === voice.id
-                                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                                ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                                : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
                                                 }`}
                                         >
                                             {/* Selection Click Area */}

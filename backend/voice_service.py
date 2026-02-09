@@ -66,7 +66,7 @@ async def transcribe_audio(audio_data: bytes) -> str:
 
 async def speak_text(
     text: str,
-    voice: str = "hi-IN-MadhurNeural",
+    voice: str = "en-IN-PrabhatNeural",
     rate: str = "+0%"
 ) -> str:
     """

@@ -184,14 +184,17 @@ def clean_text_for_tts(text: str) -> str:
     if not text:
         return ""
     
-    # 1. Remove $$ACTION_JSON$$ ... $$END_JSON$$ blocks
+    # 1. Remove $$ACTION_JSON$$ ... $$END_JSON$$ blocks (Robust regex)
     import re
-    cleaned = re.sub(r'\$\$ACTION_JSON\$\$.*?\$\$END_JSON\$\$', '', text, flags=re.DOTALL)
+    cleaned = re.sub(r'\$\$\s*ACTION_JSON\s*\$\$.*?\$\$\s*END_JSON\s*\$\$', '', text, flags=re.DOTALL | re.IGNORECASE)
     
-    # 2. Clean up extra whitespace/newlines
+    # 2. Remove Markdown code blocks (e.g. ```json ... ```)
+    cleaned = re.sub(r'```.*?```', '', cleaned, flags=re.DOTALL)
+
+    # 3. Clean up extra whitespace/newlines
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
     
-    # 3. Handle simple Hindi/English abbreviations if needed (e.g., ₹ -> rupees)
+    # 4. Handle simple Hindi/English abbreviations if needed (e.g., ₹ -> rupees)
     cleaned = cleaned.replace('₹', 'rupees')
     
     return cleaned
@@ -260,7 +263,7 @@ async def chat_websocket(websocket: WebSocket):
             content = data.get("content", "")
             user_token = data.get("access_token", "default_token")
             user_id = data.get("user_id", "")
-            voice_id = data.get("voice_id", "hi-IN-MadhurNeural") # Default to Madhur
+            voice_id = data.get("voice_id", "en-IN-PrabhatNeural") # Default to Prabhat (English India)
             voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
             model_id = data.get("model", "gemini-2.0-flash-001")
             

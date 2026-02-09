@@ -627,6 +627,7 @@ async def action_node(state: AgentState):
     2. Ask them to review and approve it.
     3. Be short and concise.
     4. Append the literal JSON string at the very end hidden in this tag: $$ACTION_JSON$$ {updated_json_str} $$END_JSON$$
+    5. DO NOT print the JSON anywhere else. DO NOT use markdown code blocks for the JSON.
     
     Example:
     "Sure Boss, I have prepared the invoice. Please review and approve."
