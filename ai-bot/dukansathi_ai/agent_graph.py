@@ -762,6 +762,19 @@ def route_conditional(state: AgentState):
     
     messages = state['messages']
     last_msg = messages[-1].content.lower().strip()
+    
+    # 1. Context Awareness: Check if Bot asked for details in previous message
+    if len(messages) >= 2:
+        last_bot_msg = messages[-2].content.lower() if hasattr(messages[-2], 'content') else ""
+        
+        # If bot ended with a question about items/details, FORCE ACTION
+        # e.g. "what items?", "tell me product details", "provide customer name"
+        context_triggers = ["what items", "provide details", "which product", "customer name"]
+        if any(trigger in last_bot_msg for trigger in context_triggers):
+            print(f"DEBUG: Router -> Context Override (Bot asked '{last_bot_msg[-20:]}...') -> ACTION")
+            return "action_agent"
+
+    # 2. Standard Keyword Categorization
     category = categorize_query(last_msg)
     
     if category == "ACTION":

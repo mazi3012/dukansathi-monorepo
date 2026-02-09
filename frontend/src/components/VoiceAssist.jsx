@@ -18,6 +18,14 @@ const VoiceAssist = () => {
 
         socket.onopen = () => console.log('✅ Connected to Moltbot');
 
+        socket.onopen = () => console.log('✅ Connected to Moltbot');
+
+        // Listen for settings changes
+        const handleSettingsChange = () => {
+            console.log("Settings changed, next message will use new prefs");
+        };
+        window.addEventListener('settings-changed', handleSettingsChange);
+
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("Received:", data);
@@ -47,7 +55,10 @@ const VoiceAssist = () => {
 
         setWs(socket);
 
-        return () => socket.close();
+        return () => {
+            socket.close();
+            window.removeEventListener('settings-changed', handleSettingsChange);
+        };
     }, []);
 
     const startListening = async () => {
@@ -69,11 +80,18 @@ const VoiceAssist = () => {
                 reader.onloadend = () => {
                     const base64Audio = reader.result.split(',')[1];
                     if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: 'voice',
-                            content: base64Audio
-                        }));
-                        setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 Processing...' }]);
+                        reader.onloadend = () => {
+                            const base64Audio = reader.result.split(',')[1];
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                const settings = getSettings();
+                                ws.send(JSON.stringify({
+                                    type: 'voice',
+                                    content: base64Audio,
+                                    ...settings
+                                }));
+                                setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 Processing...' }]);
+                            }
+                        };
                     }
                 };
             };
@@ -93,12 +111,23 @@ const VoiceAssist = () => {
         }
     };
 
+    // Load settings from localStorage
+    const getSettings = () => {
+        return {
+            voice_id: localStorage.getItem('voice_id') || 'en-IN-PrabhatNeural',
+            voice_speed: localStorage.getItem('voice_speed') || '+0%',
+            model: localStorage.getItem('model_id') || 'gemini-2.0-flash-001'
+        };
+    };
+
     const sendTextMessage = () => {
         if (!textInput.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
 
+        const settings = getSettings();
         ws.send(JSON.stringify({
             type: 'text',
-            content: textInput
+            content: textInput,
+            ...settings
         }));
 
         setMessages(prev => [...prev, { type: 'user', text: textInput }]);
@@ -148,8 +177,8 @@ const VoiceAssist = () => {
                     >
                         <div
                             className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-lg backdrop-blur-sm border ${msg.type === 'user' || msg.type === 'user-audio'
-                                    ? 'bg-indigo-600/80 border-indigo-500/50 text-white rounded-br-none'
-                                    : 'bg-slate-800/80 border-white/10 text-gray-100 rounded-bl-none'
+                                ? 'bg-indigo-600/80 border-indigo-500/50 text-white rounded-br-none'
+                                : 'bg-slate-800/80 border-white/10 text-gray-100 rounded-bl-none'
                                 }`}
                         >
                             {msg.image && <img src={msg.image} alt="uploaded" className="max-w-xs rounded-lg mb-2" />}
