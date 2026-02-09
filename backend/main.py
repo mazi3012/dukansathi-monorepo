@@ -279,8 +279,6 @@ async def chat_websocket(websocket: WebSocket):
             
             print(f"✅ WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
 
-            user_text = ""
-            
             # 1. Handle Voice Input (STT)
             if message_type == "voice" and content:
                 try:
@@ -288,6 +286,7 @@ async def chat_websocket(websocket: WebSocket):
                     user_text = await transcribe_audio(audio_bytes)
                     print(f"🎤 Transcribed: {user_text}")
                     
+                    # IMMEDIATE FEEDBACK
                     await websocket.send_json({
                         "type": "transcription",
                         "content": user_text
@@ -299,93 +298,81 @@ async def chat_websocket(websocket: WebSocket):
                     
             # 2. Handle Image Input (Gemini Vision)
             elif message_type == "image" and content:
+                # ... (Keep existing Image Logic if needed, but for now focus on Voice/Text flow matching legacy)
+                # Assuming simple flow for now or keeping existing logic
                 try:
-                    # Decode image
                     image_bytes = base64.b64decode(content)
-                    filename = data.get("filename", "image.jpg")
-                    
-                    print(f"📷 Image received: {filename}, {len(image_bytes)} bytes")
-                    
-                    # 1. Optimize Image
-                    optimized_bytes = optimize_image(image_bytes)
-                    print(f"✨ Optimized Image: {len(optimized_bytes)} bytes")
-                    
-                    # 2. Upload to Storage (chat-images)
-                    # Path: {user_id}/{timestamp}_{uuid}.jpg
-                    file_ext = "jpg"
-                    file_path = f"{safe_user_id}/{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.{file_ext}"
-                    
-                    public_url = await upload_to_storage("chat-images", file_path, optimized_bytes)
-                    print(f"🔗 Image URL: {public_url}")
-                    
-                    # 3. Construct message with URL
+                    file_path = f"{safe_user_id}/{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.jpg"
+                    public_url = await upload_to_storage("chat-images", file_path, optimize_image(image_bytes))
                     user_text = f"I have uploaded an image. Image URL: {public_url} \n\nPlease analyze this image."
-                    
-                    # Acknowledge upload to user
-                    await websocket.send_json({
-                        "type": "text",
-                        "content": "Image uploaded successfully. Analyzing..."
-                    })
-                    
+                    await websocket.send_json({"type": "text", "content": "Image uploaded successfully. Analyzing..."})
                 except Exception as e:
-                    print(f"❌ Image Error: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    await websocket.send_json({"type": "error", "content": f"Image processing failed: {str(e)}"})
-                    continue
-                    
+                     await websocket.send_json({"type": "error", "content": f"Image error: {e}"})
+                     continue
+
             # 3. Handle Text Input
             elif message_type == "text":
                 user_text = content
                 print(f"💬 Text message: {user_text}")
             else:
                 user_text = content
-                print(f"📝 Other message: {user_text}")
-
-            if not user_text:
-                print("⚠️ No text to process, skipping...")
-                continue
-
-            print(f"🤖 Processing with AI: {user_text[:50]}...")
             
-            # 4. Process with Moltbot AI
+            if not user_text: continue
+
+            # 4. Process with AI
             try:
-                ai_response_text = await process_user_input(user_text, user_token, model=model_id)
-                print(f"✨ AI Response: {ai_response_text[:50]}...")
+                ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
+                print(f"✨ AI Raw Response: {ai_response_raw[:100]}...")
+                
+                # PARSE STRUCTURED RESPONSE
+                import json
+                display_text = ai_response_raw
+                attachment = None
+                
+                try:
+                    data = json.loads(ai_response_raw)
+                    if isinstance(data, dict):
+                        display_text = data.get("text", ai_response_raw)
+                        attachment = data.get("draft") 
+                        # Or 'attachment' key if I used that in agent_graph? 
+                        # I used 'draft' key in agent_graph update just now.
+                except:
+                    # Not JSON, plain text
+                    pass
+                
             except Exception as e:
                 print(f"❌ AI Processing Error: {e}")
-                import traceback
-                traceback.print_exc()
                 await websocket.send_json({"type": "error", "content": f"AI Error: {str(e)}"})
                 continue
 
-            # 5. Convert AI Response to Speech (TTS)
-            # We now clean the text (remove JSON) and generate audio for ALL responses if voice_id is present
+            # 5. Generate TTS (On Display Text ONLY)
             audio_response = None
             try:
-                tts_text = clean_text_for_tts(ai_response_text)
+                # Legacy didn't use clean_text_for_tts because it separated the text cleanly.
+                # But we can still use it to be safe against mild markdown.
+                tts_text = clean_text_for_tts(display_text) 
                 if tts_text:
-                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...' with voice: {voice_id}, rate: {voice_rate}")
+                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...'")
                     audio_response = await speak_text(tts_text, voice=voice_id, rate=voice_rate)
-                    if audio_response:
-                        print(f"✅ TTS Success: {len(audio_response)} bytes")
-                    else:
-                        print(f"❌ TTS Failed: speak_text returned None")
-                else:
-                    print("ℹ️ TTS Skipped: Cleaned text is empty (likely just JSON)")
             except Exception as e:
                 print(f"⚠️ TTS Exception: {e}")
 
-            # 6. Send Response to Client
+            # 6. Send Response
             response_payload = {
                 "type": "text",
-                "content": ai_response_text,
+                "content": display_text,
                 "audio": audio_response
             }
             
-            # print(f"📤 Sending response to client...")
+            if attachment:
+                response_payload["attachment"] = attachment
+                # Legacy frontend expects 'draft' or 'attachment'? 
+                # ChatInterface.jsx uses: msg.attachment
+                # And it checks msg.draft_type.
+                # My agent_graph update added draft_type to the draft object.
+                # So attachment is the draft object.
+            
             await websocket.send_json(response_payload)
-            # print(f"✅ Response sent successfully!")
             
     except WebSocketDisconnect:
         print("🔌 Client disconnected from WebSocket")

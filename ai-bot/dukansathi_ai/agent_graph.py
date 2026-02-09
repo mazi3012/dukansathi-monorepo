@@ -626,23 +626,40 @@ async def action_node(state: AgentState):
     1. Confirm you have prepared the draft.
     2. Ask them to review and approve it.
     3. Be short and concise.
-    4. Append the literal JSON string at the very end hidden in this tag: $$ACTION_JSON$$ {updated_json_str} $$END_JSON$$
-    5. DO NOT print the JSON anywhere else. DO NOT use markdown code blocks for the JSON.
+    4. DO NOT print the JSON in your text response.
     
     Example:
     "Sure Boss, I have prepared the invoice. Please review and approve."
-    $$ACTION_JSON$$ {{...}} $$END_JSON$$
     """
     
     # Use Flash for SQL gen as it's faster
     llm = get_llm("gemini-2.0-flash-001")
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     
-    # Save to history
+    # Save to history (Just the text)
     await save_chat_message(user_id, "user", last_msg)
     await save_chat_message(user_id, "assistant", response.content)
     
-    return {"messages": [response]}
+    # Construct Structured Response for Frontend/Backend
+    try:
+        draft_obj = json.loads(updated_json_str)
+        # Identify draft type for frontend component
+        if "type" in draft_obj:
+            if "invoice" in draft_obj["type"]: 
+                draft_obj["draft_type"] = "invoice"
+            elif "product" in draft_obj["type"]:
+               pass # handled as generic?
+            elif "customer" in draft_obj["type"]:
+               pass
+    except:
+        draft_obj = {}
+
+    final_payload = {
+        "text": response.content,
+        "draft": draft_obj
+    }
+    
+    return {"messages": [AIMessage(content=json.dumps(final_payload))]}
 
 async def chat_node(state: AgentState):
     """
