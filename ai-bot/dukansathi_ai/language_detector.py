@@ -13,7 +13,15 @@ def detect_language(text: str) -> str:
     Returns:
         'english', 'hinglish', or 'bengali'
     """
-    text_lower = text.lower()
+    # Handle None or empty input
+    if not text or not isinstance(text, str):
+        return 'english'
+    
+    text_lower = text.lower().strip()
+    
+    # Handle empty after stripping
+    if not text_lower:
+        return 'english'
     
     # Bengali patterns (romanized - no Devanagari script)
     bengali_patterns = [
@@ -37,7 +45,7 @@ def detect_language(text: str) -> str:
         'mujhe', 'tumhe', 'aapko', 'hum', 'tum', 'aap',
         'acha', 'thik', 'bahut', 'bohot', 'thoda', 'kuch', 'koi',
         # Questions
-        'kyun', 'kahan'', 'kab', 'kitna', 'kaun', 'kaise',
+        'kyun', 'kahan', 'kab', 'kitna', 'kaun', 'kaise',
         # Business
         'rupay', 'rupaye', 'paisa', 'paise', 'lena', 'dena', 'dukaan'
     ]

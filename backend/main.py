@@ -322,19 +322,36 @@ async def chat_websocket(websocket: WebSocket):
                 draft_data = data.get("draft_data")
                 print(f"🎯 Draft approval action: {action}")
                 
+                # Validate supabase client is available
+                if not supabase:
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": "Database connection not available."
+                    })
+                    continue
+                
                 try:
                     if action == "approve_customer" and draft_data:
+                        # Validate customer name
+                        customer_name = draft_data.get("name", "").strip()
+                        if not customer_name:
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Customer name is required."
+                            })
+                            continue
+                        
                         # Add customer using RPC
                         result = supabase.rpc("add_customer", {
-                            "p_name": draft_data.get("name"),
+                            "p_name": customer_name,
                             "p_phone": draft_data.get("phone"),
                             "p_address": draft_data.get("address")
                         }).execute()
                         
-                        if result.data:
+                        if result and result.data:
                             await websocket.send_json({
                                 "type": "text",
-                                "content": f"Customer {draft_data.get('name')} added successfully Boss!"
+                                "content": f"Customer {customer_name} added successfully Boss!"
                             })
                         else:
                             await websocket.send_json({
@@ -343,46 +360,76 @@ async def chat_websocket(websocket: WebSocket):
                             })
                     
                     elif action == "approve_payment" and draft_data:
-                        # Find customer and update credit
+                        # Validate customer name and amount
                         customer_name = draft_data.get("customer_name", "").strip()
-                        amount = float(draft_data.get("amount", 0))
+                        if not customer_name:
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Customer name is required."
+                            })
+                            continue
+                        
+                        # Safe float conversion with validation
+                        try:
+                            amount = float(draft_data.get("amount", 0))
+                            if amount <= 0:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "content": "Payment amount must be greater than zero."
+                                })
+                                continue
+                        except (ValueError, TypeError):
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Invalid payment amount."
+                            })
+                            continue
                         
                         # Find customer by name using RPC
                         customer_result = supabase.rpc("find_customer_by_name", {
                             "p_name": customer_name
                         }).execute()
                         
-                        if customer_result.data and len(customer_result.data) > 0:
-                            customer_id = customer_result.data[0]["id"]
-                            
-                            # Update credit balance (payment reduces credit)
-                            update_result = supabase.rpc("update_customer_credit", {
-                                "p_customer_id": customer_id,
-                                "p_amount": amount,
-                                "p_operation": "subtract"  # Payment reduces credit
-                            }).execute()
-                            
-                            if update_result.data:
-                                await websocket.send_json({
-                                    "type": "text",
-                                    "content": f"Payment of ₹{amount} recorded for {customer_name} Boss!"
-                                })
-                            else:
-                                await websocket.send_json({
-                                    "type": "error",
-                                    "content": "Failed to update payment."
-                                })
-                        else:
+                        # Check if customer exists
+                        if not customer_result or not customer_result.data or len(customer_result.data) == 0:
                             await websocket.send_json({
                                 "type": "error",
                                 "content": f"Customer '{customer_name}' not found."
                             })
+                            continue
+                        
+                        customer_id = customer_result.data[0]["id"]
+                        
+                        # Update credit balance (payment reduces credit)
+                        update_result = supabase.rpc("update_customer_credit", {
+                            "p_customer_id": customer_id,
+                            "p_amount": amount,
+                            "p_operation": "subtract"  # Payment reduces credit
+                        }).execute()
+                        
+                        if update_result and update_result.data:
+                            await websocket.send_json({
+                                "type": "text",
+                                "content": f"Payment of ₹{amount} recorded for {customer_name} Boss!"
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Failed to update payment."
+                            })
                     
                     else:
-                        print(f"Unknown action: {action}")
+                        # Unknown or missing action
+                        print(f"⚠️ Unknown or invalid action: {action}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "content": f"Unknown action '{action}' or missing draft data."
+                        })
                         
                 except Exception as e:
                     print(f"❌ Draft approval error: {e}")
+                    import traceback
+                    traceback.print_exc()
                     await websocket.send_json({
                         "type": "error",
                         "content": f"Failed to process draft: {str(e)}"

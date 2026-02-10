@@ -46,6 +46,11 @@ BEGIN
         RAISE EXCEPTION 'Invalid operation. Use add, subtract, or set';
     END IF;
 
+    -- Validate amount is positive
+    IF p_amount < 0 THEN
+        RAISE EXCEPTION 'Amount must be positive';
+    END IF;
+
     -- Update credit balance
     IF p_operation = 'add' THEN
         UPDATE customers 
@@ -53,8 +58,9 @@ BEGIN
             updated_at = NOW()
         WHERE id = p_customer_id AND user_id = auth.uid();
     ELSIF p_operation = 'subtract' THEN
+        -- Prevent negative balance
         UPDATE customers 
-        SET credit_balance = credit_balance - p_amount,
+        SET credit_balance = GREATEST(credit_balance - p_amount, 0),
             updated_at = NOW()
         WHERE id = p_customer_id AND user_id = auth.uid();
     ELSIF p_operation = 'set' THEN
