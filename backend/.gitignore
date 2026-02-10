@@ -47,10 +47,13 @@ Thumbs.db
 # Google Credentials
 *-credentials.json
 service-account.json
+service_account.json # Added explicit ignore
 
 # Logs
 *.log
 logs/
+backend.log
+groq_transcription.log
 
 # Testing
 .pytest_cache/
