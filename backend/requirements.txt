@@ -26,7 +26,6 @@ google-cloud-aiplatform==1.75.0
 # Voice Services
 groq==0.13.0           # Free Whisper STT via Groq
 google-cloud-texttospeech==2.14.1  # Official Google Cloud TTS
-# edge-tts==6.1.18     # REMOVED: Microsoft blocked access
 
 # File Processing
 pillow==11.0.0         # Image processing for OCR

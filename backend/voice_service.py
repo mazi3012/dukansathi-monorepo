@@ -140,12 +140,19 @@ async def speak_text(
             speaking_rate=speaking_rate
         )
 
-        # 4. Perform the text-to-speech request
-        response = tts_client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config
-        )
+        # 4. Perform the text-to-speech request (Non-blocking)
+        # synthesize_speech is a gRPC call and is blocking, so we run it in executor
+        import asyncio
+        loop = asyncio.get_running_loop()
+        
+        def _call_tts():
+            return tts_client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice_params,
+                audio_config=audio_config
+            )
+
+        response = await loop.run_in_executor(None, _call_tts)
 
         # 5. Return base64 audio
         audio_bytes = response.audio_content

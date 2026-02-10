@@ -17,13 +17,7 @@ const VOICE_OPTIONS = [
             { id: 'en-IN-NeerjaNeural', label: 'Neerja (Female)', gender: 'Female' }
         ]
     },
-    {
-        language: 'English (India)',
-        voices: [
-            { id: 'en-IN-PrabhatNeural', label: 'Prabhat (Male)', gender: 'Male' },
-            { id: 'en-IN-NeerjaNeural', label: 'Neerja (Female)', gender: 'Female' }
-        ]
-    },
+
     {
         language: 'Bengali (India)',
         voices: [
