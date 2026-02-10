@@ -275,6 +275,9 @@ export const useChat = () => {
         const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession());
         const userId = session?.user?.id || 'anon';
 
+        // DEBUG: Log voice settings being sent
+        console.log(`📤 Sending message with voice settings: { voice_id: '${voice}', voice_rate: '${voiceSpeed}', model: '${model}' }`);
+
         ws.send(JSON.stringify({
             type: 'text',
             content: text,
@@ -285,7 +288,7 @@ export const useChat = () => {
             model: model
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
-    }, [ws, voice, voiceSpeed]);
+    }, [ws, voice, voiceSpeed, model]);
 
     const sendImage = useCallback(async (file) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -331,6 +334,10 @@ export const useChat = () => {
                         // Get user ID async inside the callback
                         import('../lib/supabase').then(m => m.supabase.auth.getSession()).then(({ data: { session } }) => {
                             const userId = session?.user?.id || 'anon';
+
+                            // DEBUG: Log voice settings for voice recording
+                            console.log(`🎤 Sending voice recording with settings: { voice_id: '${voice}', voice_rate: '${voiceSpeed}', model: '${model}' }`);
+
                             ws.send(JSON.stringify({
                                 type: 'voice',
                                 content: base64,

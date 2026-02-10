@@ -23,6 +23,16 @@ load_dotenv()
 # Initialize Async Groq Client for STT
 groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
+# Valid voice options for validation
+VALID_VOICES = {
+    "hi-IN-MadhurNeural": "Hindi (Male)",
+    "hi-IN-SwaraNeural": "Hindi (Female)",
+    "en-IN-PrabhatNeural": "English India (Male)",
+    "en-IN-NeerjaNeural": "English India (Female)",
+    "en-US-GuyNeural": "English US (Male)",
+    "en-US-JennyNeural": "English US (Female)"
+}
+
 async def transcribe_audio(audio_data: bytes) -> str:
     """
     Convert speech to text using Groq's Whisper model (FREE)
@@ -73,6 +83,15 @@ async def speak_text(
     Convert text to speech using Microsoft Edge TTS (Legacy Stream Implementation)
     """
     try:
+        # VALIDATE VOICE ID
+        if voice not in VALID_VOICES:
+            print(f"⚠️ WARNING: Invalid voice '{voice}', falling back to default 'en-IN-PrabhatNeural'")
+            voice = "en-IN-PrabhatNeural"
+        
+        # DETAILED LOGGING - Track exactly what voice is being used
+        print(f"🔊 TTS: Using voice='{voice}' ({VALID_VOICES.get(voice, 'Unknown')}), rate='{rate}'")
+        print(f"🔊 TTS: Generating audio for text: '{text[:50]}...'")
+        
         communicate = edge_tts.Communicate(text, voice, rate=rate)
         audio_bytes = b""
         
@@ -81,13 +100,16 @@ async def speak_text(
                 audio_bytes += chunk["data"]
                 
         if not audio_bytes:
-             return None
+            print("❌ TTS: No audio bytes generated!")
+            return None
 
         # Return as base64 for frontend to decode and play
         b64_str = base64.b64encode(audio_bytes).decode('utf-8')
-        print(f"✅ speak_text: Generated base64 string (Length: {len(b64_str)})")
+        print(f"✅ TTS Success: Generated {len(audio_bytes)} bytes ({len(b64_str)} base64 chars) using voice '{voice}'")
         return b64_str
         
     except Exception as e:
         print(f"❌ TTS Error in voice_service: {e}")
+        import traceback
+        print(traceback.format_exc())
         return None
