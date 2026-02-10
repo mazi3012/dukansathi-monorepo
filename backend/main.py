@@ -315,6 +315,81 @@ async def chat_websocket(websocket: WebSocket):
             elif message_type == "text":
                 user_text = content
                 print(f"💬 Text message: {user_text}")
+            
+            # 4. Handle Draft Approvals
+            elif message_type == "action":
+                action = data.get("action")
+                draft_data = data.get("draft_data")
+                print(f"🎯 Draft approval action: {action}")
+                
+                try:
+                    if action == "approve_customer" and draft_data:
+                        # Add customer using RPC
+                        result = supabase.rpc("add_customer", {
+                            "p_name": draft_data.get("name"),
+                            "p_phone": draft_data.get("phone"),
+                            "p_address": draft_data.get("address")
+                        }).execute()
+                        
+                        if result.data:
+                            await websocket.send_json({
+                                "type": "text",
+                                "content": f"Customer {draft_data.get('name')} added successfully Boss!"
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Failed to add customer."
+                            })
+                    
+                    elif action == "approve_payment" and draft_data:
+                        # Find customer and update credit
+                        customer_name = draft_data.get("customer_name", "").strip()
+                        amount = float(draft_data.get("amount", 0))
+                        
+                        # Find customer by name using RPC
+                        customer_result = supabase.rpc("find_customer_by_name", {
+                            "p_name": customer_name
+                        }).execute()
+                        
+                        if customer_result.data and len(customer_result.data) > 0:
+                            customer_id = customer_result.data[0]["id"]
+                            
+                            # Update credit balance (payment reduces credit)
+                            update_result = supabase.rpc("update_customer_credit", {
+                                "p_customer_id": customer_id,
+                                "p_amount": amount,
+                                "p_operation": "subtract"  # Payment reduces credit
+                            }).execute()
+                            
+                            if update_result.data:
+                                await websocket.send_json({
+                                    "type": "text",
+                                    "content": f"Payment of ₹{amount} recorded for {customer_name} Boss!"
+                                })
+                            else:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "content": "Failed to update payment."
+                                })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": f"Customer '{customer_name}' not found."
+                            })
+                    
+                    else:
+                        print(f"Unknown action: {action}")
+                        
+                except Exception as e:
+                    print(f"❌ Draft approval error: {e}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": f"Failed to process draft: {str(e)}"
+                    })
+                
+                continue  # Skip AI processing for action messages
+            
             else:
                 user_text = content
             

@@ -30,6 +30,7 @@ import asyncio
 from functools import lru_cache
 import re
 import logging
+from .language_detector import detect_language
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -215,10 +216,19 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     4. Cast UUIDs properly if needed, but usually 'string' works in Postgres text-to-uuid.
     5. Handle case-insensitive string matching using ILIKE for names.
     6. If asking for "sales", join sales and sale_items and products if needed.
+    7. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
     
-    Example:
-    Query: "Show me rice sales"
-    SQL: SELECT p.name, si.quantity, si.total_price FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE p.name ILIKE '%rice%' AND s.user_id = '{user_id}'
+    Example 1: "Show me rice sales"
+    SQL: SELECT p.name, si.quantity, si.total_price FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE p.name ILIKE '%rice%' AND s.user_id = '{user_id}' LIMIT 50
+    
+    Example 2: "List all customers" OR "Show all customers"
+    SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
+    
+    Example 3: "Customers with pending dues"
+    SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' AND credit_balance > 0 ORDER BY credit_balance DESC LIMIT 50
+    
+    Example 4: "Show products"
+    SQL: SELECT name, selling_price, stock_quantity FROM products WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
     """
     
     # Use Flash for SQL gen as it's faster
@@ -681,7 +691,20 @@ async def chat_node(state: AgentState):
     history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
     
     msg_lower = last_msg.lower().strip()
-    category = categorize_query(msg_lower) # Re-eval locally just for sub-logic if needed, or pass from router
+    category = categorize_query(msg_lower)
+    
+    # Detect language for response
+    detected_lang = detect_language(last_msg)
+    print(f"DEBUG: Detected language: {detected_lang}")
+    
+    # Language-specific instructions
+    lang_instructions = ""
+    if detected_lang == 'bengali':
+        lang_instructions = "Respond in ROMANIZED BENGALI (using English letters). Example: 'Ami tomake help korbo Boss'. DO NOT use Bengali script."
+    elif detected_lang == 'hinglish':
+        lang_instructions = "Respond in Hinglish (Hindi-English mix). Example: 'Main aapki madad karunga Boss'."
+    else:
+        lang_instructions = "Respond in English. Be professional and clear."
     
     input_prompt = ""
     
@@ -690,7 +713,8 @@ async def chat_node(state: AgentState):
             You are Sathi AI, the personal AI assistant for {business_name}.
             User said: "{last_msg}"
             HISTORY: {history_text}
-            RULES: Warm greeting in user's language/Hinglish. Use "Boss". No symbols/commas. 
+            RULES: Warm greeting. Use "Boss". No symbols/commas. 
+            LANGUAGE: {lang_instructions}
             IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
             """
     elif category == "CAPABILITY":
@@ -701,6 +725,7 @@ async def chat_node(state: AgentState):
             1. Say: "Boss, I can help you with:"
             2. List: Making Invoices, Tracking Inventory, Managing Customers, Adding/Updating Dues, and Answering business questions.
             3. Keep it short. Use "Boss". No symbols/commas.
+            LANGUAGE: {lang_instructions}
             """
     elif category == "IDENTITY":
          input_prompt = f"""
@@ -709,6 +734,7 @@ async def chat_node(state: AgentState):
             RULES: 
             1. State clearly "I am Sathi AI, your helpful assistant Boss."
             2. Keep it short. Use "Boss". No symbols/commas.
+            LANGUAGE: {lang_instructions}
             """
     elif category == "CHAT":
         input_prompt = f"""
@@ -717,11 +743,11 @@ async def chat_node(state: AgentState):
             HISTORY: {history_text}
             RULES: 
             1. Respond naturally to the user's chat. Be helpful, polite, and professional.
-            2. Match the user's language (Hindi/English/Hinglish).
-            3. Use "Boss" occasionally to maintain persona.
-            4. Do NOT make up database data. If they ask something you don't know, say so.
-            5. If they seem to want to do business (like "add item"), guide them to be specific.
-            6. Keep it concise. No symbols/commas.
+            2. Use "Boss" occasionally to maintain persona.
+            3. Do NOT make up database data. If they ask something you don't know, say so.
+            4. If they seem to want to do business (like "add item"), guide them to be specific.
+            5. Keep it concise. No symbols/commas.
+            LANGUAGE: {lang_instructions}
             """
     else: # BUSINESS / Fallback
         # Data Retrieval
@@ -733,7 +759,8 @@ async def chat_node(state: AgentState):
         DATA: {specialist_data}
         USER: "{last_msg}"
         HISTORY: {history_text}
-        RULES: Answer using Data. If empty, say 'No data found'. Match language. Use "Boss". No symbols/commas. REMEMBER: YOU ARE SATHI AI.
+        RULES: Answer using Data. If empty, say 'No data found'. Use "Boss". No symbols/commas. REMEMBER: YOU ARE SATHI AI.
+        LANGUAGE: {lang_instructions}
         IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
         """
 

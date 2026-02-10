@@ -139,7 +139,19 @@ export const useChat = () => {
 
                 if (data.type === 'text') {
                     setIsThinking(false);
-                    setMessages(prev => [...prev, { type: 'ai', text: data.content }]);
+
+                    // Build message object with attachment if present
+                    const aiMessage = {
+                        type: 'ai',
+                        text: data.content
+                    };
+
+                    // Preserve attachment/draft data from backend
+                    if (data.attachment) {
+                        aiMessage.attachment = data.attachment;
+                    }
+
+                    setMessages(prev => [...prev, aiMessage]);
 
                     // Play Audio if present, else fallback to Native TTS
                     if (data.audio) {

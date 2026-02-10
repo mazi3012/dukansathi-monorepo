@@ -273,20 +273,8 @@ const Chat = () => {
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
                 {messages.map((msg, idx) => {
-                    // Parse Action JSON if present
-                    let displayText = msg.text;
-                    let actionData = null;
-
-                    if (msg.text && msg.text.includes('$$ACTION_JSON$$')) {
-                        try {
-                            const parts = msg.text.split('$$ACTION_JSON$$');
-                            displayText = parts[0].trim();
-                            const jsonPart = parts[1].split('$$END_JSON$$')[0];
-                            actionData = JSON.parse(jsonPart);
-                        } catch (e) {
-                            console.error("Failed to parse action JSON", e);
-                        }
-                    }
+                    // Check if message has attachment (from backend)
+                    const hasAttachment = msg.attachment && Object.keys(msg.attachment).length > 0;
 
                     return (
                         <div key={idx} className={`flex flex-col ${msg.type === 'user' || msg.type === 'user-audio' ? 'items-end' : 'items-start'}`}>
@@ -299,15 +287,15 @@ const Chat = () => {
                                 {msg.image && (
                                     <img src={msg.image} alt="Attachment" className="max-w-full rounded-lg mb-2 border border-white/20" />
                                 )}
-                                <p className="whitespace-pre-wrap">{displayText}</p>
+                                <p className="whitespace-pre-wrap">{msg.text}</p>
                             </div>
 
-                            {/* Render Action Card if exists */}
-                            {actionData && (
+                            {/* Render Attachment as ActionCard */}
+                            {hasAttachment && (
                                 <ActionCard
-                                    actionData={actionData}
+                                    actionData={msg.attachment}
                                     onDiscard={() => alert("Draft Discarded")}
-                                    onApprove={() => handleApproveAction(actionData)}
+                                    onApprove={() => handleApproveAction(msg.attachment)}
                                     businessProfile={businessProfile}
                                 />
                             )}
