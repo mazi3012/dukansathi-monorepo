@@ -372,7 +372,7 @@ def categorize_query(msg_lower: str) -> str:
     ]
     
     # Action intent patterns (High priority for create/update)
-    action_keywords = ["create", "add", "new", "make a", "draft", "register", "record", "pay", "paid", "receive", "received", "payment"]
+    action_keywords = ["create", "add", "new", "make a", "draft", "register", "record", "pay", "paid", "receive", "received", "payment", "bill", "invoice"]
     
     # Check for contextual pronouns first (high priority for follow-ups)
     # Use strict word matching
@@ -461,6 +461,9 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
         llm = get_llm("gemini-2.0-flash-001")
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         
+        # DEBUG: Print raw response
+        print(f"DEBUG: extract_action_params RAW RESPONSE: {response.content}")
+
         # Robust JSON extraction using regex
         content = response.content
         match = re.search(r'\{.*\}', content, re.DOTALL)
@@ -662,10 +665,18 @@ async def action_node(state: AgentState):
             elif "customer" in draft_obj["type"]:
                pass
     except:
+        print(f"❌ JSON Parse Error in Action Node: {updated_json_str}")
+        draft_obj = {}
+
+    # Validate Draft - If empty, apologize instead of lying
+    final_text = response.content
+    if not draft_obj or "type" not in draft_obj or draft_obj.get("type") == "unknown":
+        print("⚠️ Draft generation failed or was unknown type.")
+        final_text = "Sorry Boss, I couldn't understand the details for that draft. Could you please repeat with more specific information?"
         draft_obj = {}
 
     final_payload = {
-        "text": response.content,
+        "text": final_text,
         "draft": draft_obj
     }
     
