@@ -29,6 +29,7 @@ from supabase import create_client, Client
 import asyncio
 from functools import lru_cache
 import re
+import hashlib
 import logging
 from .language_detector import detect_language
 
@@ -42,6 +43,11 @@ load_dotenv()
 # Initialize Supabase Client
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_SERVICE_KEY")
+
+if not url or not key:
+    logger.error("CRITICAL: Supabase credentials missing. Cannot initialize client.")
+    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set.")
+
 supabase: Client = create_client(url, key)
 
 # Context keywords for query categorization
@@ -172,6 +178,8 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
         if not os.path.exists(creds_path):
             creds = None
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+            if not project_id:
+                raise ValueError("GCP Project ID not found. Set GOOGLE_CLOUD_PROJECT or provide service_account.json.")
         else:
             creds = service_account.Credentials.from_service_account_file(creds_path)
             project_id = creds.project_id
@@ -522,7 +530,7 @@ async def action_node(state: AgentState):
     
     # History for context
     chat_history = await get_chat_history(user_id, limit=5)
-    history_text = "\\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
+    history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
     
     print("DEBUG: Executing Action Node")
     
@@ -545,14 +553,8 @@ async def action_node(state: AgentState):
             updated_items = []
             total_amount = 0
             
-            for item in action_data["items"]:
-                prod_name = item.get("product_name", "")
-                qty = item.get("quantity", 0)
-                
-                # Default values
-                item["price"] = 0
-                item["total"] = 0
-                return item
+            # Logic to hydrate items with database values
+
 
             async def fetch_product_details(item):
                 """Helper to fetch details for a single item"""
@@ -664,8 +666,8 @@ async def action_node(state: AgentState):
                pass # handled as generic?
             elif "customer" in draft_obj["type"]:
                pass
-    except:
-        print(f"❌ JSON Parse Error in Action Node: {updated_json_str}")
+    except Exception as e:
+        print(f"❌ JSON Parse Error in Action Node: {e} | Content: {updated_json_str}")
         draft_obj = {}
 
     # Validate Draft - If empty, apologize instead of lying
@@ -870,11 +872,15 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
     """
     global MEMORY_STORE
     
-    # Create session key from token (last 10 chars for simplicity)
-    session_id = user_token[-10:] if len(user_token) >= 10 else user_token
+    # Create session key from token (secure hash)
+    session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
     
     # Initialize memory for new sessions
     if session_id not in MEMORY_STORE:
+        # Simple memory leak protection
+        if len(MEMORY_STORE) > 100:
+            # Remove oldest/arbitrary item
+            MEMORY_STORE.pop(next(iter(MEMORY_STORE)))
         MEMORY_STORE[session_id] = []
     
     memory = MEMORY_STORE[session_id]
@@ -925,7 +931,8 @@ def clear_user_memory(user_token: str):
     Args:
         user_token: User's session token
     """
-    session_id = user_token[-10:] if len(user_token) >= 10 else user_token
+    # Create session key from token (secure hash) - MUST MATCH process_user_input
+    session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
     if session_id in MEMORY_STORE:
         del MEMORY_STORE[session_id]
         print(f"INFO: Cleared memory for session {session_id}")
