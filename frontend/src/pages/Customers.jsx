@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, User, Phone } from 'lucide-react';
+import { Plus, Search, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
@@ -11,11 +11,7 @@ const Customers = () => {
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '' });
 
-    useEffect(() => {
-        fetchCustomers();
-    }, []);
-
-    const fetchCustomers = async () => {
+    const fetchCustomers = React.useCallback(async () => {
         try {
             setLoading(true);
             const { data, error } = await supabase
@@ -42,7 +38,11 @@ const Customers = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchCustomers();
+    }, [fetchCustomers]);
 
     const handleSave = async () => {
         try {

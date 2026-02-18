@@ -25,11 +25,7 @@ const Inventory = () => {
     const [formData, setFormData] = useState(initialFormState);
 
     // Fetch Data on Load
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
+    const fetchData = React.useCallback(async () => {
         try {
             setLoading(true);
             // 1. Get User Profile for GST Strategy
@@ -64,7 +60,11 @@ const Inventory = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
