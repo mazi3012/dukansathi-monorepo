@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 const VOICE_OPTIONS = [
     {
@@ -29,10 +30,13 @@ const VOICE_OPTIONS = [
 
 const MODEL_OPTIONS = [
     { id: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (Fastest)', description: 'Best for quick chats and simple actions.' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Smarter)', description: 'Better reasoning for complex business queries.' }
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Smarter)', description: 'Better reasoning for complex business queries.' },
+    { id: 'phi3:mini', label: 'Phi-3 Mini (Local)', description: 'Runs offline on your computer. Requires Ollama.' },
+    { id: 'gemma:2b', label: 'Gemma 2B (Local)', description: 'Lightweight Google model for low-spec PCs.' }
 ];
 
 const Settings = () => {
+    const navigate = useNavigate();
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0); // 0 means +0%, range -50 to +50
     const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-001');
@@ -41,6 +45,14 @@ const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [user, setUser] = useState(null);
     const [playingVoice, setPlayingVoice] = useState(null); // ID of currently playing preview
+
+    // Local AI States
+    const [hardware, setHardware] = useState(null);
+    const [localModels, setLocalModels] = useState([]);
+    const [isInstalling, setIsInstalling] = useState(null); // String: model name
+    const [ollamaStatus, setOllamaStatus] = useState('checking'); // checking, connected, offline
+
+    const API_BASE = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
 
     // Load Settings
     useEffect(() => {
@@ -62,33 +74,37 @@ const Settings = () => {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
                     setLoading(false);
-                    return;
-                }
-                setUser(session.user);
+                } else {
+                    setUser(session.user);
+                    const { data } = await supabase
+                        .from('profiles')
+                        .select('voice_id, voice_speed, model_id')
+                        .eq('id', session.user.id)
+                        .single();
 
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('voice_id, voice_speed, model_id')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (data) {
-                    if (data.voice_id) {
-                        setSelectedVoice(data.voice_id);
-                        localStorage.setItem('voice_id', data.voice_id);
-                    }
-                    if (data.model_id) {
-                        setSelectedModel(data.model_id);
-                        localStorage.setItem('model_id', data.model_id);
-                    }
-                    if (data.voice_speed) {
-                        const speed = parseInt(data.voice_speed.replace('%', ''));
-                        if (!isNaN(speed)) {
-                            setVoiceSpeed(speed);
-                            localStorage.setItem('voice_speed', data.voice_speed);
+                    if (data) {
+                        if (data.voice_id) {
+                            setSelectedVoice(data.voice_id);
+                            localStorage.setItem('voice_id', data.voice_id);
+                        }
+                        if (data.model_id) {
+                            setSelectedModel(data.model_id);
+                            localStorage.setItem('model_id', data.model_id);
+                        }
+                        if (data.voice_speed) {
+                            const speed = parseInt(data.voice_speed.replace('%', ''));
+                            if (!isNaN(speed)) {
+                                setVoiceSpeed(speed);
+                                localStorage.setItem('voice_speed', data.voice_speed);
+                            }
                         }
                     }
                 }
+
+                // 3. Load Hardware & Local AI Status
+                fetchHardware();
+                fetchLocalModels();
+
             } catch (err) {
                 console.error("Error loading settings:", err);
             } finally {
@@ -99,8 +115,75 @@ const Settings = () => {
         loadSettings();
     }, []);
 
-    const [hasChanges, setHasChanges] = useState(false);
+    const fetchHardware = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/setup/hardware`);
+            if (res.ok) {
+                const data = await res.json();
+                setHardware(data);
+            }
+        } catch (e) {
+            console.error("Hardware fetch failed:", e);
+        }
+    };
 
+    const fetchLocalModels = async () => {
+        try {
+            // First check if Ollama is even alive
+            const checkRes = await fetch(`${API_BASE}/api/setup/ollama-check`);
+            const checkData = await checkRes.json();
+
+            if (checkData.is_running) {
+                setOllamaStatus('connected');
+                const res = await fetch(`${API_BASE}/api/setup/local-models`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setLocalModels(data.models || []);
+                }
+            } else {
+                setOllamaStatus('offline');
+                setLocalModels([]);
+            }
+        } catch (e) {
+            console.error("Local models fetch failed:", e);
+            setOllamaStatus('offline');
+        }
+    };
+
+    const installModel = async (modelName) => {
+        setIsInstalling(modelName);
+        try {
+            const res = await fetch(`${API_BASE}/api/setup/install-ai`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_name: modelName })
+            });
+
+            if (res.ok) {
+                alert(`Started installing ${modelName}. This will take a few minutes in the background.`);
+                // Poll for completion every 10 seconds
+                const interval = setInterval(async () => {
+                    const checkRes = await fetch(`${API_BASE}/api/setup/local-models`);
+                    const checkData = await checkRes.json();
+                    const isDone = checkData.models?.some(m => m.name.includes(modelName));
+                    if (isDone) {
+                        setLocalModels(checkData.models);
+                        setIsInstalling(null);
+                        clearInterval(interval);
+                    }
+                }, 10000);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Installation failed");
+                setIsInstalling(null);
+            }
+        } catch (e) {
+            alert("Connection error to backend");
+            setIsInstalling(null);
+        }
+    };
+
+    const [hasChanges, setHasChanges] = useState(false);
     const markChange = () => setHasChanges(true);
 
     const saveSettings = async () => {
@@ -108,37 +191,29 @@ const Settings = () => {
         try {
             const speedStr = (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%';
 
-            // 1. Local Persistence
             localStorage.setItem('voice_id', selectedVoice);
             localStorage.setItem('voice_speed', speedStr);
             localStorage.setItem('model_id', selectedModel);
 
-            // 2. Dispatch Event for useChat.js
             window.dispatchEvent(new Event('settings-changed'));
-            window.dispatchEvent(new Event('storage')); // Fallback for some listeners
+            window.dispatchEvent(new Event('storage'));
 
-            // 3. Cloud Persistence
             if (user) {
-                // Upsert logic handles both insert/update
                 const { error } = await supabase
                     .from('profiles')
                     .upsert({
                         id: user.id,
                         voice_id: selectedVoice,
                         voice_speed: speedStr,
-                        model_id: selectedModel, // Requires migration
+                        model_id: selectedModel,
                         updated_at: new Date().toISOString()
                     });
 
-                if (error) {
-                    console.warn("Cloud save warning (column might be missing):", error.message);
-                    // Don't throw if just column missing, local save is enough for now
-                }
+                if (error) console.warn("Cloud save warning:", error.message);
             }
 
             setHasChanges(false);
             alert("Settings saved successfully!");
-            // Better UX: Show button state
 
         } catch (err) {
             console.error("Error saving settings:", err);
@@ -148,15 +223,12 @@ const Settings = () => {
         }
     };
 
-    // Preview Voice
     const previewVoice = async (voiceId) => {
-        if (playingVoice) return; // Prevent multiple clicks
+        if (playingVoice) return;
         setPlayingVoice(voiceId);
-
         const text = voiceId.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
-
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/tts-preview`, {
+            const response = await fetch(`${API_BASE}/api/tts-preview`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -165,22 +237,16 @@ const Settings = () => {
                     rate: (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%'
                 })
             });
-
             if (!response.ok) throw new Error("Preview failed");
-
             const data = await response.json();
             const audio = new Audio(`data:audio/mp3;base64,${data.audio_base64}`);
-
             audio.onended = () => setPlayingVoice(null);
             audio.onerror = () => setPlayingVoice(null);
             await audio.play();
-
         } catch (error) {
             console.error("Preview Error:", error);
             setPlayingVoice(null);
-            // Fallback
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
             window.speechSynthesis.speak(utterance);
         }
     };
@@ -195,7 +261,6 @@ const Settings = () => {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
-            {/* Header */}
             <div className="bg-white p-4 border-b border-slate-100 flex items-center justify-between shadow-sm z-10">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
@@ -207,7 +272,6 @@ const Settings = () => {
                     </div>
                 </div>
 
-                {/* Save Button (Always Visible) */}
                 <button
                     onClick={saveSettings}
                     disabled={saving || !hasChanges}
@@ -223,40 +287,127 @@ const Settings = () => {
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24">
 
-                {/* 1. AI Model Selection */}
+                {/* Local AI Status & Hardware */}
+                <section className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white shadow-lg overflow-hidden relative">
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Cpu size={24} />
+                                <h2 className="font-bold text-lg">Local AI & Offline Mode</h2>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${ollamaStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+                                <div className={`w-2 h-2 rounded-full ${ollamaStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                                {ollamaStatus === 'connected' ? 'Ollama Online' : 'Ollama Offline'}
+                            </div>
+                        </div>
+
+                        {hardware && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                                    <div className="text-[10px] text-indigo-200 uppercase font-bold mb-1">Processor</div>
+                                    <div className="text-sm font-semibold truncate" title={hardware.cpu}>{hardware.cpu}</div>
+                                </div>
+                                <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                                    <div className="text-[10px] text-indigo-200 uppercase font-bold mb-1">Memory</div>
+                                    <div className="text-sm font-semibold">{hardware.ram_total_gb} GB RAM</div>
+                                </div>
+                                <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                                    <div className="text-[10px] text-indigo-200 uppercase font-bold mb-1">Graphics (VRAM)</div>
+                                    <div className="text-sm font-semibold truncate">{hardware.gpu} ({hardware.vram_gb} GB)</div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
+                            <button
+                                onClick={() => navigate('/setup')}
+                                className="w-full sm:w-auto px-5 py-2.5 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors shadow-sm"
+                            >
+                                Run System Wizard
+                            </button>
+                            <button
+                                onClick={fetchLocalModels}
+                                className="w-full sm:w-auto px-5 py-2.5 bg-indigo-500/30 text-white border border-white/20 rounded-xl font-bold text-sm hover:bg-indigo-500/40 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <RefreshCw size={16} />
+                                Refresh Status
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Decorative background circle */}
+                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
+                </section>
+
+                {/* AI Model Selection */}
                 <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <div className="flex items-center gap-2 mb-4">
                         <Brain className="text-indigo-600" size={20} />
-                        <h2 className="font-semibold text-slate-800">AI Model</h2>
+                        <h2 className="font-semibold text-slate-800">Choose AI Brain</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {MODEL_OPTIONS.map((opt) => (
-                            <button
-                                key={opt.id}
-                                onClick={() => { setSelectedModel(opt.id); markChange(); }}
-                                className={`relative p-4 rounded-xl border text-left transition-all ${selectedModel === opt.id
-                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
-                                    }`}
-                            >
-                                <div className="font-semibold text-slate-800 mb-1">{opt.label}</div>
-                                <div className="text-xs text-slate-500 leading-relaxed">{opt.description}</div>
-                                {selectedModel === opt.id &&
-                                    <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
-                                        <Check size={12} className="text-white" />
-                                    </div>
-                                }
-                            </button>
-                        ))}
+                        {MODEL_OPTIONS.map((opt) => {
+                            const isLocal = opt.id.includes(':') || opt.id.includes('phi') || opt.id.includes('gemma');
+                            const isDownloaded = localModels.some(m => m.name.includes(opt.id.split(':')[0]));
+
+                            return (
+                                <div key={opt.id} className="relative">
+                                    <button
+                                        onClick={() => { setSelectedModel(opt.id); markChange(); }}
+                                        className={`w-full p-4 rounded-xl border text-left transition-all h-full ${selectedModel === opt.id
+                                            ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                            : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="font-semibold text-slate-800">{opt.label}</div>
+                                            {isLocal && (
+                                                <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${isDownloaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {isDownloaded ? 'Local Ready' : 'External'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-slate-500 leading-relaxed pr-8">{opt.description}</div>
+
+                                        {selectedModel === opt.id &&
+                                            <div className="absolute top-4 right-4 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
+                                                <Check size={12} className="text-white" />
+                                            </div>
+                                        }
+                                    </button>
+
+                                    {isLocal && !isDownloaded && (
+                                        <button
+                                            onClick={() => installModel(opt.id)}
+                                            disabled={isInstalling !== null || ollamaStatus !== 'connected'}
+                                            className="absolute bottom-4 right-4 p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-30"
+                                            title="Download Model"
+                                        >
+                                            {isInstalling === opt.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
+
+                    {ollamaStatus === 'offline' && (
+                        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                            <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                            <div className="text-xs text-amber-700">
+                                <p className="font-bold mb-1">Ollama is not running!</p>
+                                <p>To use local models, please install Ollama from <a href="https://ollama.com" className="underline font-bold" target="_blank" rel="noreferrer">ollama.com</a> and make sure it's running on your system.</p>
+                            </div>
+                        </div>
+                    )}
                 </section>
 
-                {/* 2. Voice Selection */}
+                {/* Voice Selection */}
                 <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <div className="flex items-center gap-2 mb-4">
                         <Volume2 className="text-indigo-600" size={20} />
-                        <h2 className="font-semibold text-slate-800">Voice</h2>
+                        <h2 className="font-semibold text-slate-800">Voice Assistant</h2>
                     </div>
 
                     <div className="space-y-6">
@@ -272,7 +423,6 @@ const Settings = () => {
                                                 : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
                                                 }`}
                                         >
-                                            {/* Selection Click Area */}
                                             <div
                                                 className="flex-1 flex items-center cursor-pointer"
                                                 onClick={() => { setSelectedVoice(voice.id); markChange(); }}
@@ -288,7 +438,6 @@ const Settings = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Preview Button */}
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); previewVoice(voice.id); }}
                                                 disabled={playingVoice !== null}
@@ -296,12 +445,6 @@ const Settings = () => {
                                             >
                                                 {playingVoice === voice.id ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
                                             </button>
-
-                                            {selectedVoice === voice.id &&
-                                                <div className="absolute top-2 right-2">
-                                                    {/* Checkmark indicator usually here but design is clean without it too */}
-                                                </div>
-                                            }
                                         </div>
                                     ))}
                                 </div>
@@ -310,7 +453,7 @@ const Settings = () => {
                     </div>
                 </section>
 
-                {/* 3. Speed Control */}
+                {/* Speed Control */}
                 <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-2">
@@ -340,10 +483,9 @@ const Settings = () => {
                     </div>
                 </section>
 
-                {/* Info Footer */}
                 <div className="text-center text-xs text-slate-400 py-6">
-                    <p>Dukan Sathi v1.0 • Powered by Moltbot AI</p>
-                    <p>Voice generated by Microsoft Edge Neural TTS</p>
+                    <p>Dukan Sathi v1.1 • Powered by Moltbot AI</p>
+                    <p>Local AI powered by Ollama</p>
                 </div>
             </div>
         </div>

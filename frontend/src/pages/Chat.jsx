@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 const Chat = () => {
     const {
@@ -18,7 +19,8 @@ const Chat = () => {
         isMuted,
         toggleMute,
         unlockAudio,
-        isPlaying
+        isPlaying,
+        model
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
@@ -26,6 +28,27 @@ const Chat = () => {
     const fileInputRef = useRef(null);
     const timerRef = useRef(null);
     const navigate = useNavigate();
+    const isOnline = useOnlineStatus();
+    const [localAIReady, setLocalAIReady] = useState(false);
+
+    // Check Local AI availability
+    useEffect(() => {
+        const checkLocalAI = async () => {
+            try {
+                const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                const res = await fetch(`${API_URL}/api/setup/local-models`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.models && data.models.length > 0) {
+                        setLocalAIReady(true);
+                    }
+                }
+            } catch (e) {
+                console.warn("Local AI check failed:", e);
+            }
+        };
+        checkLocalAI();
+    }, []);
 
     // Auto-scroll
     useEffect(() => {
@@ -264,8 +287,10 @@ const Chat = () => {
                 <div className="flex-1">
                     <h2 className="font-heading font-bold text-lg text-slate-800">Sathi AI</h2>
                     <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                        <span className="text-xs text-slate-500">Online</span>
+                        <span className={`w-2 h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')}`}></span>
+                        <span className="text-xs text-slate-500">
+                            {model === 'phi3:mini' ? 'Local AI (Offline)' : (isOnline ? 'Online' : (localAIReady ? 'Offline (Local AI)' : 'Offline'))}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -353,9 +378,10 @@ const Chat = () => {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask anything..."
-                    className="flex-1 bg-slate-100 text-slate-800 placeholder-slate-400 px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
+                    placeholder={isOnline ? "Ask anything..." : (localAIReady ? "Ask Local AI..." : "You are offline")}
+                    disabled={!isOnline && !localAIReady}
+                    className={`flex-1 bg-slate-100 text-slate-800 placeholder-slate-400 px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed ${!isOnline && localAIReady ? 'ring-2 ring-amber-500/20 bg-amber-50' : ''}`}
                 />
 
                 {input.trim() ? (

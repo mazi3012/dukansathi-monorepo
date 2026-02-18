@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
+import Sidebar from '../components/Sidebar';
 import NavigationDrawer from '../components/NavigationDrawer';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
-const MobileLayout = () => {
+const MainLayout = () => {
     const navigate = useNavigate();
     const [isListening, setIsListening] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -17,9 +18,11 @@ const MobileLayout = () => {
 
         // Listen for auth changes (like sign out)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!session) {
+            const isGuest = localStorage.getItem('guest_mode') === 'true';
+
+            if (!session && !isGuest) {
                 navigate('/landing');
-            } else {
+            } else if (session) {
                 setUser(session.user);
             }
         });
@@ -29,6 +32,21 @@ const MobileLayout = () => {
 
     const checkUser = async () => {
         try {
+            const isGuest = localStorage.getItem('guest_mode') === 'true';
+
+            if (isGuest) {
+                // Set dummy guest user
+                setUser({
+                    id: 'guest_user_123',
+                    email: 'guest@demo.com',
+                    user_metadata: {
+                        full_name: 'Guest User'
+                    }
+                });
+                setLoading(false);
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 navigate('/landing');
@@ -68,9 +86,12 @@ const MobileLayout = () => {
     }
 
     return (
-        <div className="flex flex-col min-h-screen bg-slate-50 font-sans text-slate-800">
+        <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
 
-            {/* Navigation Drawer Overlay */}
+            {/* Desktop Sidebar (Hidden on Mobile) */}
+            <Sidebar />
+
+            {/* Navigation Drawer Overlay (Mobile Only) */}
             <NavigationDrawer
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
@@ -78,22 +99,27 @@ const MobileLayout = () => {
             />
 
             {/* Main Content Area */}
-            <main className="flex-1 pb-24 px-4 pt-4 overflow-y-auto">
-                <Outlet context={{ user }} />
+            {/* Added md:pl-64 to push content when sidebar is visible */}
+            <main className="flex-1 pb-24 md:pb-0 md:pl-64 pt-4 px-4 overflow-y-auto h-screen">
+                <div className="max-w-7xl mx-auto">
+                    <Outlet context={{ user }} />
+                </div>
             </main>
 
             {/* Global Toast Notifications */}
             <Toaster position="top-center" />
 
-            {/* Sticky Bottom Nav */}
-            <BottomNav
-                isListening={isListening}
-                onMicClick={toggleListening}
-                onMenuClick={() => setIsMenuOpen(true)}
-            />
+            {/* Sticky Bottom Nav (Hidden on Desktop) */}
+            <div className="md:hidden">
+                <BottomNav
+                    isListening={isListening}
+                    onMicClick={toggleListening}
+                    onMenuClick={() => setIsMenuOpen(true)}
+                />
+            </div>
 
         </div>
     );
 };
 
-export default MobileLayout;
+export default MainLayout;

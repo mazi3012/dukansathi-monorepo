@@ -121,7 +121,7 @@ const Dashboard = () => {
             </header>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 px-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4">
                 <StatCard
                     title="Today's Sale"
                     value={`₹${stats.todaySales.toLocaleString('en-IN')}`}
@@ -134,12 +134,24 @@ const Dashboard = () => {
                     isLoading={loading}
                     color="text-slate-900"
                 />
+                <StatCard
+                    title="Low Stock"
+                    value={stats.lowStockCount}
+                    isLoading={loading}
+                    color="text-amber-500"
+                />
+                <StatCard
+                    title="Total Customers"
+                    value={stats.todayOrders} // Placeholder, ideally fetch unique customers
+                    isLoading={loading}
+                    color="text-emerald-600"
+                />
             </div>
 
             {/* Quick Actions */}
             <div>
                 <h2 className="text-sm font-semibold text-slate-900 mb-3 px-5">Quick Actions</h2>
-                <div className="flex justify-around bg-white mx-4 p-4 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex flex-wrap md:justify-start gap-4 md:gap-6 bg-white mx-4 p-4 rounded-2xl shadow-sm border border-slate-100">
                     <ActionButton icon={Plus} label="New Bill" color="bg-indigo-600" onClick={() => navigate('/sales')} />
                     <ActionButton icon={ShoppingBag} label="Add Item" color="bg-pink-500" onClick={() => navigate('/inventory')} />
                     <ActionButton icon={AlertTriangle} label="Low Stock" color={stats.lowStockCount > 0 ? "bg-amber-500 animate-pulse" : "bg-slate-400"} onClick={() => navigate('/inventory')} />

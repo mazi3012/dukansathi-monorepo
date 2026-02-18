@@ -20,6 +20,7 @@ Why Gemini instead of Claude:
 import os
 from typing import TypedDict, Annotated
 from langchain_google_vertexai import ChatVertexAI
+from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from google.oauth2 import service_account
@@ -34,8 +35,24 @@ import logging
 from .language_detector import detect_language
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    filename=os.path.join(os.path.dirname(__file__), "agent_debug.log"),
+    filemode='w',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Add backend to path for local_db import
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../backend"))
+try:
+    import local_db
+    # Initialize DB on load to ensure tables exist
+    local_db.init_db()
+except ImportError:
+    logger.warning("Could not import local_db. Offline features may fail.")
+    local_db = None
 
 
 load_dotenv()
@@ -159,6 +176,15 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
     Attributes are cached so we don't re-auth on every token.
     """
     try:
+        # Check if model is a Local Model (Ollama)
+        if "gemini" not in model_name:
+            print(f"DEBUG: Using Local LLM (Ollama) -> {model_name}")
+            return ChatOllama(
+                model=model_name,
+                base_url="http://127.0.0.1:11434",
+                temperature=0.7
+            )
+
         # Load service account credentials
         creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
         
@@ -193,7 +219,7 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
             temperature=0.7 
         )
     except Exception as e:
-        print(f"ERROR initializing Gemini ({model_name}): {e}")
+        print(f"ERROR initializing LLM ({model_name}): {e}")
         # Return a fallback or re-raise
         raise e
 
@@ -201,7 +227,7 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
 # llm = init_gemini_llm()
 
 
-async def generate_sql_query(user_query: str, user_id: str, history_context: str = "") -> str:
+async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "gemini-2.0-flash-001") -> str:
     """
     Generate a SQL query from natural language using Gemini
     """
@@ -240,13 +266,66 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     """
     
     # Use Flash for SQL gen as it's faster
-    llm = get_llm("gemini-2.0-flash-001")
+    llm = get_llm(model)
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     sql = response.content.replace("```sql", "").replace("```", "").strip()
     # Remove trailing semicolon if present, as it can cause RPC errors
     if sql.endswith(";"):
         sql = sql[:-1]
     return sql
+
+async def generate_sql_local(user_query: str, model: str = "phi3:mini") -> str:
+    """
+    Enhanced SQL generation for Local AI (SQLite).
+    Supports products, customers, and sales queries.
+    """
+    logger.info(f"DEBUG: Entering generate_sql_local with model={model}")
+    prompt = f"""
+    SYSTEM: You are a SQLite expert for Dukan Sathi. 
+    Output the SLQ SELECT query ONLY. No markdown, no explanations.
+
+    TABLES:
+    1. products (id, name, selling_price, stock_quantity, category)
+    2. customers (id, name, phone, credit_balance)
+
+    SCHEMA NOTES:
+    - Products: use name, selling_price, stock_quantity
+    - Customers: use name, phone, credit_balance
+
+    TASK: Convert user request to SQLite.
+    QUERY: "{user_query}"
+
+    EXAMPLES:
+    "Show products" -> SELECT name, selling_price FROM products LIMIT 20
+    "Price of Rice" -> SELECT name, selling_price FROM products WHERE name LIKE '%Rice%'
+    "List customers" -> SELECT name, phone FROM customers LIMIT 10
+    "Who owes money?" -> SELECT name, credit_balance FROM customers WHERE credit_balance > 0 ORDER BY credit_balance DESC
+    "Check stock for maggi" -> SELECT name, stock_quantity FROM products WHERE name LIKE '%maggi%'
+
+    SQL:
+    """
+    try:
+        print(f"DEBUG: Generating SQL for query: {user_query}")
+        llm = get_llm(model)
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        
+        print(f"DEBUG LOCAL SQL RAW: {response.content}")
+
+        sql = response.content.replace("```sql", "").replace("```", "").strip()
+        
+        # Extract just the SELECT statement if chatty
+        import re
+        match = re.search(r"SELECT.*", sql, re.IGNORECASE | re.DOTALL)
+        if match:
+            sql = match.group(0)
+            
+        # Clean up any trailing text
+        sql = sql.split(';')[0]
+            
+        return sql
+    except Exception as e:
+        print(f"ERROR Local SQL Gen: {e}")
+        return "SELECT name, selling_price FROM products LIMIT 5"
 
 async def execute_sql(sql: str) -> str:
     """
@@ -262,6 +341,28 @@ async def execute_sql(sql: str) -> str:
     except Exception as e:
         print(f"ERROR: SQL Execution failed: {e}")
         return f"Error executing query: {str(e)}"
+
+def execute_sql_local(sql: str) -> str:
+    """
+    Execute SQL against Local SQLite DB
+    """
+    if not local_db:
+        return "Error: Local Database not available."
+    
+    try:
+        print(f"DEBUG: Executing Local SQL: {sql}")
+        conn = local_db.get_db_connection()
+        c = conn.cursor()
+        c.execute(sql)
+        rows = c.fetchall()
+        conn.close()
+        
+        # Convert to list of dicts
+        result = [dict(row) for row in rows]
+        return str(result)
+    except Exception as e:
+        print(f"ERROR: Local SQL Execution failed: {e}")
+        return f"Error executing local query: {str(e)}"
 
 async def get_chat_history(user_id: str, limit: int = 10) -> list:
     """
@@ -346,6 +447,13 @@ def categorize_query(msg_lower: str) -> str:
     clean_msg = re.sub(r'[^\w\s]', '', msg_lower)
     words = set(clean_msg.split())
     
+    # Remove punctuation and split
+    clean_msg = re.sub(r'[^\w\s]', '', msg_lower)
+    words = set(clean_msg.split())
+    
+    # DEBUG: Log words
+    print(f"DEBUG CATEGORY words: {words}")
+    
     # Greeting patterns
     greeting_keywords = [
         "hello", "hi", "hey", "namaste", "namaskar", "good morning", 
@@ -369,8 +477,15 @@ def categorize_query(msg_lower: str) -> str:
         "list", "report", "summary", "count", "number", "how many", "status", "due", "pending",
         "paid", "payment", "transaction", "history", "record", "entry", "data", "info", "details",
         "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
+        "customer", "client", "buyer", "sale", "sell", "sold", "bill", "invoice", "receipt",
+        "draft", "order", "purchase", "revenue", "profit", "loss", "expense", "total", "amount",
+        "kitna", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
+        "list", "report", "summary", "count", "number", "how many", "status", "due", "pending",
+        "paid", "payment", "transaction", "history", "record", "entry", "data", "info", "details",
+        "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
         "who bought", "what did", "product", "item", "good", "service", "sku", "code",
-        "spend", "spent", "credit", "balance", "money", "cash", "upi", "card", "bank"
+        "spend", "spent", "credit", "balance", "money", "cash", "upi", "card", "bank",
+        "products", "items", "bills", "invoices", "orders" 
     ]
 
     # Identity inquiry patterns
@@ -405,7 +520,9 @@ def categorize_query(msg_lower: str) -> str:
         return "CAPABILITY"
     
     # Check for business queries
+    print(f"DEBUG: Checking business keywords against {words}")
     if any(k in words for k in business_keywords):
+        print("DEBUG: Found business keyword")
         return "BUSINESS"
     
     # Job/Career inquiries (often mistaken for business)
@@ -416,7 +533,7 @@ def categorize_query(msg_lower: str) -> str:
     return "CHAT"
 
 
-async def extract_action_params(user_query: str, history_context: str = "") -> str:
+async def extract_action_params(user_query: str, history_context: str = "", model: str = "gemini-2.0-flash-001") -> str:
     """
     Extract structured JSON parameters for an action using Gemini
     """
@@ -466,7 +583,7 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
     
     try:
         # Use Flash for SQL gen as it's faster
-        llm = get_llm("gemini-2.0-flash-001")
+        llm = get_llm(model)
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         
         # DEBUG: Print raw response
@@ -475,12 +592,28 @@ async def extract_action_params(user_query: str, history_context: str = "") -> s
         # Robust JSON extraction using regex
         content = response.content
         match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
-            json_str = match.group(0)
+        json_str = match.group(0) if match else content.replace("```json", "").replace("```", "").strip()
+        
+        # ATTEMPT 1: Direct JSON Parse
+        try:
+            # Check if valid JSON
+            import json
+            json.loads(json_str)
             return json_str
+        except:
+            pass
             
-        # Fallback: simple cleanup if regex fails (unlikely if JSON is present)
-        json_str = content.replace("```json", "").replace("```", "").strip()
+        # ATTEMPT 2: AST Literal Eval (Handles single quotes like Python dicts)
+        try:
+            import ast
+            # Only if it looks like a dict
+            if json_str.strip().startswith("{"):
+                print("DEBUG: JSON Parse failed, trying ast.literal_eval for single quotes...")
+                py_dict = ast.literal_eval(json_str)
+                return json.dumps(py_dict)
+        except Exception as ast_err:
+            print(f"DEBUG: AST eval failed: {ast_err}")
+
         return json_str
     except Exception as e:
         print(f"ERROR extracting params: {e}")
@@ -500,6 +633,63 @@ async def get_user_profile(user_id: str) -> str:
     except Exception as e:
         print(f"ERROR: Failed to fetch profile: {e}")
         return "Dukan Sathi"
+
+async def extract_action_params_local(user_query: str, history_context: str = "", model: str = "phi3:mini") -> str:
+    """
+    Enhanced extraction for Local AI supporting all 4 Dukan Sathi draft scenarios.
+    """
+    prompt = f"""Extract JSON. No text.
+
+User: Bill for Raj 2 Rice
+JSON: {{ "type": "invoice_draft", "customer_name": "Raj", "items": [ {{ "product_name": "Rice", "quantity": 2 }} ] }}
+
+User: Add milk price 50
+JSON: {{ "type": "product_draft", "name": "milk", "selling_price": 50, "stock_quantity": 0, "category": "General" }}
+
+User: New customer Amit 9988776655
+JSON: {{ "type": "customer_draft", "name": "Amit", "phone": "9988776655", "address": "" }}
+
+User: Amit paid 500
+JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash" }}
+
+User: {user_query}
+JSON:"""
+    try:
+        llm = get_llm(model)
+        # Use simple string prompt for local model to avoid chatting
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        
+        print(f"DEBUG LOCAL EXTRACT RAW: {response.content}")
+
+        content = response.content
+        
+        # Robust Brace Counting Extractor
+        json_str = "{}"
+        start_idx = content.find('{')
+        
+        if start_idx != -1:
+            brace_count = 0
+            for i in range(start_idx, len(content)):
+                char = content[i]
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                
+                if brace_count == 0:
+                    json_str = content[start_idx:i+1]
+                    break
+        
+        # Cleanup markdown if present
+        json_str = json_str.replace("```json", "").replace("```", "").replace("'", '"')
+        
+        # Remove trailing commas (common local model error)
+        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+        
+        return json_str
+    except Exception as e:
+        print(f"ERROR Local Extraction: {e}")
+        return "{}"
 
 # --- NODES ---
 
@@ -522,6 +712,7 @@ async def action_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
+    selected_model = state.get("model", "gemini-2.0-flash-001")
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
@@ -535,7 +726,12 @@ async def action_node(state: AgentState):
     print("DEBUG: Executing Action Node")
     
     # Extract Parameters
-    action_json_str = await extract_action_params(last_msg, history_text)
+    if "gemini" in selected_model:
+        action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
+    else:
+        # Use simplified local extraction
+        action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
+        
     print(f"DEBUG: Extracted JSON: {action_json_str}")
 
     # Setup Logger
@@ -568,7 +764,7 @@ async def action_node(state: AgentState):
                 hsn_code = ""
                 official_name = prod_name
                 
-                if supabase and prod_name:
+                if supabase and prod_name and "gemini" in selected_model:
                     try:
                         # Sanitize product name for search safely
                         safe_name = re.sub(r'[^\w\s]', '', prod_name) # Remove special chars
@@ -589,8 +785,8 @@ async def action_node(state: AgentState):
 
                              if res and res.data and len(res.data) > 0:
                                 db_prod = res.data[0]
-                                price = float(db_prod.get("selling_price", 0))
-                                tax_percent = float(db_prod.get("tax_percent", 0))
+                                price = float(db_prod.get("selling_price") or 0)
+                                tax_percent = float(db_prod.get("tax_percent") or 0)
                                 hsn_code = db_prod.get("hsn_code", "")
                                 official_name = db_prod.get("name", prod_name)
                                 
@@ -602,6 +798,20 @@ async def action_node(state: AgentState):
                              
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
+
+                elif local_db and prod_name and "gemini" not in selected_model:
+                    # LOCAL DB LOOKUP
+                    try:
+                        safe_name = re.sub(r'[^\w\s]', '', prod_name)
+                        results = local_db.search_products_local(safe_name, user_id)
+                        if results:
+                            db_prod = results[0] # Take first match
+                            price = float(db_prod.get("selling_price", 0))
+                            tax_percent = float(db_prod.get("tax_percent", 0))
+                            official_name = db_prod.get("name", prod_name)
+                            logger.info(f"DEBUG: [LocalDB] Found {official_name}: Price={price}")
+                    except Exception as local_err:
+                        logger.error(f"ERROR: Local DB Lookup failed: {local_err}")
                 
                 # Update item
                 item["price"] = price
@@ -648,7 +858,7 @@ async def action_node(state: AgentState):
     """
     
     # Use Flash for SQL gen as it's faster
-    llm = get_llm("gemini-2.0-flash-001")
+    llm = get_llm(selected_model)
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     
     # Save to history (Just the text)
@@ -656,24 +866,46 @@ async def action_node(state: AgentState):
     await save_chat_message(user_id, "assistant", response.content)
     
     # Construct Structured Response for Frontend/Backend
+    # Construct Structured Response for Frontend/Backend
     try:
+        print(f"DEBUG UPDATED JSON RAW: {updated_json_str}")
         draft_obj = json.loads(updated_json_str)
+        print(f"DEBUG PARSED DRAFT OBJ: {draft_obj}")
+        
         # Identify draft type for frontend component
         if "type" in draft_obj:
             if "invoice" in draft_obj["type"]: 
                 draft_obj["draft_type"] = "invoice"
             elif "product" in draft_obj["type"]:
-               pass # handled as generic?
+                draft_obj["draft_type"] = "product"
             elif "customer" in draft_obj["type"]:
-               pass
+                draft_obj["draft_type"] = "customer"
+            elif "payment" in draft_obj["type"]:
+                draft_obj["draft_type"] = "payment"
+            else:
+                draft_obj["draft_type"] = "generic"
     except Exception as e:
-        print(f"❌ JSON Parse Error in Action Node: {e} | Content: {updated_json_str}")
+        print(f"ERROR JSON Parse Error in Action Node: {e} | Content: {updated_json_str}")
+        import traceback
+        traceback.print_exc()
         draft_obj = {}
+
+    # Save Draft to Local DB if Offline (All types supported)
+    if draft_obj and local_db and "gemini" not in selected_model:
+        try:
+             # Use the new generic action draft saver
+             local_db.save_action_draft_local(draft_obj, user_id)
+             print(f"DEBUG: Saved {draft_obj.get('type')} to Local DB")
+        except Exception as e:
+             print(f"ERROR saving local draft: {e}")
 
     # Validate Draft - If empty, apologize instead of lying
     final_text = response.content
+    
+    print(f"DEBUG DRAFT OBJ BEFORE CHECK: {draft_obj}")
+    
     if not draft_obj or "type" not in draft_obj or draft_obj.get("type") == "unknown":
-        print("⚠️ Draft generation failed or was unknown type.")
+        print("WARN Draft generation failed or was unknown type.")
         final_text = "Sorry Boss, I couldn't understand the details for that draft. Could you please repeat with more specific information?"
         draft_obj = {}
 
@@ -691,6 +923,7 @@ async def chat_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
+    selected_model = state.get("model", "gemini-2.0-flash-001")
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
@@ -706,6 +939,8 @@ async def chat_node(state: AgentState):
     msg_lower = last_msg.lower().strip()
     category = categorize_query(msg_lower)
     
+    logger.info(f"DEBUG CHAT NODE: category={category}, model={selected_model}")
+
     # Detect language for response
     detected_lang = detect_language(last_msg)
     print(f"DEBUG: Detected language: {detected_lang}")
@@ -724,11 +959,12 @@ async def chat_node(state: AgentState):
     if category == "GREETING":
          input_prompt = f"""
             You are Sathi AI, the personal AI assistant for {business_name}.
-            User said: "{last_msg}"
             HISTORY: {history_text}
             RULES: Warm greeting. Use "Boss". No symbols/commas. 
             LANGUAGE: {lang_instructions}
             IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
+            Start with "Namaste Boss" or similar if Hindi/Hinglish.
+            KEEP IT SHORT (1-2 lines max).
             """
     elif category == "CAPABILITY":
          input_prompt = f"""
@@ -737,16 +973,15 @@ async def chat_node(state: AgentState):
             RULES: 
             1. Say: "Boss, I can help you with:"
             2. List: Making Invoices, Tracking Inventory, Managing Customers, Adding/Updating Dues, and Answering business questions.
-            3. Keep it short. Use "Boss". No symbols/commas.
+            3. Keep it short (1-2 lines). Use "Boss". No symbols/commas.
             LANGUAGE: {lang_instructions}
             """
     elif category == "IDENTITY":
          input_prompt = f"""
             You are Sathi AI, the personal AI assistant for {business_name}.
-            User asked: "{last_msg}"
             RULES: 
-            1. State clearly "I am Sathi AI, your helpful assistant Boss."
-            2. Keep it short. Use "Boss". No symbols/commas.
+            1. State clearly "Namaste! Main Sathi AI hoon, your helpful assistant Boss."
+            2. Keep it short (1 line only). Use "Boss". No symbols/commas.
             LANGUAGE: {lang_instructions}
             """
     elif category == "CHAT":
@@ -759,27 +994,39 @@ async def chat_node(state: AgentState):
             2. Use "Boss" occasionally to maintain persona.
             3. Do NOT make up database data. If they ask something you don't know, say so.
             4. If they seem to want to do business (like "add item"), guide them to be specific.
-            5. Keep it concise. No symbols/commas.
+            5. STRICTLY KEEP IT SHORT (1-2 lines max). No symbols/commas.
+            6. ALWAYS maintain Sathi AI persona (Friendly, Helpful, "Boss").
             LANGUAGE: {lang_instructions}
             """
     else: # BUSINESS / Fallback
         # Data Retrieval
-        sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text)
-        specialist_data = await execute_sql(sql_query)
-        
+        if "gemini" in selected_model:
+            sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model)
+            specialist_data = await execute_sql(sql_query)
+        else:
+            # Use Local DB for Offline/Local Model
+            sql_query = await generate_sql_local(last_msg, model=selected_model)
+            specialist_data = execute_sql_local(sql_query)
+            
         input_prompt = f"""
         You are Sathi AI, assistant for {business_name}.
         DATA: {specialist_data}
         USER: "{last_msg}"
         HISTORY: {history_text}
         RULES: Answer using Data. If empty, say 'No data found'. Use "Boss". No symbols/commas. REMEMBER: YOU ARE SATHI AI.
+        STRICTLY KEEP IT SHORT (1-2 lines max).
         LANGUAGE: {lang_instructions}
         IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
         """
 
-    # Use the selected model from state, or default to Flash
-    selected_model = state.get("model", "gemini-2.0-flash-001")
+    # Invoke the model
     llm = get_llm(selected_model)
+    
+    # Reverting to single message prompt as SystemMessage caused checking hang with local model
+    # For Local Models, we add extra emphasis on being Sathi AI
+    if "gemini" not in selected_model:
+        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Keep responses under 2 lines. " + input_prompt
+
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     
     # Save to history

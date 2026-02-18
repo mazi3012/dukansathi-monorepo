@@ -78,7 +78,7 @@ export const useChat = () => {
     }, []);
 
     useEffect(() => {
-        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000/ws/chat';
+        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://127.0.0.1:8000/ws/chat';
         const socket = new WebSocket(wsUrl);
 
         // Fetch User & Chat History
@@ -297,7 +297,8 @@ export const useChat = () => {
             access_token: session?.access_token, // Sending token too just in case
             voice_id: voice,
             voice_rate: voiceSpeed,
-            model: model
+            model: navigator.onLine ? model : 'phi3:mini', // Fallback to phi3:mini if offline
+            ai_mode: navigator.onLine ? 'cloud' : 'local'
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
     }, [ws, voice, voiceSpeed, model]);
@@ -357,7 +358,8 @@ export const useChat = () => {
                                 access_token: session?.access_token,
                                 voice_id: voice,
                                 voice_rate: voiceSpeed,
-                                model: model
+                                model: navigator.onLine ? model : 'phi3:mini',
+                                ai_mode: navigator.onLine ? 'cloud' : 'local'
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
@@ -394,6 +396,7 @@ export const useChat = () => {
         isMuted,
         toggleMute,
         unlockAudio,
-        isPlaying
+        isPlaying,
+        model
     };
 };

@@ -13,7 +13,7 @@ const VoiceAssist = () => {
 
     // Connect to WebSocket on mount
     useEffect(() => {
-        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000/ws/chat';
+        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://127.0.0.1:8000/ws/chat';
         const socket = new WebSocket(wsUrl);
 
         socket.onopen = () => console.log('✅ Connected to Moltbot');

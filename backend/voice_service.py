@@ -30,9 +30,9 @@ groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 # Automatically uses GOOGLE_APPLICATION_CREDENTIALS from .env
 try:
     tts_client = texttospeech.TextToSpeechClient()
-    print("✅ Google Cloud TTS Client initialized successfully")
+    print("[OK] Google Cloud TTS Client initialized successfully")
 except Exception as e:
-    print(f"❌ Failed to initialize Google Cloud TTS: {e}")
+    print(f"[ERR] Failed to initialize Google Cloud TTS: {e}")
     tts_client = None
 
 # Voice Mapping: Frontend ID -> Google Cloud Voice Name
@@ -97,14 +97,14 @@ async def speak_text(
         Base64 encoded MP3 audio
     """
     if not tts_client:
-        print("❌ TTS Error: Google Cloud Client not initialized")
+        print("[ERR] TTS Error: Google Cloud Client not initialized")
         return None
 
     try:
         # Validate and map voice
         google_voice_name = VOICE_MAPPING.get(voice)
         if not google_voice_name:
-            print(f"⚠️ Unknown voice '{voice}', defaulting to 'en-IN-Neural2-B'")
+            print(f"[WARN] Unknown voice '{voice}', defaulting to 'en-IN-Neural2-B'")
             google_voice_name = "en-IN-Neural2-B"
             
         # Parse language code from voice name (e.g., "hi-IN-Neural2-D" -> "hi-IN")
@@ -122,8 +122,8 @@ async def speak_text(
         except Exception:
             speaking_rate = 1.0
             
-        print(f"🔊 Google TTS: voice='{google_voice_name}' (lang={language_code}), rate={speaking_rate}")
-        print(f"🔊 Text: '{text[:50]}...'")
+        print(f"[TTS] Google TTS: voice='{google_voice_name}' (lang={language_code}), rate={speaking_rate}")
+        print(f"[TTS] Text: '{text[:50]}...'")
 
         # 1. Set the text input
         synthesis_input = texttospeech.SynthesisInput(text=text)
@@ -158,11 +158,11 @@ async def speak_text(
         audio_bytes = response.audio_content
         b64_str = base64.b64encode(audio_bytes).decode('utf-8')
         
-        print(f"✅ Google TTS Success: Generated {len(audio_bytes)} bytes")
+        print(f"[OK] Google TTS Success: Generated {len(audio_bytes)} bytes")
         return b64_str
         
     except Exception as e:
-        print(f"❌ Google TTS Error: {e}")
+        print(f"[ERR] Google TTS Error: {e}")
         import traceback
         print(traceback.format_exc())
         return None

@@ -26,7 +26,19 @@ const Customers = () => {
             if (error) throw error;
             setCustomers(data || []);
         } catch (err) {
-            console.error("Error fetching customers:", err);
+            console.error("Error fetching customers (Supabase):", err);
+            // Fallback to Local API
+            try {
+                console.log("Attempting to fetch from Local API...");
+                const res = await fetch('http://localhost:8000/api/local/customers');
+                if (res.ok) {
+                    const localData = await res.json();
+                    setCustomers(localData || []);
+                    console.log("Loaded customers from Local API");
+                }
+            } catch (localErr) {
+                console.error("Error fetching local customers:", localErr);
+            }
         } finally {
             setLoading(false);
         }
@@ -65,19 +77,24 @@ const Customers = () => {
 
     return (
         <div className="pb-20 min-h-screen bg-slate-50">
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 p-4 shadow-sm">
-                <h1 className="text-xl font-heading font-bold text-slate-900 mb-3">Customers</h1>
-                <div className="relative">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                    <input
-                        value={search} onChange={e => setSearch(e.target.value)}
-                        placeholder="Search customers..."
-                        className="w-full pl-10 h-10 bg-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    />
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 p-4 shadow-sm md:flex md:items-center md:justify-between">
+                <h1 className="text-xl font-heading font-bold text-slate-900 mb-3 md:mb-0">Customers</h1>
+                <div className="flex items-center gap-3 w-full md:w-auto mt-3 md:mt-0">
+                    <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                        <input
+                            value={search} onChange={e => setSearch(e.target.value)}
+                            placeholder="Search customers..."
+                            className="w-full pl-10 h-10 bg-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </div>
+                    <button onClick={() => setShowModal(true)} className="hidden md:flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+                        <Plus size={20} /> Add Customer
+                    </button>
                 </div>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {loading ? (
                     <div className="text-center py-10 text-slate-400">Loading customers...</div>
                 ) : filtered.length === 0 ? (
@@ -118,7 +135,7 @@ const Customers = () => {
                 )}
             </div>
 
-            <button onClick={() => setShowModal(true)} className="fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors">
+            <button onClick={() => setShowModal(true)} className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors">
                 <Plus size={28} />
             </button>
 

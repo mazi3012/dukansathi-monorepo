@@ -29,3 +29,15 @@ Thumbs.db
 
 # Render / Deployment
 .render_deploy_check
+
+# Local Data
+*.db
+dukansathi_offline.db
+backend/dukansathi_offline.db
+
+# Sensitive / Config
+service_account.json
+credentials.json
+google-credentials.json
+*.pem
+*.key

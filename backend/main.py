@@ -10,6 +10,11 @@ It handles:
 - API endpoints for CRUD operations
 - Authentication middleware
 - CORS configuration
+- WebSocket connections for real-time AI chat
+- API endpoints for CRUD operations
+- Authentication middleware
+- CORS configuration
+- System Setup & Local AI
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -74,6 +79,16 @@ except Exception as e:
     async def transcribe_audio(*args): return "STT Module Load Failed"
     async def speak_text(*args): return None
 
+# Import Setup Routes & Local AI
+try:
+    from setup_routes import router as setup_router
+    from local_ai import LocalLLMService
+    import local_db # Import local_db for direct access
+except ImportError as e:
+    logger.error(f"Failed to import Setup/LocalAI modules: {e}")
+    setup_router = None
+    local_db = None
+
 
 
 # Create FastAPI app
@@ -84,13 +99,41 @@ app = FastAPI(
 )
 
 # Configure CORS to allow frontend requests
+# Configure CORS to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:5173")],
+    # allow_origin_regex="https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?",
+    allow_origins=["*"], # TEMPORARY DEBUGGING
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_request_origins(request, call_next):
+    origin = request.headers.get("origin")
+    if "/api/setup" in str(request.url):
+        logger.info(f"Setup Request: {request.method} {request.url} from Origin: {origin}")
+    return await call_next(request)
+# Register Setup Router
+if setup_router:
+    app.include_router(setup_router)
+
+# --- Local Data Endpoints (for Offline Mode) ---
+@app.get("/api/local/customers")
+async def get_local_customers(user_id: str = "anon"):
+    """Get customers from local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    return local_db.get_customers_local(user_id)
+
+@app.get("/api/local/products")
+async def get_local_products(user_id: str = "anon"):
+    """Get products from local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    return local_db.get_products_local(user_id)
+# ---------------------------------------------
 
 @app.get("/")
 async def root():
@@ -140,7 +183,10 @@ async def cleanup_scheduler():
                     # Implementing a simple DB cleanup for now.
                     
                     # Call the PostgreSQL function directly via RPC
-                    await perform_history_cleanup()
+                    if 'perform_history_cleanup' in globals():
+                        await perform_history_cleanup()
+                    else:
+                        print("WARN: perform_history_cleanup not available")
                     
                     # Also try to clean up storage if possible (Listing all files is expensive)
                     # For a robust solution, we would need a table tracking file uploads.
@@ -176,7 +222,7 @@ def optimize_image(image_bytes: bytes, max_size: int = 1024, quality: int = 80) 
         img.save(output_buffer, format='JPEG', quality=quality, optimize=True)
         return output_buffer.getvalue()
     except Exception as e:
-        print(f"⚠️ Image optimization failed: {e}")
+        print(f"[WARN] Image optimization failed: {e}")
         return image_bytes # Return original if optimization fails
 
 def clean_text_for_tts(text: str) -> str:
@@ -217,7 +263,7 @@ async def upload_to_storage(bucket: str, file_path: str, file_bytes: bytes, mime
         public_url = supabase.storage.from_(bucket).get_public_url(file_path)
         return public_url
     except Exception as e:
-        print(f"❌ Storage Upload Error: {e}")
+        print(f"[ERR] Storage Upload Error: {e}")
         raise e
 
 # WebSocket endpoint for AI chat
@@ -249,7 +295,7 @@ async def chat_websocket(websocket: WebSocket):
     WebSocket endpoint for real-time AI chat communication
     """
     await websocket.accept()
-    print("🔌 WebSocket Connection Established")
+    print("[WS] WebSocket Connection Established")
     
     try:
         while True:
@@ -277,15 +323,15 @@ async def chat_websocket(websocket: WebSocket):
             if safe_user_id == "anon" and user_token and len(user_token) >= 10:
                 safe_user_id = user_token[-10:]
             
-            print(f"✅ WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
-            print(f"🎤 Voice Params: ID={voice_id}, Rate={voice_rate}") # DEBUG LOG
+            print(f"[WS] WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
+            print(f"[WS] Voice Params: ID={voice_id}, Rate={voice_rate}") # DEBUG LOG
 
             # 1. Handle Voice Input (STT)
             if message_type == "voice" and content:
                 try:
                     audio_bytes = base64.b64decode(content)
                     user_text = await transcribe_audio(audio_bytes)
-                    print(f"🎤 Transcribed: {user_text}")
+                    print(f"[STT] Transcribed: {user_text}")
                     
                     # IMMEDIATE FEEDBACK
                     await websocket.send_json({
@@ -293,7 +339,7 @@ async def chat_websocket(websocket: WebSocket):
                         "content": user_text
                     })
                 except Exception as e:
-                    print(f"❌ STT Error: {e}")
+                    print(f"[ERR] STT Error: {e}")
                     await websocket.send_json({"type": "error", "content": f"Voice processing failed: {str(e)}"})
                     continue
                     
@@ -314,13 +360,13 @@ async def chat_websocket(websocket: WebSocket):
             # 3. Handle Text Input
             elif message_type == "text":
                 user_text = content
-                print(f"💬 Text message: {user_text}")
+                print(f"[CHAT] Text message: {user_text}")
             
             # 4. Handle Draft Approvals
             elif message_type == "action":
                 action = data.get("action")
                 draft_data = data.get("draft_data")
-                print(f"🎯 Draft approval action: {action}")
+                print(f"[ACTION] Draft approval action: {action}")
                 
                 # Validate supabase client is available
                 if not supabase:
@@ -354,7 +400,22 @@ async def chat_websocket(websocket: WebSocket):
                                 "content": f"Customer {customer_name} added successfully Boss!"
                             })
                         else:
-                            await websocket.send_json({
+                             # Fallback to Local DB if Supabase fails or returns empty (and we want local persistence)
+                             # Or if we want to save to local DB ANYWAY for offline sync.
+                             if local_db:
+                                 local_id = local_db.save_customer_local({
+                                     "name": customer_name,
+                                     "phone": draft_data.get("phone"),
+                                     "credit_balance": 0
+                                 }, user_id)
+                                 if local_id:
+                                      await websocket.send_json({
+                                        "type": "text",
+                                        "content": f"Customer {customer_name} saved LOCALLY Boss! (Sync pending)"
+                                    })
+                                      continue
+
+                             await websocket.send_json({
                                 "type": "error",
                                 "content": "Failed to add customer."
                             })
@@ -420,14 +481,14 @@ async def chat_websocket(websocket: WebSocket):
                     
                     else:
                         # Unknown or missing action
-                        print(f"⚠️ Unknown or invalid action: {action}")
+                        print(f"[WARN] Unknown or invalid action: {action}")
                         await websocket.send_json({
                             "type": "error",
                             "content": f"Unknown action '{action}' or missing draft data."
                         })
                         
                 except Exception as e:
-                    print(f"❌ Draft approval error: {e}")
+                    print(f"[ERR] Draft approval error: {e}")
                     import traceback
                     traceback.print_exc()
                     await websocket.send_json({
@@ -442,10 +503,25 @@ async def chat_websocket(websocket: WebSocket):
             
             if not user_text: continue
 
-            # 4. Process with AI
+            # 4. Process with AI (Cloud or Local)
             try:
-                ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
-                print(f"✨ AI Raw Response: {ai_response_raw[:100]}...")
+                ai_response_raw = ""
+                
+                # Check for Local Mode
+                is_local_mode = model_id.startswith("local:") or model_id in ["phi3:mini", "gemma:2b", "time:latest"]
+                
+                if is_local_mode or data.get("ai_mode") == "local":
+                     # Strip 'local:' prefix if present
+                     local_model_name = model_id.replace("local:", "") if model_id.startswith("local:") else model_id
+                     print(f"[AI] Using LOCAL AI Engine ({local_model_name})...")
+                     # ROUTE THROUGH AGENT GRAPH (Unified Flow)
+                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name)
+                     
+                else:
+                    # Cloud AI (Existing)
+                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
+
+                print(f"[AI] AI Raw Response: {ai_response_raw[:100]}...")
                 
                 # PARSE STRUCTURED RESPONSE
                 import json
@@ -464,7 +540,7 @@ async def chat_websocket(websocket: WebSocket):
                     pass
                 
             except Exception as e:
-                print(f"❌ AI Processing Error: {e}")
+                print(f"[ERR] AI Processing Error: {e}")
                 await websocket.send_json({"type": "error", "content": f"AI Error: {str(e)}"})
                 continue
 
@@ -475,10 +551,10 @@ async def chat_websocket(websocket: WebSocket):
                 # But we can still use it to be safe against mild markdown.
                 tts_text = clean_text_for_tts(display_text) 
                 if tts_text:
-                    print(f"🔊 Generating TTS for: '{tts_text[:50]}...'")
+                    print(f"[TTS] Generating TTS for: '{tts_text[:50]}...'")
                     audio_response = await speak_text(tts_text, voice=voice_id, rate=voice_rate)
             except Exception as e:
-                print(f"⚠️ TTS Exception: {e}")
+                print(f"[WARN] TTS Exception: {e}")
 
             # 6. Send Response
             response_payload = {
@@ -498,9 +574,9 @@ async def chat_websocket(websocket: WebSocket):
             await websocket.send_json(response_payload)
             
     except WebSocketDisconnect:
-        print("🔌 Client disconnected from WebSocket")
+        print("[WS] Client disconnected from WebSocket")
     except Exception as e:
-        print(f"💥 FATAL WebSocket Error: {e}")
+        print(f"[ERR] FATAL WebSocket Error: {e}")
         import traceback
         traceback.print_exc()
 
@@ -539,7 +615,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=port,
-        reload=False  # Disable hot reload to fix Windows multiprocessing crash
+        reload=False
     )

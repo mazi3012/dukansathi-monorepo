@@ -48,7 +48,19 @@ const Inventory = () => {
             if (error) throw error;
             setProducts(productsData || []);
         } catch (error) {
-            console.error('Error fetching inventory:', error);
+            console.error('Error fetching inventory (Supabase):', error);
+            // Fallback to Local API
+            try {
+                console.log("Attempting to fetch from Local API...");
+                const res = await fetch('http://localhost:8000/api/local/products');
+                if (res.ok) {
+                    const localData = await res.json();
+                    setProducts(localData || []);
+                    console.log("Loaded products from Local API");
+                }
+            } catch (localErr) {
+                console.error("Error fetching local products:", localErr);
+            }
         } finally {
             setLoading(false);
         }
@@ -143,20 +155,28 @@ const Inventory = () => {
         <div className="pb-20 min-h-screen bg-slate-50">
 
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 shadow-sm p-4">
-                <h1 className="text-xl font-heading font-bold text-slate-900 mb-3">Inventory</h1>
-                <div className="relative">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                    <input
-                        value={search} onChange={e => setSearch(e.target.value)}
-                        placeholder="Search products..."
-                        className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 shadow-sm p-4 md:flex md:items-center md:justify-between">
+                <h1 className="text-xl font-heading font-bold text-slate-900 mb-3 md:mb-0">Inventory</h1>
+                <div className="flex items-center gap-3 w-full md:w-auto mt-3 md:mt-0">
+                    <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                        <input
+                            value={search} onChange={e => setSearch(e.target.value)}
+                            placeholder="Search products..."
+                            className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                    </div>
+                    <button
+                        onClick={handleAddNew}
+                        className="hidden md:flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+                    >
+                        <Plus size={20} /> Add Product
+                    </button>
                 </div>
             </div>
 
             {/* List */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProducts.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                         <Package size={48} className="mx-auto mb-3 opacity-20" />
@@ -181,10 +201,10 @@ const Inventory = () => {
                 )}
             </div>
 
-            {/* FAB */}
+            {/* FAB (Mobile Only) */}
             <button
                 onClick={handleAddNew}
-                className="fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center z-40 active:scale-95 transition-transform"
+                className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center z-40 active:scale-95 transition-transform"
             >
                 <Plus size={28} />
             </button>

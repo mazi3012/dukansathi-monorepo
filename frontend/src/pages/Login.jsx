@@ -24,6 +24,16 @@ const Login = () => {
         }
     };
 
+    const handleGuestLogin = () => {
+        setLoading(true);
+        // Set guest mode flag
+        localStorage.setItem('guest_mode', 'true');
+        // Simulate a small delay for better UX
+        setTimeout(() => {
+            navigate('/');
+        }, 800);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 space-y-8 border border-slate-100">
@@ -69,7 +79,11 @@ const Login = () => {
                         <span>Continue with Google</span>
                     </button>
 
-                    <button className="w-full text-center text-sm text-slate-400 hover:text-slate-600">
+                    <button
+                        onClick={handleGuestLogin}
+                        disabled={loading}
+                        className="w-full text-center text-sm text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                    >
                         Continue as Guest (Demo)
                     </button>
                 </div>
