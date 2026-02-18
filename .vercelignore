@@ -1,0 +1,21 @@
+# Ignore backend and utility scripts
+backend/
+ai-bot/
+migrations/
+docs/
+*.py
+*.sql
+requirements.txt
+render.yaml
+start_app.bat
+verify_local_db.py
+
+# Ignore other non-frontend files
+.github/
+.gitignore
+README.md
+LOCALHOST_SETUP.md
+
+# Allow only these (implicitly allowed if not ignored, but ignoring everything else helps)
+# Exception syntax !frontend/ is not supported in .vercelignore standard globs usually, 
+# so we list what to ignore instead.
