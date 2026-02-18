@@ -20,7 +20,10 @@ Why Gemini instead of Claude:
 import os
 from typing import TypedDict, Annotated
 from langchain_google_vertexai import ChatVertexAI
-from langchain_ollama import ChatOllama
+try:
+    from langchain_ollama import ChatOllama
+except ImportError:
+    ChatOllama = None  # Not available on cloud (Render) - only needed locally
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from google.oauth2 import service_account
