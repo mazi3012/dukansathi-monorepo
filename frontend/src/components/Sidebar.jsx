@@ -1,16 +1,30 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-    Home, 
-    MessageSquare, 
-    Package, 
-    Users, 
+import {
+    Home,
+    MessageSquare,
+    Package,
+    Users,
     TrendingUp,
     Settings,
-    Store
+    Store,
+    LogOut,
+    User,
+    ChevronUp
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 const Sidebar = () => {
+    const navigate = useNavigate();
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate('/landing');
+    };
+
     const navItems = [
         { path: '/', icon: Home, label: 'Dashboard' },
         { path: '/chat', icon: MessageSquare, label: 'AI Assistant' },
@@ -40,24 +54,30 @@ const Sidebar = () => {
                         key={item.path}
                         to={item.path}
                         className={({ isActive }) => `
-                            flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
-                            ${isActive 
-                                ? 'bg-indigo-50 text-indigo-700 font-medium shadow-sm' 
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
+                            flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden
+                            ${isActive
+                                ? 'bg-indigo-50 text-indigo-700 font-medium shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:shadow-sm'}
                         `}
                     >
                         {({ isActive }) => (
                             <>
-                                <item.icon 
-                                    size={20} 
+                                <item.icon
+                                    size={20}
                                     className={`
-                                        transition-colors duration-200
+                                        transition-colors duration-200 relative z-10
                                         ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}
-                                    `} 
+                                    `}
                                 />
-                                <span>{item.label}</span>
+                                <span className="relative z-10">{item.label}</span>
                                 {isActive && (
-                                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                                    <motion.div
+                                        layoutId="activeTab"
+                                        className="absolute left-0 w-1 h-full bg-indigo-600 rounded-r-full"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ duration: 0.2 }}
+                                    />
                                 )}
                             </>
                         )}
@@ -66,8 +86,52 @@ const Sidebar = () => {
             </nav>
 
             {/* User Profile / Footer Area */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 relative">
+
+                <AnimatePresence>
+                    {isProfileMenuOpen && (
+                        <>
+                            {/* Backdrop to close menu when clicking outside */}
+                            <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsProfileMenuOpen(false)}
+                            />
+
+                            {/* Menu */}
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: -0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50 p-1"
+                            >
+                                <button
+                                    onClick={() => {
+                                        navigate('/settings');
+                                        setIsProfileMenuOpen(false);
+                                    }}
+                                    className="flex items-center gap-3 w-full p-2 hover:bg-slate-50 rounded-lg text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium"
+                                >
+                                    <Settings size={18} />
+                                    Account Settings
+                                </button>
+                                <div className="h-px bg-slate-100 my-1" />
+                                <button
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-3 w-full p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors text-sm font-medium"
+                                >
+                                    <LogOut size={18} />
+                                    Log Out
+                                </button>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                <div
+                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer select-none"
+                >
                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs ring-2 ring-white">
                         DS
                     </div>
@@ -75,6 +139,10 @@ const Sidebar = () => {
                         <p className="text-sm font-medium text-slate-700 truncate">My Shop</p>
                         <p className="text-xs text-slate-500 truncate">Pro Plan</p>
                     </div>
+                    <ChevronUp
+                        size={16}
+                        className={`text-slate-400 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
+                    />
                 </div>
             </div>
         </aside>

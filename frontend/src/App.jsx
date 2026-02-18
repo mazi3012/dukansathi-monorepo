@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
@@ -16,26 +17,49 @@ import Settings from './pages/Settings';
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <AnimatedRoutes />
+    </BrowserRouter>
+  );
+}
+
+const AnimatedRoutes = () => {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
         <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<SystemSetup />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="chat" element={<Chat />} />
-          <Route path="inventory" element={<Inventory />} />
-          <Route path="customers" element={<Customers />} />
-          <Route path="customers/:id" element={<CustomerDetails />} />
-          <Route path="sales" element={<Sales />} />
-          <Route path="settings" element={<Settings />} />
+          <Route index element={<PageTransition><Dashboard /></PageTransition>} />
+          <Route path="chat" element={<PageTransition><Chat /></PageTransition>} />
+          <Route path="inventory" element={<PageTransition><Inventory /></PageTransition>} />
+          <Route path="customers" element={<PageTransition><Customers /></PageTransition>} />
+          <Route path="customers/:id" element={<PageTransition><CustomerDetails /></PageTransition>} />
+          <Route path="sales" element={<PageTransition><Sales /></PageTransition>} />
+          <Route path="settings" element={<PageTransition><Settings /></PageTransition>} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </AnimatePresence>
   );
-}
+};
+
+const PageTransition = ({ children }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 export default App;

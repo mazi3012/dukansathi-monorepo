@@ -185,7 +185,8 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
             return ChatOllama(
                 model=model_name,
                 base_url="http://127.0.0.1:11434",
-                temperature=0.7
+                temperature=0.1,
+                num_predict=256,
             )
 
         # Load service account credentials
@@ -637,11 +638,126 @@ async def get_user_profile(user_id: str) -> str:
         print(f"ERROR: Failed to fetch profile: {e}")
         return "Dukan Sathi"
 
+def fast_parse_action(user_query: str) -> str:
+    """
+    Regex-based fast parser for common action patterns.
+    Skips the LLM entirely for well-structured commands.
+    Returns JSON string or None if no pattern matched.
+    """
+    import json
+    q = user_query.strip()
+    ql = q.lower()
+
+    # --- PATTERN 1: Add Product ---
+    # "add product potato price 50 qty 20" / "new product X price Y quantity Z"
+    product_pattern = re.search(
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item)\s+(.+?)\s+(?:price|rate|mrp)\s+(\d+(?:\.\d+)?)(?:\s+(?:qty|quantity|stock)\s+(\d+))?',
+        ql
+    )
+    if product_pattern:
+        name = product_pattern.group(1).strip().title()
+        price = float(product_pattern.group(2))
+        qty = int(product_pattern.group(3)) if product_pattern.group(3) else 0
+        return json.dumps({
+            "type": "product_draft",
+            "name": name,
+            "selling_price": price,
+            "cost_price": 0,
+            "stock_quantity": qty,
+            "category": "General"
+        })
+
+    # --- PATTERN 2: Add Customer ---
+    # "add customer rahul contact 3434343423" / "new customer X phone Y"
+    customer_pattern = re.search(
+        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+?)\s+(?:contact|phone|number|mobile|no)\s+([\d]+)',
+        ql
+    )
+    if customer_pattern:
+        name = customer_pattern.group(1).strip().title()
+        phone = customer_pattern.group(2).strip()
+        return json.dumps({
+            "type": "customer_draft",
+            "name": name,
+            "phone": phone,
+            "address": ""
+        })
+
+    # --- PATTERN 3: Payment ---
+    # "amit paid 500" / "received 200 from rahul"
+    payment_pattern1 = re.search(
+        r'([\w\s]+?)\s+(?:paid|gave|returned)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)',
+        ql
+    )
+    if payment_pattern1:
+        name = payment_pattern1.group(1).strip().title()
+        amount = float(payment_pattern1.group(2))
+        # Filter out action keywords that might be captured as name
+        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'new', 'make']:
+            return json.dumps({
+                "type": "payment_draft",
+                "customer_name": name,
+                "amount": amount,
+                "mode": "Cash"
+            })
+
+    payment_pattern2 = re.search(
+        r'(?:received|got)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:from)\s+([\w\s]+)',
+        ql
+    )
+    if payment_pattern2:
+        amount = float(payment_pattern2.group(1))
+        name = payment_pattern2.group(2).strip().title()
+        return json.dumps({
+            "type": "payment_draft",
+            "customer_name": name,
+            "amount": amount,
+            "mode": "Cash"
+        })
+
+    # --- PATTERN 4: Invoice / Bill ---
+    # "bill for amit 2 rice and 1 oil" / "create bill for X ..."
+    invoice_pattern = re.search(
+        r'(?:bill|invoice|sale)\s+(?:for|to)\s+([\w]+)',
+        ql
+    )
+    if invoice_pattern:
+        customer = invoice_pattern.group(1).strip().title()
+        # Extract items: "2 rice", "1 oil", etc.
+        items_raw = re.findall(r'(\d+)\s+([\w]+)', ql)
+        items = []
+        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', customer.lower()}
+        for qty_str, prod in items_raw:
+            if prod.lower() not in skip_words and not prod.isdigit():
+                items.append({
+                    "product_name": prod.title(),
+                    "quantity": int(qty_str),
+                    "price": 0
+                })
+        if items:
+            return json.dumps({
+                "type": "invoice_draft",
+                "customer_name": customer,
+                "items": items
+            })
+
+    return None  # No pattern matched
+
+
 async def extract_action_params_local(user_query: str, history_context: str = "", model: str = "phi3:mini") -> str:
     """
     Enhanced extraction for Local AI supporting all 4 Dukan Sathi draft scenarios.
+    Uses fast regex parser first, falls back to LLM only if needed.
     """
-    prompt = f"""Extract JSON. No text.
+    # FAST PATH: Try regex parser first (instant, no LLM call)
+    fast_result = fast_parse_action(user_query)
+    if fast_result:
+        print(f"DEBUG: FAST PARSE SUCCESS: {fast_result}")
+        return fast_result
+
+    # SLOW PATH: Fall back to LLM for complex/ambiguous queries
+    print(f"DEBUG: Fast parse missed, falling back to LLM for: {user_query}")
+    prompt = f"""Extract JSON. No text. No explanation.
 
 User: Bill for Raj 2 Rice
 JSON: {{ "type": "invoice_draft", "customer_name": "Raj", "items": [ {{ "product_name": "Rice", "quantity": 2 }} ] }}
@@ -659,7 +775,6 @@ User: {user_query}
 JSON:"""
     try:
         llm = get_llm(model)
-        # Use simple string prompt for local model to avoid chatting
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         
         print(f"DEBUG LOCAL EXTRACT RAW: {response.content}")
@@ -728,12 +843,16 @@ async def action_node(state: AgentState):
     
     print("DEBUG: Executing Action Node")
     
-    # Extract Parameters
-    if "gemini" in selected_model:
-        action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
+    # FAST PATH: Try regex parser first (instant, works for both cloud and local)
+    action_json_str = fast_parse_action(last_msg)
+    if action_json_str:
+        print(f"DEBUG: FAST PARSE SUCCESS (action_node): {action_json_str}")
     else:
-        # Use simplified local extraction
-        action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
+        # SLOW PATH: Fall back to LLM extraction
+        if "gemini" in selected_model:
+            action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
+        else:
+            action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
         
     print(f"DEBUG: Extracted JSON: {action_json_str}")
 
@@ -843,26 +962,25 @@ async def action_node(state: AgentState):
         # Fallback to original if parsing fails
         updated_json_str = action_json_str
     
-    # Generate Response
-    prompt = f"""
-    You are Sathi AI. The user asked to perform an action.
+    # Generate Response - Use hardcoded templates (skip LLM call for ALL models)
+    import json as _json
+    try:
+        draft_type = _json.loads(updated_json_str).get("type", "")
+    except:
+        draft_type = ""
     
-    ACTION JSON GENERATED: {updated_json_str}
-    USER REQUEST: "{last_msg}"
+    confirmation_templates = {
+        "invoice_draft": "Sure Boss, I've prepared the invoice draft. Please review and approve.",
+        "product_draft": "Sure Boss, I've prepared the product draft. Please review and approve.",
+        "customer_draft": "Sure Boss, I've prepared the customer details. Please review and approve.",
+        "payment_draft": "Sure Boss, I've prepared the payment record. Please review and approve.",
+    }
+    confirmation_text = confirmation_templates.get(draft_type, "Sure Boss, I've prepared the draft. Please review and approve.")
     
-    RULES:
-    1. Confirm you have prepared the draft.
-    2. Ask them to review and approve it.
-    3. Be short and concise.
-    4. DO NOT print the JSON in your text response.
-    
-    Example:
-    "Sure Boss, I have prepared the invoice. Please review and approve."
-    """
-    
-    # Use Flash for SQL gen as it's faster
-    llm = get_llm(selected_model)
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    class _FakeResponse:
+        def __init__(self, c): self.content = c
+    response = _FakeResponse(confirmation_text)
+    print(f"DEBUG: Used hardcoded confirmation (type={draft_type})")
     
     # Save to history (Just the text)
     await save_chat_message(user_id, "user", last_msg)
@@ -959,6 +1077,33 @@ async def chat_node(state: AgentState):
     
     input_prompt = ""
     
+    # LOCAL MODEL FAST PATH: Hardcoded responses for predictable categories
+    if "gemini" not in selected_model and category in ("GREETING", "IDENTITY", "CAPABILITY"):
+        import random
+        
+        local_responses = {
+            "GREETING": [
+                "Namaste Boss, how can I help you today?",
+                "Hello Boss, what can I do for you?",
+                "Namaste Boss, ready to assist you!",
+            ],
+            "IDENTITY": [
+                "Namaste Boss! I am Sathi AI, your personal shop assistant.",
+            ],
+            "CAPABILITY": [
+                "Boss, I can help you with: Making Invoices, Tracking Inventory, Managing Customers, Recording Payments, and Answering business questions.",
+            ],
+        }
+        
+        hardcoded_text = random.choice(local_responses[category])
+        print(f"DEBUG: Used hardcoded local response for {category}")
+        
+        await save_chat_message(user_id, "user", last_msg)
+        await save_chat_message(user_id, "assistant", hardcoded_text)
+        
+        return {"messages": [AIMessage(content=hardcoded_text)]}
+    
+    # CLOUD MODEL or CHAT/BUSINESS: Use LLM
     if category == "GREETING":
          input_prompt = f"""
             You are Sathi AI, the personal AI assistant for {business_name}.
@@ -1025,10 +1170,9 @@ async def chat_node(state: AgentState):
     # Invoke the model
     llm = get_llm(selected_model)
     
-    # Reverting to single message prompt as SystemMessage caused checking hang with local model
-    # For Local Models, we add extra emphasis on being Sathi AI
+    # For Local Models: shorter prompts and stricter output constraints
     if "gemini" not in selected_model:
-        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Keep responses under 2 lines. " + input_prompt
+        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Reply in 1-2 short lines ONLY. Use 'Boss'. No markdown.\n" + input_prompt
 
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     

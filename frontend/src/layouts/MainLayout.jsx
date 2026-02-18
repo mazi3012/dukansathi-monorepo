@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
 import NavigationDrawer from '../components/NavigationDrawer';
+import Loader from '../components/Loader';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
@@ -78,11 +79,7 @@ const MainLayout = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+        return <Loader />;
     }
 
     return (
@@ -99,9 +96,9 @@ const MainLayout = () => {
             />
 
             {/* Main Content Area */}
-            {/* Added md:pl-64 to push content when sidebar is visible */}
-            <main className="flex-1 pb-24 md:pb-0 md:pl-64 pt-4 px-4 overflow-y-auto h-screen">
-                <div className="max-w-7xl mx-auto">
+            {/* Adjusted classes for better mobile/desktop layout */}
+            <main className="flex-1 transition-all duration-300 ease-in-out md:ml-64 relative min-h-screen">
+                <div className="p-4 pb-24 md:pb-8 max-w-7xl mx-auto">
                     <Outlet context={{ user }} />
                 </div>
             </main>

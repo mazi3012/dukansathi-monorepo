@@ -50,7 +50,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="relative z-10 flex flex-col h-full pointer-events-auto p-6"
+                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-6"
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-8">
