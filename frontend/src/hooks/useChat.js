@@ -161,6 +161,17 @@ export const useChat = () => {
                         console.log("⚠️ No server audio, falling back to Native TTS");
                         speakNative(data.content);
                     }
+                } else if (data.type === 'action' && data.draft) {
+                    // Backend sent a draft action (customer_draft, product_draft, payment_draft)
+                    // Render it as an ActionCard via the attachment mechanism
+                    setIsThinking(false);
+                    const actionMessage = {
+                        type: 'ai',
+                        text: data.content || '📋 Review and confirm the draft below:',
+                        attachment: data.draft  // This renders as ActionCard
+                    };
+                    setMessages(prev => [...prev, actionMessage]);
+                    console.log("✅ Action draft received:", data.draft);
                 } else if (data.type === 'transcription') {
                     // Update the last "user-audio" placeholder or add new
                     setMessages(prev => {

@@ -677,18 +677,30 @@ def fast_parse_action(user_query: str) -> str:
         })
 
     # --- PATTERN 2: Add Customer ---
-    # "add customer rahul contact 3434343423" / "new customer X phone Y"
-    customer_pattern = re.search(
-        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+?)\s+(?:contact|phone|number|mobile|no)\s+([\d]+)',
+    # "add customer rahul contact 9876543210" OR "add customer rahul" (phone optional)
+    customer_pattern_with_phone = re.search(
+        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+?)\s+(?:contact|phone|number|mobile|no\.?)\s+([\d]+)',
         ql
     )
-    if customer_pattern:
-        name = customer_pattern.group(1).strip().title()
-        phone = customer_pattern.group(2).strip()
+    customer_pattern_simple = re.search(
+        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+)',
+        ql
+    )
+    if customer_pattern_with_phone:
+        name = customer_pattern_with_phone.group(1).strip().title()
+        phone = customer_pattern_with_phone.group(2).strip()
         return json.dumps({
             "type": "customer_draft",
             "name": name,
             "phone": phone,
+            "address": ""
+        })
+    elif customer_pattern_simple:
+        name = customer_pattern_simple.group(1).strip().title()
+        return json.dumps({
+            "type": "customer_draft",
+            "name": name,
+            "phone": "",
             "address": ""
         })
 

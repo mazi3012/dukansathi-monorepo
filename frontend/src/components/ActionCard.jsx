@@ -464,16 +464,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         };
 
         const handleConfirm = () => {
-            // Logic: 
-            // Chat.jsx does: newBalance = oldBalance - amount
-            // So to ADD DEBT (Credit/Udhar): we need newBalance to become MORE NEGATIVE.
-            // Chat.jsx logic subtraction: -500 - 200 = -700. (Amount must be positive to add debt).
-
-            // To REDUCE DEBT (Payment): we need newBalance to become LESS NEGATIVE.
-            // Chat.jsx logic subtraction: -500 - (-200) = -300. (Amount must be negative to reduce debt).
-
-            const finalAmount = isCredit ? Math.abs(localData.amount) : -Math.abs(localData.amount);
-            onApprove({ ...localData, amount: finalAmount });
+            // Send ALWAYS POSITIVE amount + explicit payment_type
+            // Chat.jsx will handle the direction (add or subtract) based on payment_type
+            const finalAmount = Math.abs(parseFloat(localData.amount) || 0);
+            onApprove({
+                ...localData,
+                amount: finalAmount,
+                payment_type: mode   // 'credit' = add dues, 'payment' = reduce dues
+            });
         };
 
         return (

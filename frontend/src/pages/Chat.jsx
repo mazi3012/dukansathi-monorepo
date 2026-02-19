@@ -197,7 +197,7 @@ const Chat = () => {
                         .from('customers')
                         .select('id, name, credit_balance')
                         .ilike('name', `%${actionData.customer_name}%`)
-                        .eq('user_id', user.id) // Ensure customer belongs to the current user
+                        .eq('user_id', user.id)
                         .limit(1);
 
                     if (searchError || !customers || customers.length === 0) {
@@ -206,14 +206,18 @@ const Chat = () => {
                     }
 
                     const customer = customers[0];
-                    const amount = parseFloat(actionData.amount) || 0;
+                    const amount = Math.abs(parseFloat(actionData.amount) || 0); // Always positive
+                    const isPayment = actionData.payment_type === 'payment'; // true = deduct dues
+                    const oldBalance = parseFloat(customer.credit_balance) || 0;
 
-                    // 2. Update Credit Balance (Decrement Dues)
-                    // If amount is POSITIVE (Credit): Balance - 500 (More Negative)
-                    // If amount is NEGATIVE (Payment): Balance - (-500) = Balance + 500 (Less Negative)
-                    const newBalance = (parseFloat(customer.credit_balance) || 0) - amount;
+                    // credit_balance stores POSITIVE values (e.g., ₹500 owed = 500)
+                    // 'payment' → receives money, dues go DOWN → subtract
+                    // 'credit' → gives udhar, dues go UP → add
+                    const newBalance = isPayment
+                        ? Math.max(0, oldBalance - amount)   // Dues reduced, floor at 0
+                        : oldBalance + amount;               // Dues increased
 
-                    // 2a. Update Customer Table
+                    // 2. Update Customer Table
                     const { error: updateError } = await supabase
                         .from('customers')
                         .update({ credit_balance: newBalance })
@@ -221,24 +225,13 @@ const Chat = () => {
 
                     if (updateError) throw updateError;
 
-                    // 2b. Log Transaction (Optimistic - assuming table exists or we add it later)
-                    // For now, logging the successful balance update is key.
-                    // We could insert into 'sales' with type 'payment' if we want to track history?
-                    // Let's stick to balance update for this MVP step.
-
                     // 3. Update Chat UI
+                    const action = isPayment ? '✅ Payment Received!' : '📋 Credit Added!';
+                    const balanceMsg = newBalance === 0 ? '₹0 (Cleared!)' : `₹${newBalance.toFixed(2)}`;
                     setMessages(prev => [...prev, {
                         type: 'bot',
-                        text: `✅ Payment Recorded!\n\nReceived: ₹${amount}\nCustomer: ${customer.name}\nNew Due Balance: ₹${newBalance}\nMode: ${actionData.mode}`
+                        text: `${action}\n\n${isPayment ? 'Received' : 'Added'}: ₹${amount}\nCustomer: ${customer.name}\nPrevious Due: ₹${oldBalance.toFixed(2)}\nNew Due Balance: ${balanceMsg}\nMode: ${actionData.mode}`
                     }]);
-
-                    // Clear the action card
-                    setMessages(prev => {
-                        const newMsgs = [...prev];
-                        // Find the last message with this action and mark as done/remove actionData
-                        // Ideally we just append a success message and user scrolls down.
-                        return newMsgs;
-                    });
 
                 } catch (err) {
                     console.error("Payment Error:", err);
@@ -322,8 +315,10 @@ const Chat = () => {
                             {hasAttachment && (
                                 <ActionCard
                                     actionData={msg.attachment}
-                                    onDiscard={() => alert("Draft Discarded")}
-                                    onApprove={() => handleApproveAction(msg.attachment)}
+                                    onDiscard={() => setMessages(prev => prev.map((m, i) =>
+                                        i === idx ? { ...m, attachment: null } : m
+                                    ))}
+                                    onApprove={(editedData) => handleApproveAction(editedData)}
                                     businessProfile={businessProfile}
                                 />
                             )}
