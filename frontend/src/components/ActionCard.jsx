@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw } from 'lucide-react';
+import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import InvoiceTemplate from './InvoiceTemplate';
 
 const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
@@ -214,86 +214,8 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         );
     }
 
-    // 2. PRODUCT DRAFT CARD
-    if (type === 'product_draft') {
-        return (
-            <div className="bg-white rounded-xl shadow-md border border-emerald-100 overflow-hidden mt-4 w-full max-w-md mx-auto transition-all">
-                <div className="bg-emerald-50 px-4 py-3 flex justify-between items-center border-b border-emerald-100">
-                    <div className="flex items-center gap-2">
-                        <ShoppingBag size={18} className="text-emerald-700" />
-                        <span className="font-bold text-emerald-900 text-sm">Add New Product</span>
-                    </div>
-                </div>
 
-                <div className="p-4 space-y-4">
-                    {/* Name */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Product Name
-                        </label>
-                        <input
-                            type="text"
-                            value={localData.name || ''}
-                            onChange={(e) => setLocalData({ ...localData, name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium text-slate-700"
-                            placeholder="e.g. Lifebuoy Soap"
-                        />
-                    </div>
-
-                    <div className="flex gap-4">
-                        {/* Price */}
-                        <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                Selling Price
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
-                                <input
-                                    type="number"
-                                    value={localData.selling_price || ''}
-                                    onChange={(e) => setLocalData({ ...localData, selling_price: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-bold text-slate-800"
-                                    placeholder="0.00"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Stock */}
-                        <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                Stock Qty
-                            </label>
-                            <input
-                                type="number"
-                                value={localData.stock_quantity || ''}
-                                onChange={(e) => setLocalData({ ...localData, stock_quantity: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium text-slate-700"
-                                placeholder="0"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
-                    <button
-                        onClick={onDiscard}
-                        className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <X size={16} /> Discard
-                    </button>
-                    <button
-                        onClick={() => onApprove(localData)}
-                        className="flex-1 py-2 px-3 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm shadow-emerald-200 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Check size={16} /> Add Product
-                    </button>
-                </div>
-            </div>
-        )
-    }
-
-    // 3. PRODUCT DRAFT CARD
+    // 2. PRODUCT DRAFT CARD — full form with CP, category, and extras
     if (type === 'product_draft') {
         // State for expanding details
         const [showDetails, setShowDetails] = useState(() => {
@@ -445,11 +367,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
         // Initialize state only once
         const [mode, setMode] = useState(() => {
-            // If amount is explicitly negative, it's a payment/deduction. 
-            // If implicit from "paid", NLP might send positive amount but intention is payment.
-            // We'll default to 'payment' (Green) if user said "paid/received", 'credit' (Red) if "add due".
-            // Since we don't have the raw query here easily, we rely on the amount sign from NLP if available.
-            return (localData.amount < 0) ? 'payment' : 'credit';
+            // Use explicit payment_type from NLP (set by agent_graph.py)
+            // Fallback: positive amount = credit (add dues), negative = payment (deduct)
+            return localData.payment_type === 'payment' ? 'payment' : 'credit';
         });
 
         const isCredit = mode === 'credit'; // Red (Give Udhar)
@@ -573,6 +493,85 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         className={`flex-1 py-2 px-3 text-white rounded-lg text-sm font-medium shadow-sm transition-all flex items-center justify-center gap-2 ${isCredit ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'}`}
                     >
                         <Check size={16} /> {isCredit ? "Confirm Credit" : "Confirm Payment"}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // 5. CUSTOMER DRAFT CARD
+    if (type === 'customer_draft') {
+        return (
+            <div className="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md">
+                {/* Header */}
+                <div className="bg-blue-50 px-4 py-3 flex justify-between items-center border-b border-blue-100">
+                    <div className="flex items-center gap-2">
+                        <User size={18} className="text-blue-600" />
+                        <span className="font-bold text-blue-900 text-sm">Add New Customer</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-blue-200 text-blue-600 rounded-full uppercase tracking-wider">
+                        NEW
+                    </span>
+                </div>
+
+                <div className="p-4 space-y-3">
+                    {/* Name */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            Customer Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={localData.name || ''}
+                            onChange={(e) => setLocalData({ ...localData, name: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            placeholder="e.g. Rahul Sharma"
+                        />
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            Phone <span className="text-slate-400">(optional)</span>
+                        </label>
+                        <input
+                            type="tel"
+                            value={localData.phone || ''}
+                            onChange={(e) => setLocalData({ ...localData, phone: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            placeholder="e.g. 9876543210"
+                        />
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            Address <span className="text-slate-400">(optional)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={localData.address || ''}
+                            onChange={(e) => setLocalData({ ...localData, address: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            placeholder="e.g. 12 Gandhi Nagar"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                    <button
+                        onClick={onDiscard}
+                        className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <X size={16} /> Discard
+                    </button>
+                    <button
+                        onClick={() => onApprove(localData)}
+                        disabled={!localData.name?.trim()}
+                        className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Check size={16} /> Add Customer
                     </button>
                 </div>
             </div>

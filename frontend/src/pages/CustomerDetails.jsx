@@ -97,11 +97,11 @@ const CustomerDetails = () => {
                         )}
                     </div>
                     <div className="text-right">
-                        <div className={`text-2xl font-bold ${customer.credit_balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {customer.credit_balance < 0 ? `₹${Math.abs(customer.credit_balance)}` : `₹${customer.credit_balance || 0}`}
+                        <div className={`text-2xl font-bold ${customer.credit_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            ₹{(customer.credit_balance || 0).toLocaleString('en-IN')}
                         </div>
                         <span className="text-xs font-bold text-slate-400 uppercase">
-                            {customer.credit_balance < 0 ? 'Due (Udhar)' : 'Advance'}
+                            {customer.credit_balance > 0 ? 'Due (Udhar)' : 'Clear'}
                         </span>
                     </div>
                 </div>
