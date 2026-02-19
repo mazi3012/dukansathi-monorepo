@@ -650,20 +650,29 @@ def fast_parse_action(user_query: str) -> str:
 
     # --- PATTERN 1: Add Product ---
     # "add product potato price 50 qty 20" / "new product X price Y quantity Z"
+    # Expanded to support CP: "price 20 cp 15 stock 50"
     product_pattern = re.search(
-        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item)\s+(.+?)\s+(?:price|rate|mrp)\s+(\d+(?:\.\d+)?)(?:\s+(?:qty|quantity|stock)\s+(\d+))?',
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item)\s+(.+?)\s+(?:price|rate|mrp|rs|₹)\s+(\d+(?:\.\d+)?)',
         ql
     )
     if product_pattern:
         name = product_pattern.group(1).strip().title()
-        price = float(product_pattern.group(2))
-        qty = int(product_pattern.group(3)) if product_pattern.group(3) else 0
+        selling_price = float(product_pattern.group(2))
+        
+        # Optional: Extract Stock
+        stock_match = re.search(r'(?:stock|qty|quantity)\s+(\d+)', ql)
+        stock_quantity = int(stock_match.group(1)) if stock_match else 0
+        
+        # Optional: Extract Cost Price (CP)
+        cp_match = re.search(r'(?:cp|cost|buying|buy)\s+(?:price|rate)?\s*(?:rs\.?\s*|₹\s*)?(\d+(\.\d+)?)', ql)
+        cost_price = float(cp_match.group(1)) if cp_match else 0.0
+
         return json.dumps({
             "type": "product_draft",
             "name": name,
-            "selling_price": price,
-            "cost_price": 0,
-            "stock_quantity": qty,
+            "selling_price": selling_price,
+            "cost_price": cost_price,
+            "stock_quantity": stock_quantity,
             "category": "General"
         })
 

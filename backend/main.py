@@ -433,10 +433,10 @@ async def chat_websocket(websocket: WebSocket):
                         # Safe float conversion with validation
                         try:
                             amount = float(draft_data.get("amount", 0))
-                            if amount <= 0:
+                            if amount == 0:
                                 await websocket.send_json({
                                     "type": "error",
-                                    "content": "Payment amount must be greater than zero."
+                                    "content": "Payment amount cannot be zero."
                                 })
                                 continue
                         except (ValueError, TypeError):

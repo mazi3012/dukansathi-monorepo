@@ -169,6 +169,7 @@ const Chat = () => {
                     user_id: user.id,
                     name: actionData.name,
                     selling_price: actionData.selling_price,
+                    cost_price: actionData.cost_price || 0,
                     stock_quantity: actionData.stock_quantity,
                     category: actionData.category || 'General'
                 });
@@ -208,6 +209,8 @@ const Chat = () => {
                     const amount = parseFloat(actionData.amount) || 0;
 
                     // 2. Update Credit Balance (Decrement Dues)
+                    // If amount is POSITIVE (Credit): Balance - 500 (More Negative)
+                    // If amount is NEGATIVE (Payment): Balance - (-500) = Balance + 500 (Less Negative)
                     const newBalance = (parseFloat(customer.credit_balance) || 0) - amount;
 
                     // 2a. Update Customer Table

@@ -293,62 +293,131 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         )
     }
 
-    // 3. CUSTOMER DRAFT CARD
-    if (type === 'customer_draft') {
+    // 3. PRODUCT DRAFT CARD
+    if (type === 'product_draft') {
+        // State for expanding details
+        const [showDetails, setShowDetails] = useState(() => {
+            // Auto-expand if CP is already set by AI and > 0, or if user manually opens
+            return (localData.cost_price && parseFloat(localData.cost_price) > 0);
+        });
+
         return (
-            <div className="bg-white rounded-xl shadow-md border border-purple-100 overflow-hidden mt-4 w-full max-w-md mx-auto transition-all">
-                <div className="bg-purple-50 px-4 py-3 flex justify-between items-center border-b border-purple-100">
+            <div className="bg-white rounded-xl shadow-sm border border-indigo-100 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md">
+                <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
                     <div className="flex items-center gap-2">
-                        <User size={18} className="text-purple-700" />
-                        <span className="font-bold text-purple-900 text-sm">Add New Customer</span>
+                        <Package size={18} className="text-indigo-600" />
+                        <span className="font-bold text-indigo-900 text-sm">New Product Draft</span>
                     </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-indigo-200 text-indigo-600 rounded-full uppercase tracking-wider">
+                        ADD STOCK
+                    </span>
                 </div>
 
                 <div className="p-4 space-y-4">
-                    {/* Name */}
+                    {/* Product Name */}
                     <div>
                         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Customer Name
+                            Product Name
                         </label>
                         <input
                             type="text"
                             value={localData.name || ''}
                             onChange={(e) => setLocalData({ ...localData, name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none font-medium text-slate-700"
-                            placeholder="e.g. Rahul Kumar"
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-slate-700"
+                            placeholder="e.g. Maggi Masala"
                         />
                     </div>
 
-                    {/* Phone */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Phone Number
-                        </label>
-                        <input
-                            type="text"
-                            value={localData.phone || ''}
-                            onChange={(e) => setLocalData({ ...localData, phone: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none font-medium text-slate-700"
-                            placeholder="+91 98765 43210"
-                        />
+                    <div className="flex gap-4">
+                        {/* Selling Price */}
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                Selling Price (SP)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                                <input
+                                    type="number"
+                                    value={localData.selling_price || ''}
+                                    onChange={(e) => setLocalData({ ...localData, selling_price: parseFloat(e.target.value) || 0 })}
+                                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-bold text-slate-800"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Stock Quantity */}
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                Stock Qty
+                            </label>
+                            <input
+                                type="number"
+                                value={localData.stock_quantity || ''}
+                                onChange={(e) => setLocalData({ ...localData, stock_quantity: parseInt(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-bold text-slate-800"
+                                placeholder="0"
+                            />
+                        </div>
                     </div>
 
-                    {/* Address (Optional) */}
+                    {/* Show More / Less Toggle */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Address (Optional)
-                        </label>
-                        <input
-                            type="text"
-                            value={localData.address || ''}
-                            onChange={(e) => setLocalData({ ...localData, address: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none font-medium text-slate-700"
-                            placeholder="City or Area"
-                        />
+                        <button
+                            onClick={() => setShowDetails(!showDetails)}
+                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+                        >
+                            {showDetails ? (
+                                <>Hide Details <ChevronUp size={14} /></>
+                            ) : (
+                                <>+ Add Cost Price & Category <ChevronDown size={14} /></>
+                            )}
+                        </button>
                     </div>
+
+                    {/* Extended Details (Collapsible) */}
+                    {showDetails && (
+                        <div className="pt-2 space-y-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex gap-4">
+                                {/* Cost Price */}
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                        Cost Price (CP)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                                        <input
+                                            type="number"
+                                            value={localData.cost_price || ''}
+                                            onChange={(e) => setLocalData({ ...localData, cost_price: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 outline-none font-medium text-slate-600 bg-slate-50"
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Category */}
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                        Category
+                                    </label>
+                                    <select
+                                        value={localData.category || 'General'}
+                                        onChange={(e) => setLocalData({ ...localData, category: e.target.value })}
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-slate-700"
+                                    >
+                                        <option value="General">General</option>
+                                        <option value="Grocery">Grocery</option>
+                                        <option value="Vegetables">Vegetables</option>
+                                        <option value="Snacks">Snacks</option>
+                                        <option value="Personal Care">Personal Care</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Footer Actions */}
                 <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
                     <button
                         onClick={onDiscard}
@@ -358,13 +427,13 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     </button>
                     <button
                         onClick={() => onApprove(localData)}
-                        className="flex-1 py-2 px-3 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 shadow-sm shadow-purple-200 transition-all flex items-center justify-center gap-2"
+                        className="flex-1 py-2 px-3 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm shadow-indigo-200 transition-all flex items-center justify-center gap-2"
                     >
-                        <Check size={16} /> Add Customer
+                        <Check size={16} /> Confirm Add
                     </button>
                 </div>
             </div>
-        )
+        );
     }
 
     // 4. PAYMENT / DUES UPDATE CARD
