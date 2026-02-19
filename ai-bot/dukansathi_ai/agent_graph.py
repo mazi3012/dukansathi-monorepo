@@ -768,14 +768,22 @@ def fast_parse_action(user_query: str) -> str:
             "mode": "Cash"
         })
 
-    # "deduct 500 from amit due" -> Receive Payment (Green)
+    # "deduct 500 from amit due" OR "deduct 500 due from amit" -> Receive Payment (Green)
+    # Pattern A: "deduct [amount] from [name]" (name may or may not follow with 'due')
     deduct_due_pattern = re.search(
         r'(?:deduct|reduce|cut|remove|clear)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:from|of)\s+([\w\s]+?)(?:\s+due|\s+credit|\s+udhar|$)',
         ql
     )
-    if deduct_due_pattern:
-         amount = float(deduct_due_pattern.group(1))
-         name = deduct_due_pattern.group(2).strip().title()
+    # Pattern B: "deduct [amount] due/udhar from [name]"
+    deduct_due_pattern2 = re.search(
+        r'(?:deduct|reduce|cut|remove|clear)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:due|udhar|credit)\s+(?:from|of)\s+([\w\s]+)',
+        ql
+    )
+    # Merge: whichever pattern matched
+    _dp = deduct_due_pattern or deduct_due_pattern2
+    if _dp:
+         amount = float(_dp.group(1))
+         name = _dp.group(2).strip().title()
          # Deduct Due = Payment. Default to 'Payment' mode.
          # ActionCard logic: Negative amount defaults to 'payment' (Green)
          return json.dumps({
