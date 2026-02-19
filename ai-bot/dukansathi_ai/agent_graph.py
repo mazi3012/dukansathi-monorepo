@@ -1062,18 +1062,17 @@ async def chat_node(state: AgentState):
     
     logger.info(f"DEBUG CHAT NODE: category={category}, model={selected_model}")
 
-    # Detect language for response
+    # Detect language for response (English or Hinglish only)
     detected_lang = detect_language(last_msg)
     print(f"DEBUG: Detected language: {detected_lang}")
-    
-    # Language-specific instructions
+
+    # Language-specific instructions — only English and Hinglish supported
+    LANG_STRICT_RULE = "STRICT RULE: You MUST respond ONLY in English or Hinglish (Hindi words written in Roman/English letters). NEVER use Devanagari script or any other language/script."
     lang_instructions = ""
-    if detected_lang == 'bengali':
-        lang_instructions = "Respond in ROMANIZED BENGALI (using English letters). Example: 'Ami tomake help korbo Boss'. DO NOT use Bengali script."
-    elif detected_lang == 'hinglish':
-        lang_instructions = "Respond in Hinglish (Hindi-English mix). Example: 'Main aapki madad karunga Boss'."
+    if detected_lang == 'hinglish':
+        lang_instructions = f"{LANG_STRICT_RULE} Respond in Hinglish (Hindi-English mix). Example: 'Main aapki madad karunga Boss'."
     else:
-        lang_instructions = "Respond in English. Be professional and clear."
+        lang_instructions = f"{LANG_STRICT_RULE} Respond in English. Be professional and clear."
     
     input_prompt = ""
     
@@ -1172,7 +1171,7 @@ async def chat_node(state: AgentState):
     
     # For Local Models: shorter prompts and stricter output constraints
     if "gemini" not in selected_model:
-        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Reply in 1-2 short lines ONLY. Use 'Boss'. No markdown.\n" + input_prompt
+        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Reply in 1-2 short lines ONLY. Use 'Boss'. No markdown. IMPORTANT: Reply ONLY in English or Hinglish (Roman script). NEVER use Devanagari/Hindi script or any other language.\n" + input_prompt
 
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     

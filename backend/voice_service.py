@@ -69,6 +69,7 @@ async def transcribe_audio(audio_data: bytes) -> str:
             file=(audio_file.name, audio_file),
             model="whisper-large-v3",
             response_format="json",
+            language="en",   # Lock to English/Hinglish (Roman script). Hinglish still works as it uses English phonology.
             temperature=0.0
         )
         

@@ -1,42 +1,30 @@
 """
-Language Detection for Multi-lingual Support
-Detects: English, Hinglish (Hindi-English mix), Bengali (romanized)
+Language Detection for Dukan Sathi
+Detects: English or Hinglish (Hindi-English mix written in Roman script)
+Only English and Hinglish are supported — no other languages needed.
 """
 
 def detect_language(text: str) -> str:
     """
-    Detect if text is English, Hinglish, or Bengali
-    
+    Detect if text is English or Hinglish.
+
     Args:
-        text: Input text to analyze
-        
+        text: Input text to analyze (always expected in Roman/Latin script
+              since Whisper STT is locked to language='en')
+
     Returns:
-        'english', 'hinglish', or 'bengali'
+        'hinglish' if Hindi-English mix is detected, else 'english'
     """
     # Handle None or empty input
     if not text or not isinstance(text, str):
         return 'english'
-    
+
     text_lower = text.lower().strip()
-    
-    # Handle empty after stripping
+
     if not text_lower:
         return 'english'
-    
-    # Bengali patterns (romanized - no Devanagari script)
-    bengali_patterns = [
-        # Greetings
-        'nomoshkar', 'nomoskar', 'ki khabar', 'kemon acho', 'kemon achho',
-        # Common words
-        'ami', 'tumi', 'apni', 'kore', 'korche', 'korbo', 'ache', 'achhe',
-        'bhalo', 'kharap', 'khub', 'onek', 'ektu', 'kichu',
-        # Questions
-        'keno', 'kothay', 'kobe', 'ki korbo', 'koto',
-        # Possessives
-        'amar', 'tomar', 'apnar', 'amra', 'tomra'
-    ]
-    
-    # Hinglish patterns (Hindi words in roman script)
+
+    # Hinglish patterns — Hindi words commonly written in Roman script
     hinglish_patterns = [
         # Greetings
         'namaste', 'namaskar', 'kaise', 'kya', 'hai', 'ho', 'hain',
@@ -45,29 +33,22 @@ def detect_language(text: str) -> str:
         'mujhe', 'tumhe', 'aapko', 'hum', 'tum', 'aap',
         'acha', 'thik', 'bahut', 'bohot', 'thoda', 'kuch', 'koi',
         # Questions
-        'kyun', 'kahan', 'kab', 'kitna', 'kaun', 'kaise',
-        # Business
-        'rupay', 'rupaye', 'paisa', 'paise', 'lena', 'dena', 'dukaan'
+        'kyun', 'kahan', 'kab', 'kitna', 'kaun',
+        # Business / Shop
+        'rupay', 'rupaye', 'paisa', 'paise', 'lena', 'dena', 'dukaan',
+        # Extra common Hinglish
+        'bhai', 'yaar', 'boss', 'theek', 'sahi', 'bilkul', 'zaroor',
+        'wala', 'wali', 'wale', 'bata', 'dikha', 'nikal',
     ]
-    
-    # Count pattern matches
-    bengali_count = sum(1 for pattern in bengali_patterns if pattern in text_lower)
+
+    # Count matches
     hinglish_count = sum(1 for pattern in hinglish_patterns if pattern in text_lower)
-    
-    # Decision logic
-    if bengali_count >= 2:
-        return 'bengali'
-    elif hinglish_count >= 2:
+
+    # Strong single-word indicators
+    strong_hinglish = ['namaste', 'kaise ho', 'kya hal', 'kya haal', 'bhai']
+
+    if hinglish_count >= 2 or any(pattern in text_lower for pattern in strong_hinglish):
         return 'hinglish'
-    
-    # Single strong indicators
-    strong_bengali = ['nomoshkar', 'kemon acho', 'ami']
-    strong_hinglish = ['namaste', 'kaise ho', 'kya hal']
-    
-    if any(pattern in text_lower for pattern in strong_bengali):
-        return 'bengali'
-    if any(pattern in text_lower for pattern in strong_hinglish):
-        return 'hinglish'
-    
-    # Default to English if no clear matches
+
+    # Default to English
     return 'english'
