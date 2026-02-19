@@ -174,17 +174,66 @@ export const useChat = () => {
         };
     }, [connectWebSocket]);
 
-    // WebSocket message handler — update the ref whenever deps change so reconnect always gets fresh handler
+    // ── Helper: Browser Native TTS Fallback ─────────────────────────────────
+    const speakNative = useCallback((text) => {
+        if (isMutedRef.current || !text) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.includes('hi-IN') || v.lang.includes('en-IN')) || voices[0];
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.onstart = () => setIsPlaying(true);
+        utterance.onend = () => setIsPlaying(false);
+        utterance.onerror = (e) => { console.error('Native TTS Error:', e); setIsPlaying(false); };
+        window.speechSynthesis.speak(utterance);
+    }, []);
+
+    useEffect(() => { window.speechSynthesis.getVoices(); }, []);
+
+    // ── Helper: Play Base64 Audio ─────────────────────────────────────────────
+    const playAudio = useCallback((base64Data) => {
+        if (isMutedRef.current) return;
+        try {
+            if (lastAudioRef.current) {
+                lastAudioRef.current.pause();
+                if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
+                lastAudioRef.current = null;
+            }
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            lastAudioRef.current = audio;
+            audio.onplay = () => setIsPlaying(true);
+            audio.onended = () => setIsPlaying(false);
+            audio.onerror = (e) => { console.error('❌ Audio Error:', e); setIsPlaying(false); };
+            audio.play().catch(err => {
+                console.warn('⚠️ Audio blocked by browser (needs user gesture first)');
+                setIsPlaying(false);
+            });
+        } catch (err) {
+            console.error('❌ playAudio error:', err);
+        }
+    }, []);
+
+    // ── WebSocket message handler ─────────────────────────────────────────────
+    // Defined AFTER speakNative/playAudio so deps are available.
+    // Uses onMessageHandlerRef so connectWebSocket never needs to be recreated.
     const onMessageHandler = useCallback((event) => {
         try {
             const data = JSON.parse(event.data);
-
             if (data.type === 'text') {
                 setIsThinking(false);
                 const aiMessage = { type: 'ai', text: data.content };
                 if (data.attachment) aiMessage.attachment = data.attachment;
                 setMessages(prev => [...prev, aiMessage]);
-
                 if (data.audio) {
                     playAudio(data.audio);
                 } else {
@@ -212,90 +261,9 @@ export const useChat = () => {
         }
     }, [playAudio, speakNative]);
 
-    // Keep the ref in sync with the latest handler
+    // Keep ref in sync so reconnect sockets always use latest handler
     useEffect(() => { onMessageHandlerRef.current = onMessageHandler; }, [onMessageHandler]);
 
-
-    // Helper: Browser Native TTS Fallback
-    const speakNative = useCallback((text) => {
-        if (isMutedRef.current || !text) return;
-
-        // Cancel any current speaking
-        window.speechSynthesis.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(text);
-
-        // Try to find a Hindi or Indian English voice
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(v => v.lang.includes('hi-IN') || v.lang.includes('en-IN')) || voices[0];
-
-        if (preferredVoice) utterance.voice = preferredVoice;
-
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-
-        utterance.onstart = () => setIsPlaying(true);
-        utterance.onend = () => setIsPlaying(false);
-        utterance.onerror = (e) => {
-            console.error("Native TTS Error:", e);
-            setIsPlaying(false);
-        };
-
-        window.speechSynthesis.speak(utterance);
-    }, []);
-
-    useEffect(() => {
-        // Pre-load voices
-        window.speechSynthesis.getVoices();
-    }, []);
-    // Helper: Play Base64 Audio with Blob/URL
-    const playAudio = useCallback((base64Data) => {
-        // Use Ref value to avoid stale closure trap
-        if (isMutedRef.current) {
-            console.log("🔇 Audio is muted (checked via Ref), skipping playback.");
-            return;
-        }
-
-        try {
-            // Stop any existing audio
-            if (lastAudioRef.current) {
-                lastAudioRef.current.pause();
-                if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
-                lastAudioRef.current = null;
-            }
-
-            // Convert Base64 to Blob
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'audio/mpeg' });
-            const url = URL.createObjectURL(blob);
-
-            const audio = new Audio(url);
-            lastAudioRef.current = audio;
-
-            audio.onplay = () => {
-                console.log("✅ Audio playback started successfully");
-                setIsPlaying(true);
-            };
-            audio.onended = () => setIsPlaying(false);
-            audio.onerror = (e) => {
-                console.error("❌ Audio Error:", e);
-                setIsPlaying(false);
-            };
-
-            audio.play().catch(err => {
-                console.warn("⚠️ Audio.play() blocked by browser. This usually requires a user click first.");
-                console.error(err);
-                setIsPlaying(false);
-            });
-        } catch (err) {
-            console.error("❌ Error in playAudio helper:", err);
-        }
-    }, []);
 
     const sendMessage = useCallback(async (text) => {
         // Unlock audio context immediately on user action
