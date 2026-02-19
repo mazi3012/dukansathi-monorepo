@@ -719,6 +719,7 @@ def fast_parse_action(user_query: str) -> str:
                 "type": "payment_draft",
                 "customer_name": name,
                 "amount": amount,
+                "payment_type": "payment",  # deduct dues (green)
                 "mode": "Cash"
             })
 
@@ -733,6 +734,7 @@ def fast_parse_action(user_query: str) -> str:
             "type": "payment_draft",
             "customer_name": name,
             "amount": amount,
+            "payment_type": "payment",  # deduct dues (green)
             "mode": "Cash"
         })
 
@@ -771,12 +773,11 @@ def fast_parse_action(user_query: str) -> str:
     if add_due_pattern:
          amount = float(add_due_pattern.group(1))
          name = add_due_pattern.group(2).strip().title()
-         # Give Credit = Add Due. Default to 'Credit' mode.
-         # ActionCard logic: Positive amount defaults to 'credit' (Red)
          return json.dumps({
             "type": "payment_draft",
             "customer_name": name,
             "amount": amount,
+            "payment_type": "credit",  # add dues (red)
             "mode": "Cash"
         })
 
@@ -796,12 +797,11 @@ def fast_parse_action(user_query: str) -> str:
     if _dp:
          amount = float(_dp.group(1))
          name = _dp.group(2).strip().title()
-         # Deduct Due = Payment. Default to 'Payment' mode.
-         # ActionCard logic: Negative amount defaults to 'payment' (Green)
          return json.dumps({
             "type": "payment_draft",
             "customer_name": name,
-            "amount": -amount, 
+            "amount": amount,
+            "payment_type": "payment",  # deduct dues (green)
             "mode": "Cash"
         })
 

@@ -174,19 +174,15 @@ const Chat = () => {
                     category: actionData.category || 'General'
                 });
                 if (error) throw error;
-                if (error) throw error;
 
-                setMessages(prev => [...prev, {
-                    type: 'bot',
-                    text: `✅ Product Added!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}`
-                }]);
-
-                // Clear action card
-                setMessages(prev => {
-                    const newMsgs = [...prev];
-                    // Logic to remove action card from history if needed, or just append success msg
-                    return newMsgs;
-                });
+                setMessages(prev => [
+                    // Remove the ActionCard (attachment) from the last AI message
+                    ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                    {
+                        type: 'bot',
+                        text: `✅ Product Added!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}`
+                    }
+                ]);
             }
 
             // 3. PAYMENT RECORDING
@@ -253,17 +249,14 @@ const Chat = () => {
                     return;
                 }
 
-                setMessages(prev => [...prev, {
-                    type: 'bot',
-                    text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}`
-                }]);
-
-                // Clear action card
-                setMessages(prev => {
-                    const newMsgs = [...prev];
-                    // Logic to remove action card from history if needed, or just append success msg
-                    return newMsgs;
-                });
+                setMessages(prev => [
+                    // Remove the ActionCard (attachment) from the last AI message
+                    ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                    {
+                        type: 'bot',
+                        text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}`
+                    }
+                ]);
             }
 
         } catch (error) {

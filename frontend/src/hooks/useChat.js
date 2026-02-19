@@ -77,10 +77,41 @@ export const useChat = () => {
         }
     }, []);
 
-    useEffect(() => {
+    const wsRef = useRef(null);
+    const reconnectAttemptRef = useRef(0);
+    const reconnectTimerRef = useRef(null);
+    // Stable ref for message handler — avoids circular dependency between connectWebSocket & onMessageHandler
+    const onMessageHandlerRef = useRef(null);
+
+    const connectWebSocket = useCallback(() => {
         const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://127.0.0.1:8000/ws/chat';
         const socket = new WebSocket(wsUrl);
+        wsRef.current = socket;
+        setWs(socket);
 
+        socket.onopen = () => {
+            console.log('✅ Connected to Chat WS');
+            reconnectAttemptRef.current = 0;
+        };
+
+        socket.onclose = (event) => {
+            if (!event.wasClean) {
+                const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 30000);
+                console.warn(`⚠️ WS disconnected (code ${event.code}). Reconnecting in ${delay}ms...`);
+                reconnectAttemptRef.current += 1;
+                reconnectTimerRef.current = setTimeout(connectWebSocket, delay);
+            }
+        };
+
+        socket.onerror = (e) => console.error('[WS] Error:', e);
+
+        // Use ref so the latest handler is always called, without re-creating this socket callback
+        socket.onmessage = (event) => onMessageHandlerRef.current?.(event);
+
+        return socket;
+    }, []); // Empty deps — connectWebSocket is stable
+
+    useEffect(() => {
         // Fetch User & Chat History
         const initChat = async () => {
             const { supabase } = await import('../lib/supabase');
@@ -131,80 +162,59 @@ export const useChat = () => {
 
         initChat();
 
-        socket.onopen = () => console.log('✅ Connected to Chat WS');
-
-        socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'text') {
-                    setIsThinking(false);
-
-                    // Build message object with attachment if present
-                    const aiMessage = {
-                        type: 'ai',
-                        text: data.content
-                    };
-
-                    // Preserve attachment/draft data from backend
-                    if (data.attachment) {
-                        aiMessage.attachment = data.attachment;
-                    }
-
-                    setMessages(prev => [...prev, aiMessage]);
-
-                    // Play Audio if present, else fallback to Native TTS
-                    if (data.audio) {
-                        console.log("🔊 Received audio data, attempting playback...");
-                        playAudio(data.audio);
-                    } else {
-                        console.log("⚠️ No server audio, falling back to Native TTS");
-                        speakNative(data.content);
-                    }
-                } else if (data.type === 'action' && data.draft) {
-                    // Backend sent a draft action (customer_draft, product_draft, payment_draft)
-                    // Render it as an ActionCard via the attachment mechanism
-                    setIsThinking(false);
-                    const actionMessage = {
-                        type: 'ai',
-                        text: data.content || '📋 Review and confirm the draft below:',
-                        attachment: data.draft  // This renders as ActionCard
-                    };
-                    setMessages(prev => [...prev, actionMessage]);
-                    console.log("✅ Action draft received:", data.draft);
-                } else if (data.type === 'transcription') {
-                    // Update the last "user-audio" placeholder or add new
-                    setMessages(prev => {
-                        const newMsgs = [...prev];
-                        const lastMsg = newMsgs[newMsgs.length - 1];
-
-                        if (lastMsg && lastMsg.type === 'user-audio') {
-                            // Replace placeholder
-                            newMsgs[newMsgs.length - 1] = { type: 'user', text: data.content };
-                        } else {
-                            newMsgs.push({ type: 'user', text: data.content });
-                        }
-                        return newMsgs;
-                    });
-                    // After transcription, the AI is processing the answer, so set Thinking
-                    setIsThinking(true);
-                }
-            } catch (e) {
-                console.error("WS Parse Error", e);
-                setIsThinking(false);
-            }
-        };
-
-        setWs(socket);
+        connectWebSocket();
 
         return () => {
-            socket.close();
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+            if (wsRef.current) wsRef.current.close(1000, 'Component unmounted');
             if (lastAudioRef.current) {
                 lastAudioRef.current.pause();
                 if (lastAudioRef.current.src) URL.revokeObjectURL(lastAudioRef.current.src);
             }
         };
-    }, []);
+    }, [connectWebSocket]);
+
+    // WebSocket message handler — update the ref whenever deps change so reconnect always gets fresh handler
+    const onMessageHandler = useCallback((event) => {
+        try {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'text') {
+                setIsThinking(false);
+                const aiMessage = { type: 'ai', text: data.content };
+                if (data.attachment) aiMessage.attachment = data.attachment;
+                setMessages(prev => [...prev, aiMessage]);
+
+                if (data.audio) {
+                    playAudio(data.audio);
+                } else {
+                    speakNative(data.content);
+                }
+            } else if (data.type === 'transcription') {
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.type === 'user-audio') {
+                        newMsgs[newMsgs.length - 1] = { type: 'user', text: data.content };
+                    } else {
+                        newMsgs.push({ type: 'user', text: data.content });
+                    }
+                    return newMsgs;
+                });
+                setIsThinking(true);
+            } else if (data.type === 'error') {
+                setIsThinking(false);
+                console.error('[WS] Server error:', data.content);
+            }
+        } catch (e) {
+            console.error('[WS] Parse Error:', e);
+            setIsThinking(false);
+        }
+    }, [playAudio, speakNative]);
+
+    // Keep the ref in sync with the latest handler
+    useEffect(() => { onMessageHandlerRef.current = onMessageHandler; }, [onMessageHandler]);
+
 
     // Helper: Browser Native TTS Fallback
     const speakNative = useCallback((text) => {

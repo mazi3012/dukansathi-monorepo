@@ -183,21 +183,38 @@ const Inventory = () => {
                         <p>No products found.</p>
                     </div>
                 ) : (
-                    filteredProducts.map((product) => (
-                        <motion.div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center gap-3">
-                            <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center shrink-0">
-                                <Package size={20} className="text-slate-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-slate-800 truncate">{product.name}</h3>
-                                <p className="text-xs text-slate-500">{product.unit || 'pcs'} • Stock: {product.stock_quantity}</p>
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <span className="font-bold text-slate-900">₹{product.selling_price}</span>
-                                <button onClick={() => handleEdit(product)} className="text-indigo-600 p-1"><Edit2 size={16} /></button>
-                            </div>
-                        </motion.div>
-                    ))
+                    filteredProducts.map((product) => {
+                        const margin = product.cost_price && product.selling_price
+                            ? (((product.selling_price - product.cost_price) / product.cost_price) * 100).toFixed(1)
+                            : null;
+                        const isLowStock = product.stock_quantity <= (product.min_stock_level || 5);
+                        return (
+                            <motion.div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center gap-3">
+                                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center shrink-0 relative">
+                                    <Package size={20} className="text-slate-400" />
+                                    {isLowStock && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" title="Low Stock" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-slate-800 truncate">{product.name}</h3>
+                                    <p className="text-xs text-slate-500">
+                                        {product.unit || 'pcs'} • Stock: {product.stock_quantity}
+                                        {isLowStock && <span className="text-red-500 font-bold ml-1">(Low!)</span>}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-0.5">
+                                    <span className="font-bold text-slate-900">₹{product.selling_price}</span>
+                                    {margin !== null && (
+                                        <span className={`text-xs font-bold ${parseFloat(margin) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                            {margin > 0 ? '+' : ''}{margin}%
+                                        </span>
+                                    )}
+                                    <button onClick={() => handleEdit(product)} className="text-indigo-600 p-1"><Edit2 size={16} /></button>
+                                </div>
+                            </motion.div>
+                        );
+                    })
                 )}
             </div>
 

@@ -10,11 +10,7 @@ It handles:
 - API endpoints for CRUD operations
 - Authentication middleware
 - CORS configuration
-- WebSocket connections for real-time AI chat
-- API endpoints for CRUD operations
-- Authentication middleware
-- CORS configuration
-- System Setup & Local AI
+- System Setup & Local AI (Offline mode)
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -98,12 +94,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS to allow frontend requests
-# Configure CORS to allow frontend requests
+# Configure CORS — restrict to known origins in production
+ALLOWED_ORIGINS = [
+    "https://dukansathi.vercel.app",
+    "https://dukanv22.vercel.app",
+    os.getenv("FRONTEND_URL", ""),  # From env var if set
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 app.add_middleware(
     CORSMiddleware,
-    # allow_origin_regex="https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?",
-    allow_origins=["*"], # TEMPORARY DEBUGGING
+    allow_origins=[o for o in ALLOWED_ORIGINS if o],  # Filter empty strings
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -146,11 +147,18 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check with service status"""
+    """Detailed health check with actual service status"""
+    db_status = "disconnected"
+    if supabase:
+        try:
+            supabase.table("profiles").select("id").limit(1).execute()
+            db_status = "connected"
+        except Exception:
+            db_status = "error"
     return {
-        "status": "ok",
-        "database": "connected",  # TODO: Add actual DB check
-        "ai_service": "ready"     # TODO: Add actual AI service check
+        "status": "ok" if db_status == "connected" else "degraded",
+        "database": db_status,
+        "ai_service": "ready"
     }
 
 @app.on_event("startup")
@@ -524,19 +532,18 @@ async def chat_websocket(websocket: WebSocket):
                 print(f"[AI] AI Raw Response: {ai_response_raw[:100]}...")
                 
                 # PARSE STRUCTURED RESPONSE
+                # IMPORTANT: Use response_data not data to avoid shadowing the WS message variable
                 import json
                 display_text = ai_response_raw
                 attachment = None
                 
                 try:
-                    data = json.loads(ai_response_raw)
-                    if isinstance(data, dict):
-                        display_text = data.get("text", ai_response_raw)
-                        attachment = data.get("draft") 
-                        # Or 'attachment' key if I used that in agent_graph? 
-                        # I used 'draft' key in agent_graph update just now.
-                except:
-                    # Not JSON, plain text
+                    response_data = json.loads(ai_response_raw)
+                    if isinstance(response_data, dict):
+                        display_text = response_data.get("text", ai_response_raw)
+                        attachment = response_data.get("draft") or response_data.get("attachment")
+                except (json.JSONDecodeError, ValueError):
+                    # Not JSON — plain text response, use as-is
                     pass
                 
             except Exception as e:
