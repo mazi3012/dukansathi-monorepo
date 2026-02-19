@@ -19,13 +19,7 @@ const VOICE_OPTIONS = [
         ]
     },
 
-    {
-        language: 'Bengali (India)',
-        voices: [
-            { id: 'bn-IN-Wavenet-B', label: 'Bashir (Male)', gender: 'Male' },
-            { id: 'bn-IN-Wavenet-A', label: 'Benazir (Female)', gender: 'Female' }
-        ]
-    }
+
 ];
 
 const MODEL_OPTIONS = [
