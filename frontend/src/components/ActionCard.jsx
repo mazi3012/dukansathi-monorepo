@@ -369,20 +369,76 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
     // 4. PAYMENT / DUES UPDATE CARD
     if (type === 'payment_draft') {
+        // Determine mode based on amount sign or user selection
+        // Default to 'credit' (Red/Add Dues) if positive, 'payment' (Green/Receive Payment) if negative
+        // But initially from NLP it might be positive for both actions, relying on keywords. 
+        // Let's use local state to toggle.
+
+        // Initialize state only once
+        const [mode, setMode] = useState(() => {
+            // If amount is explicitly negative, it's a payment/deduction. 
+            // If implicit from "paid", NLP might send positive amount but intention is payment.
+            // We'll default to 'payment' (Green) if user said "paid/received", 'credit' (Red) if "add due".
+            // Since we don't have the raw query here easily, we rely on the amount sign from NLP if available.
+            return (localData.amount < 0) ? 'payment' : 'credit';
+        });
+
+        const isCredit = mode === 'credit'; // Red (Give Udhar)
+        const themeColor = isCredit ? 'red' : 'emerald';
+        const ThemeIcon = isCredit ? RefreshCw : Check; // Just some icon variety
+
+        // Helper to handle amount change
+        const handleAmountChange = (val) => {
+            // Keep the visual amount positive
+            const absVal = Math.abs(parseFloat(val) || 0);
+            setLocalData({ ...localData, amount: absVal });
+        };
+
+        const handleConfirm = () => {
+            // Logic: 
+            // Chat.jsx does: newBalance = oldBalance - amount
+            // So to ADD DEBT (Credit/Udhar): we need newBalance to become MORE NEGATIVE.
+            // Chat.jsx logic subtraction: -500 - 200 = -700. (Amount must be positive to add debt).
+
+            // To REDUCE DEBT (Payment): we need newBalance to become LESS NEGATIVE.
+            // Chat.jsx logic subtraction: -500 - (-200) = -300. (Amount must be negative to reduce debt).
+
+            const finalAmount = isCredit ? Math.abs(localData.amount) : -Math.abs(localData.amount);
+            onApprove({ ...localData, amount: finalAmount });
+        };
+
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md">
-                {/* Header */}
-                <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100 flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-emerald-700">
-                        <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <RefreshCw size={16} />
+            <div className={`bg-white rounded-xl shadow-sm border overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md ${isCredit ? 'border-red-200' : 'border-emerald-200'}`}>
+                {/* Header with Toggle */}
+                <div className={`px-4 py-3 border-b flex justify-between items-center ${isCredit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                    <div className={`flex items-center gap-2 ${isCredit ? 'text-red-700' : 'text-emerald-700'}`}>
+                        <div className={`p-1.5 rounded-lg ${isCredit ? 'bg-red-100' : 'bg-emerald-100'}`}>
+                            <ThemeIcon size={16} />
                         </div>
-                        <span className="font-semibold text-sm">Update Customer Dues</span>
+                        <span className="font-semibold text-sm">
+                            {isCredit ? "Give Credit / Udhar" : "Receive Payment / Jama"}
+                        </span>
                     </div>
                     {/* Status Badge */}
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-emerald-200 text-emerald-600 rounded-full uppercase tracking-wider">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 bg-white border rounded-full uppercase tracking-wider ${isCredit ? 'border-red-200 text-red-600' : 'border-emerald-200 text-emerald-600'}`}>
                         DRAFT
                     </span>
+                </div>
+
+                {/* Toggle Switch */}
+                <div className="flex bg-slate-100 p-1 mx-4 mt-4 rounded-lg">
+                    <button
+                        onClick={() => setMode('credit')}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${isCredit ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Give Credit (Red)
+                    </button>
+                    <button
+                        onClick={() => setMode('payment')}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${!isCredit ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Get Payment (Green)
+                    </button>
                 </div>
 
                 <div className="p-4 space-y-4">
@@ -397,7 +453,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 type="text"
                                 value={localData.customer_name || ''}
                                 onChange={(e) => setLocalData({ ...localData, customer_name: e.target.value })}
-                                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-300 font-medium text-slate-700"
+                                className={`w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none transition-all placeholder:text-slate-300 font-medium text-slate-700 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                                 placeholder="Enter customer name..."
                             />
                         </div>
@@ -407,15 +463,15 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <div className="flex gap-3">
                         <div className="flex-1">
                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                Amount Received
+                                Amount
                             </label>
                             <div className="relative">
                                 <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
                                 <input
                                     type="number"
-                                    value={localData.amount || ''}
-                                    onChange={(e) => setLocalData({ ...localData, amount: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-bold text-slate-800"
+                                    value={Math.abs(localData.amount) || ''}
+                                    onChange={(e) => handleAmountChange(e.target.value)}
+                                    className={`w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none transition-all font-bold text-slate-800 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                                     placeholder="0.00"
                                 />
                             </div>
@@ -427,7 +483,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             <select
                                 value={localData.mode || 'Cash'}
                                 onChange={(e) => setLocalData({ ...localData, mode: e.target.value })}
-                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white font-medium text-slate-700"
+                                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none bg-white font-medium text-slate-700 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                             >
                                 <option value="Cash">Cash</option>
                                 <option value="UPI">UPI</option>
@@ -438,7 +494,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 </div>
 
                 {/* Actions */}
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <div className={`px-4 py-3 border-t flex gap-3 ${isCredit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <button
                         onClick={onDiscard}
                         className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
@@ -446,10 +502,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         <X size={16} /> Discard
                     </button>
                     <button
-                        onClick={() => onApprove(localData)}
-                        className="flex-1 py-2 px-3 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                        onClick={handleConfirm}
+                        className={`flex-1 py-2 px-3 text-white rounded-lg text-sm font-medium shadow-sm transition-all flex items-center justify-center gap-2 ${isCredit ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'}`}
                     >
-                        <Check size={16} /> Confirm Payment
+                        <Check size={16} /> {isCredit ? "Confirm Credit" : "Confirm Payment"}
                     </button>
                 </div>
             </div>

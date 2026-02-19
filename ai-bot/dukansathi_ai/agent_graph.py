@@ -741,6 +741,41 @@ def fast_parse_action(user_query: str) -> str:
                 "items": items
             })
 
+    # --- PATTERN 5: Dues / Credit specific ---
+    # "add 500 due to amit" -> Give Credit (Red)
+    add_due_pattern = re.search(
+        r'(?:add|give)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:due|credit|udhar)\s+(?:to|for)\s+([\w\s]+)',
+        ql
+    )
+    if add_due_pattern:
+         amount = float(add_due_pattern.group(1))
+         name = add_due_pattern.group(2).strip().title()
+         # Give Credit = Add Due. Default to 'Credit' mode.
+         # ActionCard logic: Positive amount defaults to 'credit' (Red)
+         return json.dumps({
+            "type": "payment_draft",
+            "customer_name": name,
+            "amount": amount,
+            "mode": "Cash"
+        })
+
+    # "deduct 500 from amit due" -> Receive Payment (Green)
+    deduct_due_pattern = re.search(
+        r'(?:deduct|reduce|cut|remove|clear)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:from|of)\s+([\w\s]+?)(?:\s+due|\s+credit|\s+udhar|$)',
+        ql
+    )
+    if deduct_due_pattern:
+         amount = float(deduct_due_pattern.group(1))
+         name = deduct_due_pattern.group(2).strip().title()
+         # Deduct Due = Payment. Default to 'Payment' mode.
+         # ActionCard logic: Negative amount defaults to 'payment' (Green)
+         return json.dumps({
+            "type": "payment_draft",
+            "customer_name": name,
+            "amount": -amount, 
+            "mode": "Cash"
+        })
+
     return None  # No pattern matched
 
 
