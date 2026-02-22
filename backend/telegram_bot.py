@@ -57,23 +57,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import AI brain — same as main.py
-try:
-    from dukansathi_ai.agent_graph import process_user_input
-    logger.info("✅ AI module loaded successfully for Telegram bot")
-except Exception as e:
-    logger.error(f"❌ Failed to import AI module: {e}")
-    async def process_user_input(*args, **kwargs):
-        return "Sorry Boss, AI module is not available right now."
-
-# Import STT (Groq Whisper) for voice messages
-try:
-    from voice_service import transcribe_audio
-    logger.info("✅ Voice/STT module loaded")
-except Exception as e:
-    logger.warning(f"⚠️ Voice/STT not available: {e}")
-    async def transcribe_audio(audio_data: bytes) -> str:
-        return ""
+# We DO NOT import AI brain and STT here globally, to avoid blocking Uvicorn startup
+# during the initial import of telegram_bot.py in main.py.
+# Instead, we lazily import them directly inside the handlers (handle_ai_interaction, handle_voice).
 
 # Supabase client for user mapping
 try:
@@ -369,6 +355,13 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
 
 async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     """Shared helper to process text (from message or voice), check for draft approvals, and call AI."""
+    try:
+        from dukansathi_ai.agent_graph import process_user_input
+    except Exception as e:
+        logger.error(f"❌ Failed to load AI module: {e}")
+        await update.message.reply_text("Sorry Boss, AI module is not available right now. Let me sleep!")
+        return
+
     user_token = get_user_token_for_chat(chat_id)
     text_lower = text.strip().lower()
 
@@ -592,7 +585,12 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Transcribe with Groq Whisper
         await update.effective_chat.send_action("typing")
-        transcribed = await transcribe_audio(audio_bytes)
+        try:
+            from voice_service import transcribe_audio
+            transcribed = await transcribe_audio(audio_bytes)
+        except Exception as e:
+            logger.warning(f"Voice/STT not available: {e}")
+            transcribed = ""
 
         if not transcribed or not transcribed.strip():
             await update.message.reply_text(

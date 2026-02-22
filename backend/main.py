@@ -205,6 +205,8 @@ async def startup_event():
 
 async def cleanup_scheduler():
     """Run chat history cleanup every hour (delete items > 12 hours old)"""
+    # Yield immediately to let Uvicorn bind to the port on startup
+    await asyncio.sleep(60)
     while True:
         try:
             print("INFO: Running scheduled chat history cleanup...")
