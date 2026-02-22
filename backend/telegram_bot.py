@@ -176,6 +176,183 @@ def format_draft_for_telegram(draft: dict) -> str:
         return f"📋 Draft: {json.dumps(draft, indent=2)}"
 
 
+# ─── Draft Execution (Telegram Backend Replacement for Chat.jsx) ───
+
+PENDING_DRAFTS = {}
+
+async def execute_draft(user_id: str, draft: dict) -> str:
+    """Executes a draft natively in Python by performing direct Supabase operations"""
+    if not supabase: 
+        return "❌ Database not connected."
+    
+    draft_type = draft.get("type")
+    
+    try:
+        if draft_type == "product_draft":
+            supabase.table("products").insert({
+                "user_id": user_id,
+                "name": draft.get("name"),
+                "selling_price": draft.get("selling_price", 0),
+                "cost_price": draft.get("cost_price", 0),
+                "stock_quantity": draft.get("stock_quantity", 0),
+                "category": draft.get("category", "General")
+            }).execute()
+            return f"✅ Product '{draft.get('name')}' saved successfully!"
+
+        elif draft_type == "customer_draft":
+            supabase.table("customers").insert({
+                "user_id": user_id,
+                "name": draft.get("name"),
+                "phone": draft.get("phone"),
+                "address": draft.get("address")
+            }).execute()
+            return f"✅ Customer '{draft.get('name')}' saved successfully!"
+
+        elif draft_type == "payment_draft":
+            customer_name = draft.get("customer_name", "")
+            amount = abs(float(draft.get("amount", 0)))
+            is_payment = draft.get("payment_type") == "payment"
+            
+            cust_res = supabase.table("customers").select("id, name, credit_balance").ilike("name", f"%{customer_name}%").eq("user_id", user_id).limit(1).execute()
+            if not cust_res.data:
+                return f"❌ Customer '{customer_name}' not found."
+                
+            customer = cust_res.data[0]
+            old_balance = float(customer.get("credit_balance", 0) or 0)
+            
+            if is_payment:
+                new_balance = max(0, old_balance - amount)
+                action_text = "Received"
+            else:
+                new_balance = old_balance + amount
+                action_text = "Added"
+                
+            supabase.table("customers").update({"credit_balance": new_balance}).eq("id", customer["id"]).execute()
+            return f"✅ Payment {action_text}! New balance for {customer['name']}: ₹{new_balance}"
+
+        elif draft_type == "invoice_draft":
+            customer_name = draft.get("customer_name", "Walk-in")
+            customer_id = None
+            if customer_name and customer_name.lower() != "walk-in":
+                cust_res = supabase.table("customers").select("id").ilike("name", customer_name).eq("user_id", user_id).limit(1).execute()
+                if cust_res.data:
+                    customer_id = cust_res.data[0]["id"]
+                else:
+                    new_cust = supabase.table("customers").insert({"user_id": user_id, "name": customer_name}).execute()
+                    customer_id = new_cust.data[0]["id"] if new_cust.data else None
+            
+            items = draft.get("items", [])
+            total = sum([float(item.get("quantity", 0)) * float(item.get("price", 0)) for item in items])
+            
+            sale_res = supabase.table("sales").insert({
+                "user_id": user_id,
+                "customer_id": customer_id,
+                "invoice_type": "regular",
+                "subtotal": total,
+                "total_amount": total,
+                "payment_status": "paid",
+            }).execute()
+            
+            sale_id = sale_res.data[0]["id"] if sale_res.data else None
+            if not sale_id: return "❌ Failed to create invoice record."
+            
+            for item in items:
+                prod_name = item.get("product_name")
+                qty = float(item.get("quantity", 0))
+                price = float(item.get("price", 0))
+                
+                prod_res = supabase.table("products").select("id").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
+                prod_id = prod_res.data[0]["id"] if prod_res.data else None
+                
+                supabase.table("sale_items").insert({
+                    "user_id": user_id,
+                    "sale_id": sale_id,
+                    "product_id": prod_id,
+                    "quantity": qty,
+                    "unit_price": price,
+                    "total_price": qty * price
+                }).execute()
+                
+                if prod_id:
+                     try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": qty}).execute()
+                     except: pass
+            
+            return "✅ Invoice created successfully!"
+            
+        return "❌ Unknown draft type."
+    except Exception as e:
+        logger.error(f"Draft execution error: {e}")
+        return f"❌ Failed to save: {e}"
+
+
+async def handle_ai_interaction(update: Update, text: str, chat_id: int):
+    """Shared helper to process text (from message or voice), check for draft approvals, and call AI."""
+    user_token = get_user_token_for_chat(chat_id)
+    text_lower = text.strip().lower()
+
+    # --- 1. Check Draft Approvals ---
+    if text_lower in ["approve", "confirm", "yes", "ok", "done", "save", "ha", "haan"]:
+        if chat_id in PENDING_DRAFTS:
+            draft = PENDING_DRAFTS[chat_id]
+            del PENDING_DRAFTS[chat_id]
+            
+            await update.message.reply_text("⏳ Saving to database...")
+            result_msg = await execute_draft(user_token, draft)
+            await update.message.reply_text(result_msg)
+            
+            # Silently inform AI of the context
+            try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="gemini-2.0-flash-001")
+            except: pass
+            return
+
+    elif text_lower in ["cancel", "no", "discard", "abort", "nahi"]:
+        if chat_id in PENDING_DRAFTS:
+            del PENDING_DRAFTS[chat_id]
+            await update.message.reply_text("❌ Draft discarded.")
+            try: await process_user_input(text=f"User discarded the draft.", user_token=user_token, model="gemini-2.0-flash-001")
+            except: pass
+            return
+
+    # --- 2. Standard AI Flow ---
+    try:
+        # Call the SAME AI brain used by the web app
+        ai_response = await process_user_input(
+            text=text,
+            user_token=user_token,
+            model="gemini-2.0-flash-001"  # Use cloud model for Telegram
+        )
+
+        logger.info(f"[TG] AI Response: {ai_response[:100]}")
+
+        # Parse the response — might be JSON with draft or plain text
+        try:
+            response_data = json.loads(ai_response)
+            if isinstance(response_data, dict):
+                display_text = response_data.get("text", ai_response)
+                draft = response_data.get("draft")
+
+                # Send the text response
+                await update.message.reply_text(display_text)
+
+                # If there's a draft, format and send it
+                if draft and isinstance(draft, dict) and draft.get("type"):
+                    PENDING_DRAFTS[chat_id] = draft
+                    draft_message = format_draft_for_telegram(draft)
+                    await update.message.reply_text(
+                        draft_message,
+                        parse_mode="Markdown"
+                    )
+            else:
+                await update.message.reply_text(ai_response)
+        except (json.JSONDecodeError, ValueError):
+            # Plain text response
+            await update.message.reply_text(ai_response)
+
+    except Exception as e:
+        logger.error(f"[TG] Error processing message: {e}")
+        await update.message.reply_text("Sorry Boss, I'm having trouble right now. Please try again.")
+
+
 # ─── Command Handlers ─────────────────────────────────────
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -289,51 +466,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     logger.info(f"[TG] Message from {chat_id}: {user_text[:80]}")
 
-
     # Show "typing..." indicator
     await update.effective_chat.send_action("typing")
 
-    # Get the user token (linked account or guest)
-    user_token = get_user_token_for_chat(chat_id)
-
-    try:
-        # Call the SAME AI brain used by the web app
-        ai_response = await process_user_input(
-            text=user_text,
-            user_token=user_token,
-            model="gemini-2.0-flash-001"  # Use cloud model for Telegram
-        )
-
-        logger.info(f"[TG] AI Response: {ai_response[:100]}")
-
-        # Parse the response — might be JSON with draft or plain text
-        try:
-            response_data = json.loads(ai_response)
-            if isinstance(response_data, dict):
-                display_text = response_data.get("text", ai_response)
-                draft = response_data.get("draft")
-
-                # Send the text response
-                await update.message.reply_text(display_text)
-
-                # If there's a draft, format and send it
-                if draft and isinstance(draft, dict) and draft.get("type"):
-                    draft_message = format_draft_for_telegram(draft)
-                    await update.message.reply_text(
-                        draft_message,
-                        parse_mode="Markdown"
-                    )
-            else:
-                await update.message.reply_text(ai_response)
-        except (json.JSONDecodeError, ValueError):
-            # Plain text response
-            await update.message.reply_text(ai_response)
-
-    except Exception as e:
-        logger.error(f"[TG] Error processing message: {e}")
-        await update.message.reply_text(
-            "Sorry Boss, I'm having trouble right now. Please try again."
-        )
+    await handle_ai_interaction(update, user_text, chat_id)
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -378,28 +514,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Echo what was understood (helps non-tech users know it worked)
         await update.message.reply_text(f"🎙️ _Suna:_ \"{transcribed}\"\n", parse_mode="Markdown")
 
-        # Now pass the transcription to the same AI handler
-        user_token = get_user_token_for_chat(chat_id)
-        ai_response = await process_user_input(
-            text=transcribed,
-            user_token=user_token,
-            model="gemini-2.0-flash-001"
-        )
-
-        # Parse and send the AI response (same as text handler)
-        try:
-            response_data = json.loads(ai_response)
-            if isinstance(response_data, dict):
-                display_text = response_data.get("text", ai_response)
-                draft = response_data.get("draft")
-                await update.message.reply_text(display_text)
-                if draft and isinstance(draft, dict) and draft.get("type"):
-                    draft_message = format_draft_for_telegram(draft)
-                    await update.message.reply_text(draft_message, parse_mode="Markdown")
-            else:
-                await update.message.reply_text(ai_response)
-        except (json.JSONDecodeError, ValueError):
-            await update.message.reply_text(ai_response)
+        # Reuse shared helper for checking drafts and calling AI
+        await update.effective_chat.send_action("typing")
+        await handle_ai_interaction(update, transcribed, chat_id)
 
     except Exception as e:
         logger.error(f"[TG] Voice handling error: {e}")
