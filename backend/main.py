@@ -23,6 +23,8 @@ import base64
 import logging
 import io
 import uuid
+import threading
+import tempfile
 from datetime import datetime, timedelta, timezone
 from PIL import Image
 
@@ -189,17 +191,25 @@ async def startup_event():
     print("INFO: Starting background tasks...")
     asyncio.create_task(cleanup_scheduler())
     
-    import threading
-
     # Start Telegram Bot in the same event loop so Render runs it automatically
     if os.getenv("TELEGRAM_BOT_TOKEN"):
         try:
+            # Prevent multiple Uvicorn workers from spawning conflicting bots
+            # This fixes Render's "Conflict: terminated by other getUpdates request"
+            lock_file = os.path.join(tempfile.gettempdir(), "dukansathi_telegram.lock")
+            
+            # Use atomic file creation
+            fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            # This is the primary worker!
+            
             from telegram_bot import start_telegram_bot
-            print("INFO: Starting Telegram Bot background task...")
+            print("INFO: Starting Telegram Bot background task from primary worker...")
             # Run the bot in a completely isolated daemon thread to prevent event loop blocking
-            # This fixes Render's "No open ports detected" timeout bug and Conflict errors
             bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
             bot_thread.start()
+        except FileExistsError:
+            print("INFO: Telegram Bot already running in another worker. Skipping here.")
         except Exception as e:
             logger.error(f"Failed to initialize Telegram Bot: {e}")
 
