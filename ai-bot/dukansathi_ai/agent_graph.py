@@ -489,7 +489,7 @@ def categorize_query(msg_lower: str) -> str:
         "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
         "who bought", "what did", "product", "item", "good", "service", "sku", "code",
         "spend", "spent", "credit", "balance", "money", "cash", "upi", "card", "bank",
-        "products", "items", "bills", "invoices", "orders" 
+        "products", "items", "bills", "invoices", "orders", "customers"
     ]
 
     # Identity inquiry patterns
@@ -524,8 +524,8 @@ def categorize_query(msg_lower: str) -> str:
         return "CAPABILITY"
     
     # Check for business queries
-    print(f"DEBUG: Checking business keywords against {words}")
-    if any(k in words for k in business_keywords):
+    print(f"DEBUG: Checking business keywords in '{msg_lower}'")
+    if any(k in msg_lower for k in business_keywords):
         print("DEBUG: Found business keyword")
         return "BUSINESS"
     

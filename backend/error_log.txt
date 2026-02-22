@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "E:\dukanv22\backend\telegram_bot.py", line 292, in execute_draft
-    raw_balance = customer.get("credit_balance")
-                  ^^^^^^^^
-NameError: name 'customer' is not defined
