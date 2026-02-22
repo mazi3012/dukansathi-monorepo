@@ -98,6 +98,8 @@ app = FastAPI(
 ALLOWED_ORIGINS = [
     "https://dukansathi.vercel.app",
     "https://dukanv22.vercel.app",
+    "https://www.dukansathi.com",   # Verified Production domain
+    "https://dukansathi.com",       # Verified Production domain (no www)
     os.getenv("FRONTEND_URL", ""),  # From env var if set
     "http://localhost:5173",
     "http://127.0.0.1:5173",
