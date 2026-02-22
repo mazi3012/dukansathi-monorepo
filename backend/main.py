@@ -182,7 +182,8 @@ async def health_check():
     return {
         "status": "ok" if db_status == "connected" else "degraded",
         "database": db_status,
-        "ai_service": "ready"
+        "ai_service": "ready",
+        "telegram_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN"))
     }
 
 @app.on_event("startup")

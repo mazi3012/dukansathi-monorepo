@@ -42,6 +42,11 @@ const Customers = () => {
 
     useEffect(() => {
         fetchCustomers();
+
+        // Auto-refresh when returning to tab (e.g. from Telegram)
+        const onFocus = () => fetchCustomers();
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, [fetchCustomers]);
 
     const handleSave = async () => {

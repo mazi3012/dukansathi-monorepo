@@ -70,6 +70,14 @@ const Sales = () => {
     useEffect(() => {
         fetchData();
         fetchHistory();
+
+        // Auto-refresh when returning to tab (e.g. from Telegram)
+        const onFocus = () => {
+            fetchData();
+            fetchHistory();
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, []);
 
     const fetchData = async () => {

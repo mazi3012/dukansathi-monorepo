@@ -64,6 +64,11 @@ const Inventory = () => {
 
     useEffect(() => {
         fetchData();
+
+        // Auto-refresh when returning to tab (e.g. from Telegram)
+        const onFocus = () => fetchData();
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, [fetchData]);
 
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
