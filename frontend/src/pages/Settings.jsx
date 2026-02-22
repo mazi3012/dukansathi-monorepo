@@ -129,7 +129,7 @@ const Settings = () => {
                     .select('user_id')
                     .eq('user_id', session.user.id)
                     .limit(1)
-                    .single();
+                    .maybeSingle();
                 if (data) setTelegramConnected(true);
             } catch {
                 // Not connected — ignore
