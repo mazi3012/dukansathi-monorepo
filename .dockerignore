@@ -1,0 +1,74 @@
+# =============================================
+# DukanSathi — Docker Ignore
+# Purpose: Exclude unnecessary files from Docker build context
+# =============================================
+
+# Frontend (not deployed to Cloud Run)
+frontend/
+docs/
+migrations/
+
+# Python virtual environments
+venv/
+backend/venv/
+ai-bot/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Git
+.git/
+.github/
+.gitignore
+
+# Environment files (secrets injected via Cloud Run env vars)
+.env
+.env.local
+backend/.env
+frontend/.env.local
+
+# Credentials (NEVER bake into image)
+service_account.json
+backend/service_account.json
+*-credentials.json
+credentials.json
+google-credentials.json
+*.pem
+*.key
+
+# Local database files
+*.db
+backend/dukansathi_offline.db
+
+# Logs
+*.log
+backend/backend.log
+backend.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Node
+node_modules/
+dist/
+npm-debug.log*
+
+# Deployment configs for other platforms
+render.yaml
+vercel.json
+.vercelignore
+.render_deploy_check
+
+# Test & migration scripts at root
+verify_local_db.py
+migrations_part1.sql
+migrations_part2.sql
+
+# Docker
+Dockerfile
+.dockerignore

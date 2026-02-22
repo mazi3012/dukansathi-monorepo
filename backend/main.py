@@ -102,6 +102,12 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Also allow any Cloud Run preview/service URL
+cloud_run_url = os.getenv("CLOUD_RUN_URL", "")
+if cloud_run_url:
+    ALLOWED_ORIGINS.append(cloud_run_url)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o for o in ALLOWED_ORIGINS if o],  # Filter empty strings
@@ -620,9 +626,11 @@ async def upload_product_image(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
+    # Use 0.0.0.0 — required for Cloud Run (also works locally)
+    host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
+        host=host,
         port=port,
         reload=False
     )
