@@ -53,7 +53,8 @@ const Settings = () => {
     const [generatingCode, setGeneratingCode] = useState(false);
     const timerRef = useRef(null);
 
-    const API_BASE = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+    let rawApiBase = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+    const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
     const BOT_USERNAME = 'SathiAibot';
 
     // Load Settings
