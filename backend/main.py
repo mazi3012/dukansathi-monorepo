@@ -64,16 +64,13 @@ else:
     logger.warning("Supabase credentials missing. Cleanup tasks may fail.")
 
 try:
-    from voice_service import transcribe_audio, speak_text
-    from dukansathi_ai.agent_graph import process_user_input, perform_history_cleanup
+    # We NO LONGER import voice_service and agent_graph globally!
+    # They take 60+ seconds to initialize on Render's 0.1 CPU Free Tier,
+    # which causes Uvicorn to hit the 60s Port Scan Timeout and abort deployment.
+    # Instead, we lazily import them inside websocket_endpoint() and background tasks!
+    pass
 except Exception as e:
-    logger.error(f"Failed to import AI modules: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
-    # Define dummy functions so app can still start (for debugging)
-    async def process_user_input(*args): return "AI Module Load Failed"
-    async def transcribe_audio(*args): return "STT Module Load Failed"
-    async def speak_text(*args): return None
+    pass
 
 # Import Setup Routes & Local AI
 try:
@@ -205,6 +202,10 @@ async def startup_event():
 async def start_telegram_bot_async():
     """Wrapper to run the blocking bot Application.run_polling() safely or use asyncio"""
     try:
+        # Give Uvicorn 5 seconds to bind to the port before we import heavy modules
+        # This fixes Render's "No open ports detected" timeout bug
+        await asyncio.sleep(5)
+        
         from telegram_bot import app as tg_app
         # Initialize and start polling asynchronously
         await tg_app.initialize()
@@ -238,9 +239,10 @@ async def cleanup_scheduler():
                     # Implementing a simple DB cleanup for now.
                     
                     # Call the PostgreSQL function directly via RPC
-                    if 'perform_history_cleanup' in globals():
+                    try:
+                        from dukansathi_ai.agent_graph import perform_history_cleanup
                         await perform_history_cleanup()
-                    else:
+                    except ImportError:
                         print("WARN: perform_history_cleanup not available")
                     
                     # Also try to clean up storage if possible (Listing all files is expensive)
@@ -334,6 +336,7 @@ async def tts_preview(request: TTSRequest):
     Generate a one-off TTS preview for the settings page.
     """
     try:
+        from voice_service import speak_text
         # Use existing service
         base64_audio = await speak_text(request.text, request.voice_id, request.rate)
         if not base64_audio:
@@ -344,12 +347,27 @@ async def tts_preview(request: TTSRequest):
         print(f"Preview Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.websocket("/ws/chat")
-async def chat_websocket(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time AI chat communication
-    """
+@app.websocket("/api/chat/ws")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
     await websocket.accept()
+    
+    # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
+    # This prevents Render from timing out during deployment
+    try:
+        from voice_service import transcribe_audio, speak_text
+        from dukansathi_ai.agent_graph import process_user_input
+    except Exception as e:
+        logger.error(f"Failed to import AI modules: {e}")
+        await websocket.send_json({"type": "error", "content": "AI System Offline. Please retry in a minute."})
+        await websocket.close()
+        return
+
+    # Check database and credentials
+    if not supabase:
+        await websocket.send_json({"type": "error", "content": "Database connection not available."})
+        await websocket.close()
+        return
+
     print("[WS] WebSocket Connection Established")
     
     try:
