@@ -184,29 +184,38 @@ async def execute_draft(user_id: str, draft: dict) -> str:
     """Executes a draft natively in Python by performing direct Supabase operations"""
     if not supabase: 
         return "❌ Database not connected."
+        
+    if str(user_id).startswith("telegram_"):
+        return "❌ You must connect your account to save data. Go to your Web App Settings -> Telegram and link your account first!"
     
     draft_type = draft.get("type")
     
     try:
         if draft_type == "product_draft":
+            name = draft.get("name")
+            if not name: return "❌ Missing product name."
+            
             supabase.table("products").insert({
                 "user_id": user_id,
-                "name": draft.get("name"),
-                "selling_price": draft.get("selling_price", 0),
-                "cost_price": draft.get("cost_price", 0),
-                "stock_quantity": draft.get("stock_quantity", 0),
-                "category": draft.get("category", "General")
+                "name": name,
+                "selling_price": float(draft.get("selling_price", 0) or 0),
+                "cost_price": float(draft.get("cost_price", 0) or 0),
+                "stock_quantity": int(draft.get("stock_quantity", 0) or 0),
+                "category": draft.get("category", "General") or "General"
             }).execute()
-            return f"✅ Product '{draft.get('name')}' saved successfully!"
+            return f"✅ Product '{name}' saved successfully!"
 
         elif draft_type == "customer_draft":
+            name = draft.get("name")
+            if not name: return "❌ Missing customer name."
+            
             supabase.table("customers").insert({
                 "user_id": user_id,
-                "name": draft.get("name"),
-                "phone": draft.get("phone"),
-                "address": draft.get("address")
+                "name": name,
+                "phone": draft.get("phone", ""),
+                "address": draft.get("address", "")
             }).execute()
-            return f"✅ Customer '{draft.get('name')}' saved successfully!"
+            return f"✅ Customer '{name}' saved successfully!"
 
         elif draft_type == "payment_draft":
             customer_name = draft.get("customer_name", "")
@@ -281,8 +290,9 @@ async def execute_draft(user_id: str, draft: dict) -> str:
             
         return "❌ Unknown draft type."
     except Exception as e:
-        logger.error(f"Draft execution error: {e}")
-        return f"❌ Failed to save: {e}"
+        err_msg = str(e)
+        logger.error(f"Draft execution error: {err_msg}")
+        return f"❌ Failed to save. Database returned an error."
 
 
 async def handle_ai_interaction(update: Update, text: str, chat_id: int):
