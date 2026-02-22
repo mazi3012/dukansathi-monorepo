@@ -178,9 +178,62 @@ def format_draft_for_telegram(draft: dict) -> str:
 # ─── Command Handlers ─────────────────────────────────────
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
+    """Handle /start command and deep linking connections"""
     user_name = update.effective_user.first_name or "Boss"
+    chat_id = update.effective_chat.id
+    username = update.effective_user.username or ""
 
+    # -- Deep Linking Connection Flow (/start <TOKEN>) --
+    if context.args and len(context.args) > 0:
+        token = context.args[0].strip()
+        
+        if supabase:
+            try:
+                # 1. Verify token exists, is unused, and not expired
+                result = supabase.table("telegram_connect_tokens") \
+                    .select("id, user_id") \
+                    .eq("token", token) \
+                    .eq("used", False) \
+                    .gte("expires_at", datetime.now(timezone.utc).isoformat()) \
+                    .execute()
+
+                if result.data and len(result.data) > 0:
+                    user_id = result.data[0]["user_id"]
+                    token_id = result.data[0]["id"]
+                    
+                    # 2. Link account
+                    supabase.table("telegram_users").upsert({
+                        "telegram_chat_id": chat_id,
+                        "user_id": user_id,
+                        "telegram_username": username
+                    }).execute()
+                    
+                    # 3. Mark token as used
+                    supabase.table("telegram_connect_tokens") \
+                        .update({"used": True}) \
+                        .eq("id", token_id) \
+                        .execute()
+                    
+                    await update.message.reply_text(
+                        "🎉 *Connected successfully!*\n\n"
+                        "Your Telegram is now securely linked to your Dukan Sathi account.\n"
+                        "All your products, customers, and data are now accessible here!\n\n"
+                        "Try tracking a sale: _bill for Amit 2 Rice_",
+                        parse_mode="Markdown"
+                    )
+                    return
+                else:
+                    await update.message.reply_text(
+                        "❌ Link expired, invalid, or already used.\n"
+                        "Please go to your Web App Settings and click 'Connect' again."
+                    )
+                    return
+            except Exception as e:
+                logger.error(f"Error during deep link connect: {e}")
+                await update.message.reply_text("❌ Could not connect right now. Please try again.")
+                return
+
+    # -- Standard Welcome Flow (No Deep Link) --
     welcome_text = (
         f"🙏 *Namaste {user_name}!*\n\n"
         f"Main *Sathi AI* hoon — aapka personal shop assistant!\n\n"
@@ -191,7 +244,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Payment record karo: \"Amit paid 500\"\n"
         f"• Kuch bhi pucho: \"total sales today\"\n"
         f"🎙️ *Voice bhi bhej sakte ho!* (Hindi/Hinglish supported)\n\n"
-        f"🔗 Apna web account connect karo: /connect\n"
         f"❓ Help: /help"
     )
 
@@ -212,7 +264,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "📚 *Sathi AI Commands:*\n\n"
         "/start — Welcome message\n"
-        "/connect — Link your DukanSathi web account\n"
         "/help — Show this help message\n\n"
         "💡 *Tips:*\n"
         "Just type or *send a voice message* in Hindi/Hinglish!\n"
@@ -225,87 +276,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
-
-async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handle /connect CODE command.
-    User gets a 6-char code from the web app Settings page and sends it here.
-    """
-    chat_id = update.effective_chat.id
-    username = update.effective_user.username or ""
-
-    # Check if already connected
-    if supabase:
-        try:
-            result = supabase.table("telegram_users") \
-                .select("user_id") \
-                .eq("telegram_chat_id", chat_id) \
-                .limit(1) \
-                .execute()
-            if result.data and result.data[0].get("user_id"):
-                await update.message.reply_text(
-                    "✅ Your Telegram is already connected!\n"
-                    "You can start chatting with Sathi AI right away. 🚀"
-                )
-                return
-        except Exception as e:
-            logger.error(f"Error checking connection: {e}")
-
-    # If no code provided — show simple instructions
-    if not context.args:
-        instructions = (
-            "🔗 *Connect Your Account — 3 Easy Steps:*\n\n"
-            "1️⃣ Open your *Dukan Sathi* app\n"
-            "2️⃣ Go to ⚙️ *Settings* → *Connect Telegram*\n"
-            "3️⃣ Tap *Generate Code* and send that code here:\n\n"
-            "`/connect YOURCODE`\n\n"
-            "🕐 _The code works for 10 minutes._"
-        )
-        await update.message.reply_text(instructions, parse_mode="Markdown")
-        return
-
-    # Code provided — verify with backend
-    code = context.args[0].upper().strip()
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-
-    await update.effective_chat.send_action("typing")
-
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{backend_url}/api/telegram/verify-token",
-                json={
-                    "token": code,
-                    "telegram_chat_id": chat_id,
-                    "telegram_username": username,
-                },
-                timeout=10
-            )
-            data = resp.json()
-
-        if data.get("success"):
-            await update.message.reply_text(
-                "🎉 *Connected successfully!*\n\n"
-                "Your Telegram is now linked to your Dukan Sathi account.\n"
-                "All your products, customers, and data are now accessible here!\n\n"
-                "Try sending: _add product milk price 50_",
-                parse_mode="Markdown"
-            )
-        else:
-            error_msg = data.get("error", "Invalid code. Please try again.")
-            await update.message.reply_text(
-                f"❌ {error_msg}\n\n"
-                "Go to your app → Settings → Connect Telegram → Generate Code."
-            )
-    except Exception as e:
-        logger.error(f"Error verifying token: {e}")
-        await update.message.reply_text(
-            "❌ Could not connect right now. Please try again in a moment."
-        )
-
-
-
 # ─── Message Handler ──────────────────────────────────────
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -317,6 +287,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     logger.info(f"[TG] Message from {chat_id}: {user_text[:80]}")
+
 
     # Show "typing..." indicator
     await update.effective_chat.send_action("typing")
@@ -460,7 +431,6 @@ def start_telegram_bot():
     # Register handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("connect", connect_command))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))          # 🎙️ Voice
     app.add_handler(MessageHandler(filters.AUDIO, handle_voice))          # 🎵 Audio files
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # 💬 Text

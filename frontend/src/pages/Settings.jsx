@@ -47,10 +47,9 @@ const Settings = () => {
     const [ollamaStatus, setOllamaStatus] = useState('checking');
 
     // Telegram Connect States
-    const [telegramCode, setTelegramCode] = useState(null);       // Generated OTP code
-    const [telegramCodeExpiry, setTelegramCodeExpiry] = useState(null); // seconds remaining
-    const [telegramConnected, setTelegramConnected] = useState(false);  // Already linked
+    const [telegramConnected, setTelegramConnected] = useState(false);
     const [generatingCode, setGeneratingCode] = useState(false);
+    const [waitingForBot, setWaitingForBot] = useState(false);
     const timerRef = useRef(null);
 
     let rawApiBase = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
@@ -138,29 +137,42 @@ const Settings = () => {
         checkTelegramConnection();
     }, []);
 
-    // Countdown timer for OTP code
+    // Polling connection status when waiting for bot
     useEffect(() => {
-        if (telegramCodeExpiry === null) return;
-        if (telegramCodeExpiry <= 0) { setTelegramCode(null); setTelegramCodeExpiry(null); return; }
-        timerRef.current = setTimeout(() => setTelegramCodeExpiry(e => e - 1), 1000);
-        return () => clearTimeout(timerRef.current);
-    }, [telegramCodeExpiry]);
+        if (!waitingForBot || telegramConnected) return;
+        timerRef.current = setInterval(() => {
+            checkTelegramConnection();
+        }, 3000);
+        return () => clearInterval(timerRef.current);
+    }, [waitingForBot, telegramConnected]);
 
     const generateTelegramCode = async () => {
         setGeneratingCode(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
-            const res = await fetch(`${API_BASE}/api/telegram/generate-token`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${session.access_token}` }
+
+            // Generate a secure UUID token
+            const token = crypto.randomUUID();
+            const expiresAt = new Date(Date.now() + 10 * 60000).toISOString();
+
+            // Insert directly into Supabase (Frontend bypasses backend completely!)
+            const { error } = await supabase.from('telegram_connect_tokens').insert({
+                user_id: session.user.id,
+                token: token,
+                expires_at: expiresAt,
+                used: false
             });
-            if (!res.ok) throw new Error('Failed');
-            const data = await res.json();
-            setTelegramCode(data.token);
-            setTelegramCodeExpiry(data.expires_in_seconds);
+
+            if (error) throw error;
+
+            // Redirect to Telegram Deep Link
+            setWaitingForBot(true);
+            window.open(`https://t.me/${BOT_USERNAME}?start=${token}`, '_blank');
+
         } catch (e) {
-            console.error('Failed to generate telegram code:', e);
+            console.error('Failed to generate Telegram link:', e);
+            alert("Could not generate secure link. Check your internet connection.");
         } finally {
             setGeneratingCode(false);
         }
@@ -554,7 +566,6 @@ const Settings = () => {
                     </p>
 
                     {telegramConnected ? (
-                        /* Already connected */
                         <div className="flex flex-col items-center gap-3 py-2">
                             <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
                                 <CheckCircle2 className="text-emerald-500" size={28} />
@@ -569,75 +580,30 @@ const Settings = () => {
                                 <Send size={16} /> Open @{BOT_USERNAME}
                             </a>
                         </div>
-                    ) : telegramCode ? (
-                        /* Code generated — show it */
-                        <div className="flex flex-col items-center gap-4">
-                            <p className="text-sm text-slate-600 text-center">Send this code to the bot:</p>
-
-                            {/* Bot link */}
-                            <a
-                                href={`https://t.me/${BOT_USERNAME}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sky-600 text-sm font-semibold underline underline-offset-2"
-                            >
-                                👉 Open @{BOT_USERNAME} on Telegram
-                            </a>
-
-                            {/* Step-by-step */}
-                            <div className="w-full bg-sky-50 rounded-xl p-4 text-sm text-slate-700 space-y-1.5">
-                                <p>1️⃣ Open the bot link above</p>
-                                <p>2️⃣ Type the command below and send it:</p>
-                                <div
-                                    onClick={() => { navigator.clipboard?.writeText(`/connect ${telegramCode}`); }}
-                                    className="cursor-pointer bg-white border border-sky-200 rounded-lg p-3 mt-1 text-center"
-                                >
-                                    <code className="text-blue-700 font-bold text-lg tracking-widest">/connect {telegramCode}</code>
-                                    <p className="text-[10px] text-slate-400 mt-1">Tap to copy</p>
-                                </div>
-                            </div>
-
-                            {/* Expiry */}
-                            <p className="text-xs text-slate-400">
-                                🕐 Code expires in {Math.floor(telegramCodeExpiry / 60)}:{String(telegramCodeExpiry % 60).padStart(2, '0')} min
+                    ) : waitingForBot ? (
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <Loader2 className="animate-spin text-sky-500" size={32} />
+                            <p className="text-sm font-medium text-slate-700">
+                                Waiting for you to click "Start" in Telegram...
                             </p>
-
-                            <button
-                                onClick={generateTelegramCode}
-                                disabled={generatingCode}
-                                className="text-xs text-slate-400 underline hover:text-slate-600"
-                            >
-                                Generate new code
-                            </button>
+                            <p className="text-xs text-slate-500 max-w-xs">
+                                Did the app not open? <a href={`https://t.me/${BOT_USERNAME}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">Click here</a>
+                            </p>
                         </div>
                     ) : (
-                        /* Initial state */
                         <div className="flex flex-col items-center gap-4 py-2">
-                            {/* 3-step visual */}
-                            <div className="w-full grid grid-cols-3 gap-2 text-center text-xs text-slate-500 mb-1">
-                                <div className="flex flex-col items-center gap-1">
-                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">1</div>
-                                    <span>Tap Generate</span>
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">2</div>
-                                    <span>Open Telegram Bot</span>
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">3</div>
-                                    <span>Send the code</span>
-                                </div>
-                            </div>
-
                             <button
                                 onClick={generateTelegramCode}
                                 disabled={generatingCode}
                                 className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm text-sm w-full justify-center"
                             >
                                 {generatingCode
-                                    ? <><Loader2 size={16} className="animate-spin" /> Generating...</>
-                                    : <><Send size={16} /> Generate My Code</>}
+                                    ? <><Loader2 size={16} className="animate-spin" /> Preparing...</>
+                                    : <><Send size={16} /> Securely Connect to Telegram</>}
                             </button>
+                            <p className="text-[11px] text-slate-400 max-w-xs text-center">
+                                Clicking this opens a secure magic link in the Telegram app automatically.
+                            </p>
                         </div>
                     )}
                 </section>
