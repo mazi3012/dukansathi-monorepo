@@ -415,31 +415,29 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Telegram error: {context.error}")
 
 
-# ─── Main ─────────────────────────────────────────────────
+# ─── Main Application Setup ─────────────────────────────────
 
-def start_telegram_bot():
-    """Start the Telegram bot (blocking — run in a separate process)"""
-    if not TELEGRAM_BOT_TOKEN:
-        logger.error("❌ TELEGRAM_BOT_TOKEN not set in environment!")
-        logger.info("👉 Create a bot via @BotFather on Telegram and add the token to .env")
-        return
-
-    logger.info("🚀 Starting Dukan Sathi Telegram Bot...")
-
-    # Build the application
+# Build the application globally so it can be accessed by main.py
+if TELEGRAM_BOT_TOKEN:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
     # Register handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))          # 🎙️ Voice
     app.add_handler(MessageHandler(filters.AUDIO, handle_voice))          # 🎵 Audio files
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # 💬 Text
-
-    # Error handler
     app.add_error_handler(error_handler)
+else:
+    app = None
+    logger.error("❌ TELEGRAM_BOT_TOKEN not set in environment. Bot will not start.")
 
-    # Start polling
+
+def start_telegram_bot():
+    """Start the Telegram bot (blocking — run in a separate process/terminal)"""
+    if not app:
+        return
+
+    logger.info("🚀 Starting Dukan Sathi Telegram Bot (Blocking Mode)...")
     logger.info("✅ Bot is live! Waiting for messages...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
