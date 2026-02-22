@@ -647,6 +647,14 @@ def start_telegram_bot():
 
     logger.info("🚀 Starting Dukan Sathi Telegram Bot (Blocking Mode)...")
     logger.info("✅ Bot is live! Waiting for messages...")
+    
+    # Create a new event loop for this thread if one doesn't exist
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

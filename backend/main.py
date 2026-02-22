@@ -189,31 +189,19 @@ async def startup_event():
     print("INFO: Starting background tasks...")
     asyncio.create_task(cleanup_scheduler())
     
+    import threading
+
     # Start Telegram Bot in the same event loop so Render runs it automatically
     if os.getenv("TELEGRAM_BOT_TOKEN"):
         try:
             from telegram_bot import start_telegram_bot
             print("INFO: Starting Telegram Bot background task...")
-            # Run the bot in an asyncio task so it doesn't block the web server
-            asyncio.create_task(start_telegram_bot_async())
+            # Run the bot in a completely isolated daemon thread to prevent event loop blocking
+            # This fixes Render's "No open ports detected" timeout bug and Conflict errors
+            bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
+            bot_thread.start()
         except Exception as e:
             logger.error(f"Failed to initialize Telegram Bot: {e}")
-
-async def start_telegram_bot_async():
-    """Wrapper to run the blocking bot Application.run_polling() safely or use asyncio"""
-    try:
-        # Give Uvicorn 5 seconds to bind to the port before we import heavy modules
-        # This fixes Render's "No open ports detected" timeout bug
-        await asyncio.sleep(5)
-        
-        from telegram_bot import app as tg_app
-        # Initialize and start polling asynchronously
-        await tg_app.initialize()
-        await tg_app.start()
-        await tg_app.updater.start_polling(drop_pending_updates=True)
-        logger.info("✅ Telegram Bot polling started in FastAPI background")
-    except Exception as e:
-        logger.error(f"Telegram Bot failed to start: {e}")
 
 async def cleanup_scheduler():
     """Run chat history cleanup every hour (delete items > 12 hours old)"""
