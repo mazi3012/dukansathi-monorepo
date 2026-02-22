@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Send, Link, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -43,10 +43,18 @@ const Settings = () => {
     // Local AI States
     const [hardware, setHardware] = useState(null);
     const [localModels, setLocalModels] = useState([]);
-    const [isInstalling, setIsInstalling] = useState(null); // String: model name
-    const [ollamaStatus, setOllamaStatus] = useState('checking'); // checking, connected, offline
+    const [isInstalling, setIsInstalling] = useState(null);
+    const [ollamaStatus, setOllamaStatus] = useState('checking');
+
+    // Telegram Connect States
+    const [telegramCode, setTelegramCode] = useState(null);       // Generated OTP code
+    const [telegramCodeExpiry, setTelegramCodeExpiry] = useState(null); // seconds remaining
+    const [telegramConnected, setTelegramConnected] = useState(false);  // Already linked
+    const [generatingCode, setGeneratingCode] = useState(false);
+    const timerRef = useRef(null);
 
     const API_BASE = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+    const BOT_USERNAME = 'SathiAibot';
 
     // Load Settings
     useEffect(() => {
@@ -108,6 +116,55 @@ const Settings = () => {
 
         loadSettings();
     }, []);
+
+    // Check if Telegram is already connected for this user
+    useEffect(() => {
+        const checkTelegramConnection = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+                const { data } = await supabase
+                    .from('telegram_users')
+                    .select('user_id')
+                    .eq('user_id', session.user.id)
+                    .limit(1)
+                    .single();
+                if (data) setTelegramConnected(true);
+            } catch {
+                // Not connected — ignore
+            }
+        };
+        checkTelegramConnection();
+    }, []);
+
+    // Countdown timer for OTP code
+    useEffect(() => {
+        if (telegramCodeExpiry === null) return;
+        if (telegramCodeExpiry <= 0) { setTelegramCode(null); setTelegramCodeExpiry(null); return; }
+        timerRef.current = setTimeout(() => setTelegramCodeExpiry(e => e - 1), 1000);
+        return () => clearTimeout(timerRef.current);
+    }, [telegramCodeExpiry]);
+
+    const generateTelegramCode = async () => {
+        setGeneratingCode(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            const res = await fetch(`${API_BASE}/api/telegram/generate-token`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            setTelegramCode(data.token);
+            setTelegramCodeExpiry(data.expires_in_seconds);
+        } catch (e) {
+            console.error('Failed to generate telegram code:', e);
+        } finally {
+            setGeneratingCode(false);
+        }
+    };
+
 
     const fetchHardware = async () => {
         try {
@@ -475,6 +532,113 @@ const Settings = () => {
                             <span>Faster (+50%)</span>
                         </div>
                     </div>
+                </section>
+
+                {/* ── Telegram Connect Section ─────────── */}
+                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 overflow-hidden relative">
+                    {/* Sky blue accent strip */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500" />
+
+                    <div className="flex items-center gap-2 mb-1 mt-1">
+                        <Send className="text-sky-500" size={20} />
+                        <h2 className="font-semibold text-slate-800">Connect Telegram</h2>
+                        {telegramConnected && (
+                            <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 size={12} /> Connected
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-slate-500 mb-5">
+                        Chat with Sathi AI, add products, and create invoices right from Telegram.
+                    </p>
+
+                    {telegramConnected ? (
+                        /* Already connected */
+                        <div className="flex flex-col items-center gap-3 py-2">
+                            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <CheckCircle2 className="text-emerald-500" size={28} />
+                            </div>
+                            <p className="text-sm font-medium text-slate-700">Your account is linked to Telegram!</p>
+                            <a
+                                href={`https://t.me/${BOT_USERNAME}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
+                            >
+                                <Send size={16} /> Open @{BOT_USERNAME}
+                            </a>
+                        </div>
+                    ) : telegramCode ? (
+                        /* Code generated — show it */
+                        <div className="flex flex-col items-center gap-4">
+                            <p className="text-sm text-slate-600 text-center">Send this code to the bot:</p>
+
+                            {/* Bot link */}
+                            <a
+                                href={`https://t.me/${BOT_USERNAME}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sky-600 text-sm font-semibold underline underline-offset-2"
+                            >
+                                👉 Open @{BOT_USERNAME} on Telegram
+                            </a>
+
+                            {/* Step-by-step */}
+                            <div className="w-full bg-sky-50 rounded-xl p-4 text-sm text-slate-700 space-y-1.5">
+                                <p>1️⃣ Open the bot link above</p>
+                                <p>2️⃣ Type the command below and send it:</p>
+                                <div
+                                    onClick={() => { navigator.clipboard?.writeText(`/connect ${telegramCode}`); }}
+                                    className="cursor-pointer bg-white border border-sky-200 rounded-lg p-3 mt-1 text-center"
+                                >
+                                    <code className="text-blue-700 font-bold text-lg tracking-widest">/connect {telegramCode}</code>
+                                    <p className="text-[10px] text-slate-400 mt-1">Tap to copy</p>
+                                </div>
+                            </div>
+
+                            {/* Expiry */}
+                            <p className="text-xs text-slate-400">
+                                🕐 Code expires in {Math.floor(telegramCodeExpiry / 60)}:{String(telegramCodeExpiry % 60).padStart(2, '0')} min
+                            </p>
+
+                            <button
+                                onClick={generateTelegramCode}
+                                disabled={generatingCode}
+                                className="text-xs text-slate-400 underline hover:text-slate-600"
+                            >
+                                Generate new code
+                            </button>
+                        </div>
+                    ) : (
+                        /* Initial state */
+                        <div className="flex flex-col items-center gap-4 py-2">
+                            {/* 3-step visual */}
+                            <div className="w-full grid grid-cols-3 gap-2 text-center text-xs text-slate-500 mb-1">
+                                <div className="flex flex-col items-center gap-1">
+                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">1</div>
+                                    <span>Tap Generate</span>
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">2</div>
+                                    <span>Open Telegram Bot</span>
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm">3</div>
+                                    <span>Send the code</span>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={generateTelegramCode}
+                                disabled={generatingCode}
+                                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm text-sm w-full justify-center"
+                            >
+                                {generatingCode
+                                    ? <><Loader2 size={16} className="animate-spin" /> Generating...</>
+                                    : <><Send size={16} /> Generate My Code</>}
+                            </button>
+                        </div>
+                    )}
                 </section>
 
                 <div className="text-center text-xs text-slate-400 py-6">

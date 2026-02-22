@@ -37,3 +37,6 @@ httpx==0.27.0          # Async HTTP client
 python-multipart==0.0.12  # For file uploads
 requests==2.32.3       # Sync HTTP client (for local_ai)
 psutil==6.0.0          # System monitoring
+
+# Telegram Bot
+python-telegram-bot==21.5

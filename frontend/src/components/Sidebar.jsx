@@ -10,7 +10,8 @@ import {
     Store,
     LogOut,
     User,
-    ChevronUp
+    ChevronUp,
+    Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -83,6 +84,25 @@ const Sidebar = () => {
                         )}
                     </NavLink>
                 ))}
+
+                {/* Telegram Bot Link */}
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                    <a
+                        href="https://t.me/SathiAibot"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden text-slate-600 hover:bg-sky-50 hover:text-sky-600 hover:shadow-sm"
+                    >
+                        <Send
+                            size={20}
+                            className="transition-colors duration-200 text-slate-400 group-hover:text-sky-500"
+                        />
+                        <span className="relative z-10">Telegram Bot</span>
+                        <span className="ml-auto text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Open
+                        </span>
+                    </a>
+                </div>
             </nav>
 
             {/* User Profile / Footer Area */}
