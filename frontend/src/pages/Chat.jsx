@@ -35,7 +35,8 @@ const Chat = () => {
     useEffect(() => {
         const checkLocalAI = async () => {
             try {
-                const API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
                 const res = await fetch(`${API_URL}/api/setup/local-models`);
                 if (res.ok) {
                     const data = await res.json();

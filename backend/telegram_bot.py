@@ -635,7 +635,7 @@ if TELEGRAM_BOT_TOKEN:
     app.add_error_handler(error_handler)
 else:
     app = None
-    logger.error("❌ TELEGRAM_BOT_TOKEN not set in environment. Bot will not start.")
+    logger.error("TELEGRAM_BOT_TOKEN not set in environment. Bot will not start.")
 
 
 def start_telegram_bot():
@@ -643,8 +643,8 @@ def start_telegram_bot():
     if not app:
         return
 
-    logger.info("🚀 Starting Dukan Sathi Telegram Bot (Blocking Mode)...")
-    logger.info("✅ Bot is live! Waiting for messages...")
+    logger.info("Starting Dukan Sathi Telegram Bot (Blocking Mode)...")
+    logger.info("Bot is live! Waiting for messages...")
     
     # Create a new event loop for this thread if one doesn't exist
     try:
