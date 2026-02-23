@@ -191,27 +191,74 @@ async def startup_event():
     print("INFO: Starting background tasks...")
     asyncio.create_task(cleanup_scheduler())
     
-    # Start Telegram Bot in the same event loop so Render runs it automatically
+    # Start Telegram Bot
     if os.getenv("TELEGRAM_BOT_TOKEN"):
+        webhook_url = os.getenv("WEBHOOK_URL")
+        if webhook_url:
+            print(f"INFO: Configuring Telegram Webhook at {webhook_url}/api/telegram/webhook")
+            try:
+                from telegram_bot import app as ptb_app
+                if ptb_app:
+                    await ptb_app.initialize()
+                    await ptb_app.start()
+                    
+                    # Ensure the URL is clean without trailing slashes
+                    clean_webhook = webhook_url.rstrip('/')
+                    await ptb_app.bot.set_webhook(f"{clean_webhook}/api/telegram/webhook")
+                    print("INFO: Telegram Webhook configured successfully on Cloud Run.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Telegram Webhook: {e}")
+        else:
+            try:
+                # Local Development / Render legacy fallback (Polling)
+                lock_file = os.path.join(tempfile.gettempdir(), "dukansathi_telegram.lock")
+                fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                from telegram_bot import start_telegram_bot
+                print("INFO: Starting Telegram Bot polling thread (Local Mode)...")
+                bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
+                bot_thread.start()
+            except FileExistsError:
+                print("INFO: Telegram Bot polling already running in another worker.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Telegram Polling: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanly shutdown webhook queues if running on Cloud Run"""
+    print("INFO: Shutting down FastAPI application...")
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if webhook_url:
         try:
-            # Prevent multiple Uvicorn workers from spawning conflicting bots
-            # This fixes Render's "Conflict: terminated by other getUpdates request"
-            lock_file = os.path.join(tempfile.gettempdir(), "dukansathi_telegram.lock")
-            
-            # Use atomic file creation
-            fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            # This is the primary worker!
-            
-            from telegram_bot import start_telegram_bot
-            print("INFO: Starting Telegram Bot background task from primary worker...")
-            # Run the bot in a completely isolated daemon thread to prevent event loop blocking
-            bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
-            bot_thread.start()
-        except FileExistsError:
-            print("INFO: Telegram Bot already running in another worker. Skipping here.")
+            from telegram_bot import app as ptb_app
+            if ptb_app:
+                print("INFO: Stopping Telegram Webhook application...")
+                await ptb_app.stop()
+                await ptb_app.shutdown()
+                print("INFO: Telegram Webhook stopped safely.")
         except Exception as e:
-            logger.error(f"Failed to initialize Telegram Bot: {e}")
+            logger.error(f"Error shutting down Telegram app: {e}")
+
+from telegram import Update
+from fastapi.responses import JSONResponse
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Receive webhook updates from Telegram via Cloud Run."""
+    try:
+        from telegram_bot import app as ptb_app
+        if not ptb_app:
+            return JSONResponse(status_code=500, content={"status": "error", "message": "Bot not initialized"})
+            
+        data = await request.json()
+        update = Update.de_json(data, ptb_app.bot)
+        
+        # Put the update into the application's queue to be processed asynchronously
+        await ptb_app.update_queue.put(update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Telegram Webhook Error: {e}")
+        return JSONResponse(status_code=500, content={"status": "error"})
 
 async def cleanup_scheduler():
     """Run chat history cleanup every hour (delete items > 12 hours old)"""
