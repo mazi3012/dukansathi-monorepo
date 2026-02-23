@@ -347,17 +347,20 @@ async def tts_preview(request: TTSRequest):
         print(f"Preview Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.websocket("/api/chat/ws")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
+@app.websocket("/ws/chat")
+async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
     await websocket.accept()
     
     # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
     # This prevents Render from timing out during deployment
+    import time
+    start_time = time.time()
     try:
         from voice_service import transcribe_audio, speak_text
         from dukansathi_ai.agent_graph import process_user_input
+        logger.info(f"[WS] AI Modules loaded in {time.time() - start_time:.2f}s")
     except Exception as e:
-        logger.error(f"Failed to import AI modules: {e}")
+        logger.error(f"Failed to import AI modules after {time.time() - start_time:.2f}s: {e}")
         await websocket.send_json({"type": "error", "content": "AI System Offline. Please retry in a minute."})
         await websocket.close()
         return

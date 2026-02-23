@@ -269,7 +269,15 @@ export const useChat = () => {
         // Unlock audio context immediately on user action
         unlockAudio();
 
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            console.warn("⚠️ WebSocket not connected. Cannot send message.");
+            setMessages(prev => [...prev, {
+                type: 'ai',
+                text: 'Network issue: Main koshish kar raha hoon connect karne ki... Kripya thodi der mein phir se try karein.'
+            }]);
+            setIsThinking(false);
+            return;
+        }
         setIsThinking(true);
 
         // Get current user ID
@@ -293,7 +301,11 @@ export const useChat = () => {
     }, [ws, voice, voiceSpeed, model]);
 
     const sendImage = useCallback(async (file) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert("Connection lost. Please wait while I reconnect.");
+            setIsThinking(false);
+            return;
+        }
         setIsThinking(true);
 
         // Get current user ID
@@ -319,6 +331,11 @@ export const useChat = () => {
     const startRecording = async () => {
         // Unlock audio context immediately
         unlockAudio();
+
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert("Connection lost. Please wait while I reconnect.");
+            return;
+        }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
