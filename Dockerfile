@@ -45,7 +45,7 @@ WORKDIR /app/backend
 
 # --- Healthcheck ---
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+    CMD python -c "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", 8080)}/health')" || exit 1
 
 # --- Start Server ---
 # Cloud Run requires listening on 0.0.0.0:$PORT
