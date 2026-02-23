@@ -206,10 +206,19 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
                      break
 
         if not os.path.exists(creds_path):
-            creds = None
+            # No JSON file -> Use Application Default Credentials (Cloud Run)
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
             if not project_id:
+                try:
+                    import google.auth
+                    _, project_id = google.auth.default()
+                except Exception as e:
+                    print(f"WARN: Could not fetch default GCP project: {e}")
+            
+            if not project_id:
                 raise ValueError("GCP Project ID not found. Set GOOGLE_CLOUD_PROJECT or provide service_account.json.")
+                
+            creds = None # Let VertexAI use default
         else:
             creds = service_account.Credentials.from_service_account_file(creds_path)
             project_id = creds.project_id
