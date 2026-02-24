@@ -1,10 +1,10 @@
 # Dukan Sathi AI Bot - Moltbot
 
-**Purpose:** Gemini-powered conversational AI brain for Dukan Sathi.
+**Purpose:** Llama-powered conversational AI brain for Dukan Sathi.
 
 ## Overview
 
-Moltbot is the intelligent brain of Dukan Sathi - a Gemini-based conversational agent that:
+Moltbot is the intelligent brain of Dukan Sathi - a Llama-based conversational agent that:
 - Understands Hindi and English voice/text commands (Hinglish optimized)
 - Generates SQL queries for database operations
 - Creates draft invoices, inventory batches, and purchase orders
@@ -13,7 +13,7 @@ Moltbot is the intelligent brain of Dukan Sathi - a Gemini-based conversational 
 
 ## Features
 
-- 🧠 **Gemini 2.0 Flash** via Vertex AI for intelligent conversations
+- 🧠 **Llama-4** via Vertex AI for intelligent conversations
 - 🔄 **LangGraph** for conversation flow orchestration
 - 🗄️ **SQL Query Generation** for data retrieval
 - 📝 **Draft Management** for user approval workflows

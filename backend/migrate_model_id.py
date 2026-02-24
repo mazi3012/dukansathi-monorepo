@@ -18,7 +18,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 def run_migration():
     print("Running migration to add model_id to profiles...")
     
-    sql = "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS model_id TEXT DEFAULT 'gemini-2.0-flash-001';"
+    sql = "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS model_id TEXT DEFAULT 'llama-4-scout-17b-16e-instruct-maas';"
     
     try:
         # Use the rpc we created earlier for raw SQL

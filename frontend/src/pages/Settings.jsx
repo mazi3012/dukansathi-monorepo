@@ -32,7 +32,7 @@ const Settings = () => {
     const navigate = useNavigate();
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0); // 0 means +0%, range -50 to +50
-    const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-001');
+    const [selectedModel, setSelectedModel] = useState('llama-4-scout-17b-16e-instruct-maas');
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

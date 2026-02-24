@@ -1,16 +1,16 @@
 """
 File: agent_graph.py
-Purpose: Moltbot - Gemini-powered AI agent for Dukan Sathi
+Purpose: Moltbot - Llama-powered AI agent for Dukan Sathi
 Author: Dukan Sathi Team
 Created: 2026-02-05
 
 This is the brain of Dukan Sathi. It uses:
-- Google Gemini 2.0 Flash via Vertex AI for natural language understanding
+- Llama-4-Scout via Vertex AI Model Garden for natural language understanding
 - LangGraph for conversation flow management
 - SQL generation for database queries
 - Draft workflow for invoice/inventory approvals
 
-Why Gemini instead of Claude:
+Why Llama instead of Claude:
 - Better Hindi/Hinglish understanding
 - Faster response times
 - Lower cost at scale
@@ -76,7 +76,7 @@ action_keywords = ["create", "add", "new", "make a", "draft", "register", "resto
 business_keywords = ["price", "cost", "stock", "inventory", "sale", "customer", "profit", "loss", "revenue", "bill", "invoice"]
 
 
-# Database schema for AI context - this helps Gemini understand our data structure
+# Database schema for AI context - this helps Llama understand our data structure
 DATABASE_SCHEMA = """
 TABLES & COLUMNS:
 1. profiles (
@@ -176,12 +176,12 @@ from functools import lru_cache
 @lru_cache(maxsize=4)
 def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
     """
-    Get or create a cached LLM instance (Gemini/Llama via Vertex AI, or local Ollama).
+    Get or create a cached LLM instance (Llama via Vertex AI, or local Ollama).
     Attributes are cached so we don't re-auth on every token.
     """
     try:
         # Check if model is a Local Model (Ollama)
-        is_cloud_model = "gemini" in model_name.lower() or "llama-4" in model_name.lower() or "maas" in model_name.lower()
+        is_cloud_model = "llama-4" in model_name.lower() or "maas" in model_name.lower()
         if not is_cloud_model:
             print(f"DEBUG: Using Local LLM (Ollama) -> {model_name}")
             return ChatOllama(
@@ -246,12 +246,12 @@ def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
         raise e
 
 # No global llm anymore
-# llm = init_gemini_llm()
+# llm = init_llama_llm()
 
 
 async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
-    Generate a SQL query from natural language using Gemini
+    Generate a SQL query from natural language using Llama
     """
     prompt = f"""
     You are a SQL expert for a PostgreSQL database.
@@ -557,7 +557,7 @@ def categorize_query(msg_lower: str) -> str:
 
 async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
-    Extract structured JSON parameters for an action using Gemini
+    Extract structured JSON parameters for an action using Llama
     """
     prompt = f"""
     You are an AI data extractor for a shop management system.
@@ -1051,7 +1051,7 @@ async def action_node(state: AgentState):
         print(f"DEBUG: FAST PARSE SUCCESS (action_node): {action_json_str}")
     else:
         # SLOW PATH: Fall back to LLM extraction
-        if "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model:
+        if "llama-4" in selected_model or "maas" in selected_model:
             action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
         else:
             action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
@@ -1088,7 +1088,7 @@ async def action_node(state: AgentState):
                 hsn_code = ""
                 official_name = prod_name
                 
-                is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+                is_cloud = "llama-4" in selected_model or "maas" in selected_model
                 if supabase and prod_name and is_cloud:
                     try:
                         # FUZZY MATCH: Use pg_trgm RPC for typo-tolerant matching
@@ -1225,7 +1225,7 @@ async def action_node(state: AgentState):
         draft_obj = {}
 
     # Save Draft to Local DB if Offline (All types supported)
-    is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+    is_cloud = "llama-4" in selected_model or "maas" in selected_model
     if draft_obj and local_db and not is_cloud:
         try:
              # Use the new generic action draft saver
@@ -1291,7 +1291,7 @@ async def chat_node(state: AgentState):
     
     input_prompt = ""
     
-    is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+    is_cloud = "llama-4" in selected_model or "maas" in selected_model
     
     # LOCAL MODEL FAST PATH: Hardcoded responses for predictable categories
     if not is_cloud and category in ("GREETING", "IDENTITY", "CAPABILITY"):

@@ -476,7 +476,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     await websocket.send_json({"type": "error", "content": f"Voice processing failed: {str(e)}"})
                     continue
                     
-            # 2. Handle Image Input (Gemini Vision with Deferred Context)
+            # 2. Handle Image Input (Vision with Deferred Context)
             elif message_type == "image" and content:
                 try:
                     image_bytes = base64.b64decode(content)

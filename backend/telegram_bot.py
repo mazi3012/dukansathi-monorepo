@@ -385,7 +385,7 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
                 await update.message.reply_text(result_msg)
             
             # Silently inform AI of the context
-            try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="gemini-2.0-flash-001")
+            try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="llama-4-scout-17b-16e-instruct-maas")
             except: pass
             return
 
@@ -393,7 +393,7 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         if chat_id in PENDING_DRAFTS:
             del PENDING_DRAFTS[chat_id]
             await update.message.reply_text("❌ Draft discarded.")
-            try: await process_user_input(text=f"User discarded the draft.", user_token=user_token, model="gemini-2.0-flash-001")
+            try: await process_user_input(text=f"User discarded the draft.", user_token=user_token, model="llama-4-scout-17b-16e-instruct-maas")
             except: pass
             return
 
@@ -403,7 +403,7 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         ai_response = await process_user_input(
             text=text,
             user_token=user_token,
-            model="gemini-2.0-flash-001"  # Use cloud model for Telegram
+            model="llama-4-scout-17b-16e-instruct-maas"  # Use cloud model for Telegram
         )
 
         logger.info(f"[TG] AI Response: {ai_response[:100]}")

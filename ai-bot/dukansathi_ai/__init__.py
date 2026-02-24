@@ -4,7 +4,7 @@ Purpose: Dukan Sathi AI Bot (Moltbot) package initialization
 Author: Dukan Sathi Team
 Created: 2026-02-05
 
-This package provides the Gemini-powered Moltbot agent for Dukan Sathi.
+This package provides the Llama-powered Moltbot agent for Dukan Sathi.
 Moltbot is the brain of the app, handling all natural language interactions.
 """
 

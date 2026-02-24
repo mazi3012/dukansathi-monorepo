@@ -285,7 +285,7 @@ Messages are JSON objects:
 
 **Client → Server:**
 ```json
-{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "gemini-2.0-flash-001", "voice_id": "en-IN-PrabhatNeural" }
+{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "llama-4-scout-17b-16e-instruct-maas", "voice_id": "en-IN-PrabhatNeural" }
 { "type": "voice", "content": "<base64_audio>" }
 { "type": "image", "content": "<base64_image>" }
 ```

@@ -115,7 +115,7 @@ const VoiceAssist = () => {
         return {
             voice_id: localStorage.getItem('voice_id') || 'en-IN-PrabhatNeural',
             voice_rate: speed,
-            model: localStorage.getItem('model_id') || 'gemini-2.0-flash-001'
+            model: localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas'
         };
     };
 
