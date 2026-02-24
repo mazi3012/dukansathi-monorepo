@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Send, Link, CheckCircle2 } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, QrCode } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,8 +24,6 @@ const VOICE_OPTIONS = [
 ];
 
 const MODEL_OPTIONS = [
-    { id: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (Fastest)', description: 'Best for quick chats and simple actions.' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Smarter)', description: 'Better reasoning for complex business queries.' },
     { id: 'phi3:mini', label: 'Phi-3 Mini (Local)', description: 'Runs offline on your computer. Requires Ollama.' },
     { id: 'gemma:2b', label: 'Gemma 2B (Local)', description: 'Lightweight Google model for low-spec PCs.' }
 ];
@@ -46,15 +45,8 @@ const Settings = () => {
     const [isInstalling, setIsInstalling] = useState(null);
     const [ollamaStatus, setOllamaStatus] = useState('checking');
 
-    // Telegram Connect States
-    const [telegramConnected, setTelegramConnected] = useState(false);
-    const [generatingCode, setGeneratingCode] = useState(false);
-    const [waitingForBot, setWaitingForBot] = useState(false);
-    const timerRef = useRef(null);
-
     let rawApiBase = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
     const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
-    const BOT_USERNAME = 'SathiAibot';
 
     // Load Settings
     useEffect(() => {
@@ -104,6 +96,7 @@ const Settings = () => {
                 }
 
                 // 3. Load Hardware & Local AI Status
+                // 3. Load Hardware & Local AI Status
                 fetchHardware();
                 fetchLocalModels();
 
@@ -116,67 +109,6 @@ const Settings = () => {
 
         loadSettings();
     }, []);
-
-    // Check if Telegram is already connected for this user
-    useEffect(() => {
-        const checkTelegramConnection = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) return;
-                const { data } = await supabase
-                    .from('telegram_users')
-                    .select('user_id')
-                    .eq('user_id', session.user.id)
-                    .limit(1)
-                    .maybeSingle();
-                if (data) setTelegramConnected(true);
-            } catch {
-                // Not connected — ignore
-            }
-        };
-        checkTelegramConnection();
-    }, []);
-
-    // Polling connection status when waiting for bot
-    useEffect(() => {
-        if (!waitingForBot || telegramConnected) return;
-        timerRef.current = setInterval(() => {
-            checkTelegramConnection();
-        }, 3000);
-        return () => clearInterval(timerRef.current);
-    }, [waitingForBot, telegramConnected]);
-
-    const generateTelegramCode = async () => {
-        setGeneratingCode(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            // Generate a secure UUID token
-            const token = crypto.randomUUID();
-            const expiresAt = new Date(Date.now() + 10 * 60000).toISOString();
-
-            // Insert directly into Supabase (Frontend bypasses backend completely!)
-            const { error } = await supabase.from('telegram_connect_tokens').insert({
-                user_id: session.user.id,
-                token: token,
-                expires_at: expiresAt,
-                used: false
-            });
-
-            if (error) throw error;
-
-            // Redirect to Telegram Deep Link
-            setWaitingForBot(true);
-            window.open(`https://t.me/${BOT_USERNAME}?start=${token}`, '_blank');
-
-        } catch (e) {
-            console.error('Failed to generate Telegram link:', e);
-            alert("Could not generate secure link. Check your internet connection.");
-        } finally {
-            setGeneratingCode(false);
-        }
-    };
 
 
     const fetchHardware = async () => {
@@ -315,6 +247,20 @@ const Settings = () => {
         }
     };
 
+    const downloadQRCode = () => {
+        const canvas = document.getElementById("qr-gen");
+        if (!canvas) return;
+        const pngUrl = canvas
+            .toDataURL("image/png")
+            .replace("image/png", "image/octet-stream");
+        let downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `DukanSathi_Store_${user?.id || 'QR'}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full bg-slate-50">
@@ -404,68 +350,76 @@ const Settings = () => {
                 </section>
 
                 {/* AI Model Selection */}
-                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Brain className="text-indigo-600" size={20} />
-                        <h2 className="font-semibold text-slate-800">Choose AI Brain</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {MODEL_OPTIONS.map((opt) => {
-                            const isLocal = opt.id.includes(':') || opt.id.includes('phi') || opt.id.includes('gemma');
-                            const isDownloaded = localModels.some(m => m.name.includes(opt.id.split(':')[0]));
-
-                            return (
-                                <div key={opt.id} className="relative">
-                                    <button
-                                        onClick={() => { setSelectedModel(opt.id); markChange(); }}
-                                        className={`w-full p-4 rounded-xl border text-left transition-all h-full ${selectedModel === opt.id
-                                            ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                            : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="font-semibold text-slate-800">{opt.label}</div>
-                                            {isLocal && (
-                                                <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${isDownloaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                    {isDownloaded ? 'Local Ready' : 'External'}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-slate-500 leading-relaxed pr-8">{opt.description}</div>
-
-                                        {selectedModel === opt.id &&
-                                            <div className="absolute top-4 right-4 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
-                                                <Check size={12} className="text-white" />
-                                            </div>
-                                        }
-                                    </button>
-
-                                    {isLocal && !isDownloaded && (
-                                        <button
-                                            onClick={() => installModel(opt.id)}
-                                            disabled={isInstalling !== null || ollamaStatus !== 'connected'}
-                                            className="absolute bottom-4 right-4 p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-30"
-                                            title="Download Model"
-                                        >
-                                            {isInstalling === opt.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {ollamaStatus === 'offline' && (
-                        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                            <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-                            <div className="text-xs text-amber-700">
-                                <p className="font-bold mb-1">Ollama is not running!</p>
-                                <p>To use local models, please install Ollama from <a href="https://ollama.com" className="underline font-bold" target="_blank" rel="noreferrer">ollama.com</a> and make sure it's running on your system.</p>
+                {ollamaStatus === 'connected' && (
+                    <section className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                        <div className="flex flex-col mb-4">
+                            <div className="flex items-center gap-2">
+                                <Brain className="text-indigo-600" size={20} />
+                                <h2 className="font-semibold text-slate-800">Local AI Models</h2>
                             </div>
+                            <p className="text-xs text-slate-500 mt-1">Select a model to run fully offline. Click the selected model again to deselect and use the default Cloud AI.</p>
                         </div>
-                    )}
-                </section>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {MODEL_OPTIONS.map((opt) => {
+                                const isLocal = opt.id.includes(':') || opt.id.includes('phi') || opt.id.includes('gemma');
+                                const isDownloaded = localModels.some(m => m.name.includes(opt.id.split(':')[0]));
+
+                                return (
+                                    <div key={opt.id} className="relative">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedModel(selectedModel === opt.id ? 'llama-4-scout-17b-16e-instruct-maas' : opt.id);
+                                                markChange();
+                                            }}
+                                            className={`w-full p-4 rounded-xl border text-left transition-all h-full ${selectedModel === opt.id
+                                                ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                                : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="font-semibold text-slate-800">{opt.label}</div>
+                                                {isLocal && (
+                                                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${isDownloaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                        {isDownloaded ? 'Local Ready' : 'External'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-slate-500 leading-relaxed pr-8">{opt.description}</div>
+
+                                            {selectedModel === opt.id &&
+                                                <div className="absolute top-4 right-4 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
+                                                    <Check size={12} className="text-white" />
+                                                </div>
+                                            }
+                                        </button>
+
+                                        {isLocal && !isDownloaded && (
+                                            <button
+                                                onClick={() => installModel(opt.id)}
+                                                disabled={isInstalling !== null || ollamaStatus !== 'connected'}
+                                                className="absolute bottom-4 right-4 p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-30"
+                                                title="Download Model"
+                                            >
+                                                {isInstalling === opt.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {ollamaStatus === 'offline' && (
+                            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                                <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                                <div className="text-xs text-amber-700">
+                                    <p className="font-bold mb-1">Ollama is not running!</p>
+                                    <p>To use local models, please install Ollama from <a href="https://ollama.com" className="underline font-bold" target="_blank" rel="noreferrer">ollama.com</a> and make sure it's running on your system.</p>
+                                </div>
+                            </div>
+                        )}
+                    </section>
+                )}
 
                 {/* Voice Selection */}
                 <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
@@ -547,73 +501,46 @@ const Settings = () => {
                     </div>
                 </section>
 
-                {/* ── Telegram Connect Section ─────────── */}
-                <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 overflow-hidden relative">
-                    {/* Sky blue accent strip */}
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500" />
+                {/* Customer QR Code */}
+                {user && (
+                    <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col items-center">
+                        <div className="flex items-center gap-2 mb-4 w-full">
+                            <QrCode className="text-indigo-600" size={20} />
+                            <h2 className="font-semibold text-slate-800">Customer QR Code</h2>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-6 text-center">
+                            Print this QR code and paste it in your shop. Customers can scan it to chat with your AI assistant and place orders automatically!
+                        </p>
 
-                    <div className="flex items-center gap-2 mb-1 mt-1">
-                        <Send className="text-sky-500" size={20} />
-                        <h2 className="font-semibold text-slate-800">Connect Telegram</h2>
-                        {telegramConnected && (
-                            <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                <CheckCircle2 size={12} /> Connected
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-xs text-slate-500 mb-5">
-                        Chat with Sathi AI, add products, and create invoices right from Telegram.
-                    </p>
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col items-center mb-4">
+                            <QRCodeCanvas
+                                id="qr-gen"
+                                value={`${window.location.origin}/store/${user.id}`}
+                                size={200}
+                                level={"H"}
+                                fgColor={"#312e81"} // indigo-900
+                                bgColor={"#ffffff"}
+                            />
+                            <p className="mt-4 font-bold text-indigo-900 tracking-wide">SCAN TO ORDER</p>
+                            <p className="text-xs text-indigo-600 font-medium">Powered by DukanSathi AI</p>
+                        </div>
 
-                    {telegramConnected ? (
-                        <div className="flex flex-col items-center gap-3 py-2">
-                            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                                <CheckCircle2 className="text-emerald-500" size={28} />
-                            </div>
-                            <p className="text-sm font-medium text-slate-700">Your account is linked to Telegram!</p>
-                            <a
-                                href={`https://t.me/${BOT_USERNAME}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-                            >
-                                <Send size={16} /> Open @{BOT_USERNAME}
-                            </a>
-                        </div>
-                    ) : waitingForBot ? (
-                        <div className="flex flex-col items-center gap-4 py-4 text-center">
-                            <Loader2 className="animate-spin text-sky-500" size={32} />
-                            <p className="text-sm font-medium text-slate-700">
-                                Waiting for you to click "Start" in Telegram...
-                            </p>
-                            <p className="text-xs text-slate-500 max-w-xs">
-                                Did the app not open? <a href={`https://t.me/${BOT_USERNAME}`} target="_blank" rel="noreferrer" className="text-sky-600 underline">Click here</a>
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-4 py-2">
-                            <button
-                                onClick={generateTelegramCode}
-                                disabled={generatingCode}
-                                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm text-sm w-full justify-center"
-                            >
-                                {generatingCode
-                                    ? <><Loader2 size={16} className="animate-spin" /> Preparing...</>
-                                    : <><Send size={16} /> Securely Connect to Telegram</>}
-                            </button>
-                            <p className="text-[11px] text-slate-400 max-w-xs text-center">
-                                Clicking this opens a secure magic link in the Telegram app automatically.
-                            </p>
-                        </div>
-                    )}
-                </section>
+                        <button
+                            onClick={downloadQRCode}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+                        >
+                            <Download size={18} />
+                            Download QR Poster
+                        </button>
+                    </section>
+                )}
 
                 <div className="text-center text-xs text-slate-400 py-6">
                     <p>Dukan Sathi v1.1 • Powered by Moltbot AI</p>
                     <p>Local AI powered by Ollama</p>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

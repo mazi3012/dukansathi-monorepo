@@ -10,7 +10,7 @@ export const useChat = () => {
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
-    const [model, setModel] = useState(localStorage.getItem('model_id') || 'gemini-2.0-flash-001');
+    const [model, setModel] = useState(localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas');
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
@@ -20,7 +20,7 @@ export const useChat = () => {
             console.log("🔄 Detecting Settings Change...");
             setVoice(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
             setVoiceSpeed(localStorage.getItem('voice_speed') || '+0%');
-            setModel(localStorage.getItem('model_id') || 'gemini-2.0-flash-001');
+            setModel(localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas');
         };
 
         window.addEventListener('settings-changed', handleSettingsChange);
@@ -239,6 +239,15 @@ export const useChat = () => {
                 } else {
                     speakNative(data.content);
                 }
+            } else if (data.type === 'image_pending') {
+                // Backend stored the image; now prompt user to tell us what to do
+                setIsThinking(false);
+                setMessages(prev => [...prev, {
+                    type: 'ai',
+                    text: data.content,
+                    image_url: data.image_url,
+                    isImagePrompt: true   // special flag for UI
+                }]);
             } else if (data.type === 'transcription') {
                 setMessages(prev => {
                     const newMsgs = [...prev];
@@ -332,11 +341,6 @@ export const useChat = () => {
         // Unlock audio context immediately
         unlockAudio();
 
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            alert("Connection lost. Please wait while I reconnect.");
-            return;
-        }
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
@@ -349,7 +353,7 @@ export const useChat = () => {
                 reader.readAsDataURL(blob);
                 reader.onloadend = () => {
                     const base64 = reader.result.split(',')[1];
-                    if (ws && ws.readyState === WebSocket.OPEN) {
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                         // Get user ID async inside the callback
                         import('../lib/supabase').then(m => m.supabase.auth.getSession()).then(({ data: { session } }) => {
                             const userId = session?.user?.id || 'anon';
@@ -357,7 +361,7 @@ export const useChat = () => {
                             // DEBUG: Log voice settings for voice recording
                             console.log(`🎤 Sending voice recording with settings: { voice_id: '${voice}', voice_rate: '${voiceSpeed}', model: '${model}' }`);
 
-                            ws.send(JSON.stringify({
+                            wsRef.current.send(JSON.stringify({
                                 type: 'voice',
                                 content: base64,
                                 user_id: userId,

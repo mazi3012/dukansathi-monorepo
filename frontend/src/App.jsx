@@ -13,6 +13,8 @@ import Landing from './pages/Landing';
 import SystemSetup from './pages/SystemSetup';
 import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
+import Connections from './pages/Connections';
+import StoreFront from './pages/StoreFront';
 
 function App() {
   return (
@@ -32,6 +34,7 @@ const AnimatedRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<SystemSetup />} />
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/store/:storeId" element={<StoreFront />} />
 
         <Route path="/" element={<MainLayout />}>
           <Route index element={<PageTransition><Dashboard /></PageTransition>} />
@@ -41,6 +44,7 @@ const AnimatedRoutes = () => {
           <Route path="customers/:id" element={<PageTransition><CustomerDetails /></PageTransition>} />
           <Route path="sales" element={<PageTransition><Sales /></PageTransition>} />
           <Route path="settings" element={<PageTransition><Settings /></PageTransition>} />
+          <Route path="connections" element={<PageTransition><Connections /></PageTransition>} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

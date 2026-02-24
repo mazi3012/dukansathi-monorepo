@@ -101,7 +101,9 @@ ALLOWED_ORIGINS = [
     "https://dukansathi.com",       # Verified Production domain (no www)
     os.getenv("FRONTEND_URL", ""),  # From env var if set
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 
 # Also allow any Cloud Run preview/service URL
@@ -239,13 +241,13 @@ async def shutdown_event():
         except Exception as e:
             logger.error(f"Error shutting down Telegram app: {e}")
 
-from telegram import Update
 from fastapi.responses import JSONResponse
 
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request):
     """Receive webhook updates from Telegram via Cloud Run."""
     try:
+        from telegram import Update
         from telegram_bot import app as ptb_app
         if not ptb_app:
             return JSONResponse(status_code=500, content={"status": "error", "message": "Bot not initialized"})
@@ -420,6 +422,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
 
     print("[WS] WebSocket Connection Established")
     
+    # Per-connection pending image context (holds uploaded image URL until next message)
+    pending_image_context = {}  # {user_id: {"url": str, "base64": str}}
+    
     try:
         while True:
             # Wait for message from client
@@ -434,7 +439,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             user_id = data.get("user_id", "")
             voice_id = data.get("voice_id", "en-IN-PrabhatNeural") # Default to Prabhat (English India)
             voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
-            model_id = data.get("model", "gemini-2.0-flash-001")
+            model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
             
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
@@ -456,6 +461,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     user_text = await transcribe_audio(audio_bytes)
                     print(f"[STT] Transcribed: {user_text}")
                     
+                    # Inject pending image context if available
+                    pending_img = pending_image_context.pop(safe_user_id, None)
+                    if pending_img:
+                        user_text = f"[IMAGE CONTEXT: {pending_img['url']}] {user_text}"
+                    
                     # IMMEDIATE FEEDBACK
                     await websocket.send_json({
                         "type": "transcription",
@@ -466,23 +476,33 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     await websocket.send_json({"type": "error", "content": f"Voice processing failed: {str(e)}"})
                     continue
                     
-            # 2. Handle Image Input (Gemini Vision)
+            # 2. Handle Image Input (Gemini Vision with Deferred Context)
             elif message_type == "image" and content:
-                # ... (Keep existing Image Logic if needed, but for now focus on Voice/Text flow matching legacy)
-                # Assuming simple flow for now or keeping existing logic
                 try:
                     image_bytes = base64.b64decode(content)
                     file_path = f"{safe_user_id}/{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.jpg"
                     public_url = await upload_to_storage("chat-images", file_path, optimize_image(image_bytes))
-                    user_text = f"I have uploaded an image. Image URL: {public_url} \n\nPlease analyze this image."
-                    await websocket.send_json({"type": "text", "content": "Image uploaded successfully. Analyzing..."})
+                    
+                    # Store as pending context — wait for next voice/text to know the intent
+                    pending_image_context[safe_user_id] = {"url": public_url}
+                    
+                    # Send a prompt nudge to the user
+                    await websocket.send_json({
+                        "type": "image_pending",
+                        "content": "Image received! Now tell me what to do — create an invoice, add products, or restock existing items?",
+                        "image_url": public_url
+                    })
                 except Exception as e:
                      await websocket.send_json({"type": "error", "content": f"Image error: {e}"})
-                     continue
+                continue  # Don't process AI yet — wait for intent from user
 
             # 3. Handle Text Input
             elif message_type == "text":
                 user_text = content
+                # Inject pending image context if available
+                pending_img = pending_image_context.pop(safe_user_id, None)
+                if pending_img:
+                    user_text = f"[IMAGE CONTEXT: {pending_img['url']}] {user_text}"
                 print(f"[CHAT] Text message: {user_text}")
             
             # 4. Handle Draft Approvals
@@ -701,6 +721,124 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
         print(f"[ERR] FATAL WebSocket Error: {e}")
         import traceback
         traceback.print_exc()
+
+@app.websocket("/ws/customer_chat/{store_id}")
+async def customer_websocket_endpoint(websocket: WebSocket, store_id: str):
+    await websocket.accept()
+    
+    # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
+    import time
+    start_time = time.time()
+    try:
+        from voice_service import transcribe_audio, speak_text
+        from dukansathi_ai.agent_graph import process_user_input
+        logger.info(f"[WS-CUST] AI Modules loaded in {time.time() - start_time:.2f}s")
+    except Exception as e:
+        logger.error(f"Failed to import AI modules after {time.time() - start_time:.2f}s: {e}")
+        await websocket.send_json({"type": "error", "content": "AI System Offline. Please retry in a minute."})
+        await websocket.close()
+        return
+
+    if not supabase:
+        await websocket.send_json({"type": "error", "content": "Database connection not available."})
+        await websocket.close()
+        return
+
+    print(f"[WS-CUST] WebSocket Connection Established for Store: {store_id}")
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            message_type = data.get("type", "text")
+            content = data.get("content", "")
+            voice_id = data.get("voice_id", "en-IN-PrabhatNeural")
+            voice_rate = data.get("voice_rate", "+0%")
+            model_id = "llama-4-scout-17b-16e-instruct-maas" # Enforce cloud model for customer bot
+            
+            # The store_id acts as the user_token/user_id for DB context
+            user_token = store_id
+            safe_user_id = store_id
+            
+            # 1. Handle Voice Input (STT)
+            if message_type == "voice" and content:
+                try:
+                    audio_bytes = base64.b64decode(content)
+                    user_text = await transcribe_audio(audio_bytes)
+                    await websocket.send_json({
+                        "type": "transcription",
+                        "content": user_text
+                    })
+                except Exception as e:
+                    await websocket.send_json({"type": "error", "content": f"Voice processing failed: {str(e)}"})
+                    continue
+            else:
+                user_text = content
+                
+            # Customer bots do not process draft approvals or images yet
+            if not user_text:
+                continue
+                
+            try:
+                # Call agent graph with role="customer"
+                ai_response_raw = await process_user_input(user_text, user_token, model=model_id, role="customer")
+                
+                import json
+                display_text = ai_response_raw
+                attachment = None
+                
+                try:
+                    response_data = json.loads(ai_response_raw)
+                    if isinstance(response_data, dict):
+                        display_text = response_data.get("text", ai_response_raw)
+                        attachment = response_data.get("draft") or response_data.get("attachment")
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                
+                # Auto-save customer invoice drafts
+                if attachment and attachment.get("draft_type") == "invoice":
+                    try:
+                        # Find "customer_name" if AI somehow extracted it, else default
+                        customer_name = attachment.get("customer_name", "Customer Request")
+                        items = attachment.get("items", [])
+                        total_amount = sum(float(item.get('total_price', 0)) for item in items)
+                        supabase.table("draft_invoices").insert({
+                            "user_id": store_id,
+                            "customer_name": customer_name,
+                            "items": items,
+                            "total_amount": total_amount,
+                            "status": "customer_request"
+                        }).execute()
+                        print("[WS-CUST] Saved customer draft invoice to DB")
+                    except Exception as e:
+                        print(f"[ERR] Failed to save customer draft: {e}")
+                
+                # Generate TTS
+                audio_response = None
+                try:
+                    tts_text = clean_text_for_tts(display_text) 
+                    if tts_text:
+                        audio_response = await speak_text(tts_text, voice=voice_id, rate=voice_rate)
+                except Exception as e:
+                    pass
+
+                response_payload = {
+                    "type": "text",
+                    "content": display_text,
+                    "audio": audio_response
+                }
+                
+                if attachment:
+                    response_payload["attachment"] = attachment
+                
+                await websocket.send_json(response_payload)
+            except Exception as e:
+                print(f"[ERR] Customer AI Error: {e}")
+                await websocket.send_json({"type": "error", "content": f"AI Error: {str(e)}"})
+                
+    except WebSocketDisconnect:
+        print("[WS-CUST] Client disconnected from WebSocket")
+    except Exception as e:
+        print(f"[ERR] FATAL Customer WebSocket Error: {e}")
 
 # New Endpoint: Upload Product Image
 from fastapi import UploadFile, File, HTTPException

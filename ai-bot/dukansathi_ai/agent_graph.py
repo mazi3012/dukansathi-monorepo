@@ -72,7 +72,7 @@ supabase: Client = create_client(url, key)
 
 # Context keywords for query categorization
 contextual_pronouns = ["this", "that", "it", "them", "him", "her"]
-action_keywords = ["create", "add", "new", "make a", "draft", "register"]
+action_keywords = ["create", "add", "new", "make a", "draft", "register", "restock", "received", "maal aaya", "aa gaya"]
 business_keywords = ["price", "cost", "stock", "inventory", "sale", "customer", "profit", "loss", "revenue", "bill", "invoice"]
 
 
@@ -169,18 +169,20 @@ class AgentState(TypedDict):
     user_token: str
     category: str
     model: str
+    role: str
 
 from functools import lru_cache
 
 @lru_cache(maxsize=4)
-def get_llm(model_name: str = "gemini-2.0-flash-001"):
+def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
     """
-    Get or create a cached Gemini LLM instance.
+    Get or create a cached LLM instance (Gemini/Llama via Vertex AI, or local Ollama).
     Attributes are cached so we don't re-auth on every token.
     """
     try:
         # Check if model is a Local Model (Ollama)
-        if "gemini" not in model_name:
+        is_cloud_model = "gemini" in model_name.lower() or "llama-4" in model_name.lower() or "maas" in model_name.lower()
+        if not is_cloud_model:
             print(f"DEBUG: Using Local LLM (Ollama) -> {model_name}")
             return ChatOllama(
                 model=model_name,
@@ -223,13 +225,20 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
             creds = service_account.Credentials.from_service_account_file(creds_path)
             project_id = creds.project_id
         
-        # Create Gemini client
+        # Format model string for Vertex Model Garden
+        actual_model_name = model_name
+        if "llama-4" in model_name.lower() and not actual_model_name.startswith("publishers/"):
+            actual_model_name = f"publishers/meta/models/{model_name}"
+            print(f"DEBUG: Using Vertex AI Model Garden endpoint: {actual_model_name}")
+        
+        # Create LLM client on Vertex
         return ChatVertexAI(
-            model_name=model_name,
+            model_name=actual_model_name,
             project=project_id,
-            location="us-central1",
+            location="us-east5",
             credentials=creds,
-            temperature=0.7 
+            temperature=0.7,
+            max_tokens=2048
         )
     except Exception as e:
         print(f"ERROR initializing LLM ({model_name}): {e}")
@@ -240,7 +249,7 @@ def get_llm(model_name: str = "gemini-2.0-flash-001"):
 # llm = init_gemini_llm()
 
 
-async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "gemini-2.0-flash-001") -> str:
+async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
     Generate a SQL query from natural language using Gemini
     """
@@ -294,7 +303,7 @@ async def generate_sql_local(user_query: str, model: str = "phi3:mini") -> str:
     """
     logger.info(f"DEBUG: Entering generate_sql_local with model={model}")
     prompt = f"""
-    SYSTEM: You are a SQLite expert for Dukan Sathi. 
+    SYSTEM: You are a SQLite expert. 
     Output the SLQ SELECT query ONLY. No markdown, no explanations.
 
     TABLES:
@@ -546,7 +555,7 @@ def categorize_query(msg_lower: str) -> str:
     return "CHAT"
 
 
-async def extract_action_params(user_query: str, history_context: str = "", model: str = "gemini-2.0-flash-001") -> str:
+async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
     Extract structured JSON parameters for an action using Gemini
     """
@@ -574,22 +583,35 @@ async def extract_action_params(user_query: str, history_context: str = "", mode
     IMPORTANT: For invoices, always set "price": 0 unless the user explicitly attempts to override it. The system will look up the real price from the database.
     
     SCENARIO 2: Add Product / Inventory
-    Required keys: "type": "product_draft", "name", "selling_price", "cost_price", "stock_quantity", "category"
+    Required keys: "type": "product_draft", "name", "selling_price", "cost_price", "stock_quantity", "category", "unit" (one of: pcs, kg, g, litre, ml, dozen, box, packet, metre, set — default: pcs)
     
     SCENARIO 3: Add Customer
     Required keys: "type": "customer_draft", "name", "phone", "address"
 
     SCENARIO 4: Update Dues / Record Payment
     Required keys: "type": "payment_draft", "customer_name", "amount", "mode" (Default 'Cash')
+
+    SCENARIO 5: Restock / Received / Got more stock of an existing product
+    Required keys: "type": "restock_draft", "product_name", "quantity_to_add"
+    Use this when the user says 'restock', 'received', 'got', 'added more', 'aa gaya', 'maal aaya', etc. for an EXISTING product.
     
     Example 1: "Make a bill for Amit 2kg Rice and 1 Oil"
     JSON: {{ "type": "invoice_draft", "customer_name": "Amit", "items": [{{ "product_name": "Rice", "quantity": 2, "price": 0, "tax_percent": 0, "hsn_code": "" }}, {{ "product_name": "Oil", "quantity": 1, "price": 0, "tax_percent": 0, "hsn_code": "" }}] }}
     
     Example 2: "Add new product Sunsilk Shampoo price 150 stock 10"
-    JSON: {{ "type": "product_draft", "name": "Sunsilk Shampoo", "selling_price": 150, "stock_quantity": 10, "category": "General" }}
+    JSON: {{ "type": "product_draft", "name": "Sunsilk Shampoo", "selling_price": 150, "stock_quantity": 10, "category": "General", "unit": "pcs" }}
 
     Example 3: "Amit paid 500 rupees"
     JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash" }}
+
+    Example 4: "Add 100 packets of chips 1 kg each price 20"
+    JSON: {{ "type": "product_draft", "name": "Chips", "selling_price": 20, "stock_quantity": 100, "unit": "kg", "category": "Snacks" }}
+
+    Example 5: "Restock 50 rice"
+    JSON: {{ "type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50 }}
+
+    Example 6: "Maal aaya 30 kg Atta"
+    JSON: {{ "type": "restock_draft", "product_name": "Atta", "quantity_to_add": 30 }}
     
     If query is vague, return {{ "type": "unknown", "error": "Missing details" }}
     """
@@ -638,14 +660,14 @@ async def get_user_profile(user_id: str) -> str:
     """
     try:
         if not supabase:
-            return "Dukan Sathi"
+            return "your business"
         response = supabase.table("profiles").select("business_name").eq("id", user_id).execute()
         if response.data and len(response.data) > 0:
-            return response.data[0].get("business_name", "Dukan Sathi")
-        return "Dukan Sathi"
+            return response.data[0].get("business_name", "your business")
+        return "your business"
     except Exception as e:
         print(f"ERROR: Failed to fetch profile: {e}")
-        return "Dukan Sathi"
+        return "your business"
 
 def fast_parse_action(user_query: str) -> str:
     """
@@ -657,20 +679,90 @@ def fast_parse_action(user_query: str) -> str:
     q = user_query.strip()
     ql = q.lower()
 
-    # --- PATTERN 1: Add Product ---
-    # "add product potato price 50 qty 20" / "new product X price Y quantity Z"
-    # Expanded to support CP: "price 20 cp 15 stock 50"
-    product_pattern = re.search(
-        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item)\s+(.+?)\s+(?:price|rate|mrp|rs|₹)\s+(\d+(?:\.\d+)?)',
+    # --- PATTERN 0: Restock ---
+    # "restock 50 rice" / "received 30 kg atta" / "maal aaya 20 chips" / "got 100 more biscuits"
+    restock_pattern = re.search(
+        r'(?:restock|restocked|received|got|aa\s*gaya|maal\s*aaya|added?\s+more?)\s+(?:rs\.?\s*|₹\s*)?(\d+)\s+(?:kg|g|litre|ml|pcs|packets?|dozen|box|set|pieces?)?\s*(?:of\s+)?([a-z][a-z\s]+)',
         ql
     )
-    if product_pattern:
-        name = product_pattern.group(1).strip().title()
-        selling_price = float(product_pattern.group(2))
-        
-        # Optional: Extract Stock
+    restock_pattern2 = re.search(
+        r'(?:restock|restocked|received|got)\s+([a-z][a-z\s]+)\s+(\d+)',
+        ql
+    )
+    if restock_pattern:
+        qty = int(restock_pattern.group(1))
+        prod = restock_pattern.group(2).strip().title()
+        return json.dumps({
+            "type": "restock_draft",
+            "product_name": prod,
+            "quantity_to_add": qty
+        })
+    elif restock_pattern2:
+        prod = restock_pattern2.group(1).strip().title()
+        qty = int(restock_pattern2.group(2))
+        return json.dumps({
+            "type": "restock_draft",
+            "product_name": prod,
+            "quantity_to_add": qty
+        })
+
+    # --- PATTERN 1: Add Product ---
+    # "add product potato price 50 qty 20"
+    # "add 20 banana price 20"
+    # "add product banana cp 30 sp 40"
+
+    # Helper: extract unit from query
+    def extract_unit(text):
+        unit_map = {
+            'kg': 'kg', 'gram': 'g', 'grams': 'g', 'litre': 'litre', 'liter': 'litre',
+            'liters': 'litre', 'litres': 'litre', 'ml': 'ml', 'packet': 'packet',
+            'packets': 'packet', 'dozen': 'dozen', 'box': 'box', 'piece': 'pcs',
+            'pieces': 'pcs', 'pcs': 'pcs', 'set': 'set', 'metre': 'metre', 'meter': 'metre'
+        }
+        for kw, unit in unit_map.items():
+            if re.search(r'\b' + kw + r'\b', text):
+                return unit
+        return 'pcs'
+    
+    # Check for CP and SP explicitly first
+    product_pattern_cpsp = re.search(
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?([a-z0-9\s]+?)\s+cp\s+(\d+(?:\.\d+)?)\s+sp\s+(\d+(?:\.\d+)?)',
+        ql
+    )
+    product_pattern_general = re.search(
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?(?:(\d+)\s+)?([a-z0-9\s]+?)\s+(?:price|rate|mrp|rs|₹|sp)\s+(\d+(?:\.\d+)?)',
+        ql
+    )
+    
+    if product_pattern_cpsp:
+        name = product_pattern_cpsp.group(1).strip().title()
+        cost_price = float(product_pattern_cpsp.group(2))
+        selling_price = float(product_pattern_cpsp.group(3))
+        stock_quantity = 0
         stock_match = re.search(r'(?:stock|qty|quantity)\s+(\d+)', ql)
-        stock_quantity = int(stock_match.group(1)) if stock_match else 0
+        if stock_match:
+            stock_quantity = int(stock_match.group(1))
+
+        return json.dumps({
+            "type": "product_draft",
+            "name": name,
+            "selling_price": selling_price,
+            "cost_price": cost_price,
+            "stock_quantity": stock_quantity,
+            "unit": extract_unit(ql),
+            "category": "General"
+        })
+        
+    elif product_pattern_general:
+        qty_prefix = product_pattern_general.group(1)
+        name = product_pattern_general.group(2).strip().title()
+        selling_price = float(product_pattern_general.group(3))
+        
+        stock_quantity = int(qty_prefix) if qty_prefix else 0
+        if not qty_prefix:
+            stock_match = re.search(r'(?:stock|qty|quantity)\s+(\d+)', ql)
+            if stock_match:
+                stock_quantity = int(stock_match.group(1))
         
         # Optional: Extract Cost Price (CP)
         cp_match = re.search(r'(?:cp|cost|buying|buy)\s+(?:price|rate)?\s*(?:rs\.?\s*|₹\s*)?(\d+(\.\d+)?)', ql)
@@ -682,6 +774,7 @@ def fast_parse_action(user_query: str) -> str:
             "selling_price": selling_price,
             "cost_price": cost_price,
             "stock_quantity": stock_quantity,
+            "unit": extract_unit(ql),
             "category": "General"
         })
 
@@ -756,15 +849,24 @@ def fast_parse_action(user_query: str) -> str:
     if invoice_pattern:
         customer = invoice_pattern.group(1).strip().title()
         # Extract items: "2 rice", "1 oil", etc.
-        items_raw = re.findall(r'(\d+)\s+([\w]+)', ql)
+        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]+)', ql)
         items = []
-        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', customer.lower()}
-        for qty_str, prod in items_raw:
-            if prod.lower() not in skip_words and not prod.isdigit():
+        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees'}
+        
+        for qty_str, prod_raw in items_raw:
+            prod = prod_raw.strip()
+            # Split by keywords to avoid capturing trailing junk
+            for split_word in ['and', 'with', 'for']:
+                if f' {split_word} ' in prod:
+                    prod = prod.split(f' {split_word} ')[0]
+                    
+            if prod.lower() not in skip_words and prod.lower() != customer.lower() and not prod.isdigit():
                 items.append({
                     "product_name": prod.title(),
                     "quantity": int(qty_str),
-                    "price": 0
+                    "price": 0,
+                    "tax_percent": 0,
+                    "hsn_code": ""
                 })
         if items:
             return json.dumps({
@@ -774,21 +876,23 @@ def fast_parse_action(user_query: str) -> str:
             })
 
     # --- PATTERN 5: Dues / Credit specific ---
-    # "add 500 due to amit" -> Give Credit (Red)
+    # "add 500 due to amit" -> Give Credit (Red) - User says "due" or "credit" or "udhar"
     add_due_pattern = re.search(
-        r'(?:add|give)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:due|credit|udhar)\s+(?:to|for)\s+([\w\s]+)',
+        r'(?:add|give)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(?:due|credit|udhar)?\s*(?:to|for)\s+([a-z\s]+)',
         ql
     )
     if add_due_pattern:
          amount = float(add_due_pattern.group(1))
-         name = add_due_pattern.group(2).strip().title()
-         return json.dumps({
-            "type": "payment_draft",
-            "customer_name": name,
-            "amount": amount,
-            "payment_type": "credit",  # add dues (red)
-            "mode": "Cash"
-        })
+         name = add_due_pattern.group(2).strip().replace(" due", "").title()
+         # filter out filler words that get caught in [a-z\s]+
+         if name.lower() not in ['me', 'him', 'her', 'them', 'us']:
+             return json.dumps({
+                "type": "payment_draft",
+                "customer_name": name,
+                "amount": amount,
+                "payment_type": "credit",  # add dues (red)
+                "mode": "Cash"
+            })
 
     # "deduct 500 from amit due" OR "deduct 500 due from amit" -> Receive Payment (Green)
     # Pattern A: "deduct [amount] from [name]" (name may or may not follow with 'due')
@@ -830,31 +934,52 @@ async def extract_action_params_local(user_query: str, history_context: str = ""
 
     # SLOW PATH: Fall back to LLM for complex/ambiguous queries
     print(f"DEBUG: Fast parse missed, falling back to LLM for: {user_query}")
-    prompt = f"""Extract JSON. No text. No explanation.
+    prompt = f"""You are a JSON extractor. You must output ONLY valid JSON. 
+DO NOT INCLUDE ANY TEXT, APOLOGIES, OR CHAT. JUST THE JSON OBJECT.
 
-User: Bill for Raj 2 Rice
-JSON: {{ "type": "invoice_draft", "customer_name": "Raj", "items": [ {{ "product_name": "Rice", "quantity": 2 }} ] }}
+Task: Extract data from the user query into a structured DRAFT JSON.
 
-User: Add milk price 50
-JSON: {{ "type": "product_draft", "name": "milk", "selling_price": 50, "stock_quantity": 0, "category": "General" }}
+Valid Draft Types: "invoice_draft", "product_draft", "customer_draft", "payment_draft", "restock_draft", "unknown"
 
-User: New customer Amit 9988776655
-JSON: {{ "type": "customer_draft", "name": "Amit", "phone": "9988776655", "address": "" }}
+Examples:
+query: "Bill for Raj 2 Rice"
+output: {{"type": "invoice_draft", "customer_name": "Raj", "items": [{{"product_name": "Rice", "quantity": 2, "price": 0}}]}}
 
-User: Amit paid 500
-JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash" }}
+query: "Add 20 banana price 20 pcs"
+output: {{"type": "product_draft", "name": "banana", "selling_price": 20, "stock_quantity": 20, "category": "General", "unit": "pcs"}}
 
-User: {user_query}
-JSON:"""
+query: "Amit paid 500"
+output: {{"type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash", "payment_type": "payment"}}
+
+query: "Add 500 udhar to Amit"
+output: {{"type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash", "payment_type": "credit"}}
+
+query: "restock 50 rice"
+output: {{"type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50}}
+
+query: "hello how are you"
+output: {{"type": "unknown", "error": "Not an action"}}
+
+Now, parse this query:
+query: "{user_query}"
+output:"""
     try:
         llm = get_llm(model)
+        # Using invoke instead of ainvoke for local models can sometimes be more stable if ainvoke causes hangs, 
+        # but sticking to ainvoke as it's the standard langchain async path unless issues arise.
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         
         print(f"DEBUG LOCAL EXTRACT RAW: {response.content}")
 
-        content = response.content
+        content = response.content.strip()
         
-        # Robust Brace Counting Extractor
+        # Strip code blocks
+        if content.startswith("```json"):
+             content = content.split("```json")[1].split("```")[0].strip()
+        elif content.startswith("```"):
+             content = content.split("```")[1].split("```")[0].strip()
+        
+        # Robust Brace Counting Extractor if still hallucinating text
         json_str = "{}"
         start_idx = content.find('{')
         
@@ -870,12 +995,16 @@ JSON:"""
                 if brace_count == 0:
                     json_str = content[start_idx:i+1]
                     break
+        else:
+             print("DEBUG: Local AI failed to output a JSON object entirely.")
+             return "{}"
+
+        # Cleanup python style dicts
+        json_str = json_str.replace("'", '"')
         
-        # Cleanup markdown if present
-        json_str = json_str.replace("```json", "").replace("```", "").replace("'", '"')
-        
-        # Remove trailing commas (common local model error)
-        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+        # Remove trailing commas (common local model error: {"a": 1,})
+        json_str = re.sub(r',\s*\}', '}', json_str)
+        json_str = re.sub(r',\s*\]', ']', json_str)
         
         return json_str
     except Exception as e:
@@ -903,7 +1032,7 @@ async def action_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
-    selected_model = state.get("model", "gemini-2.0-flash-001")
+    selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
@@ -922,7 +1051,7 @@ async def action_node(state: AgentState):
         print(f"DEBUG: FAST PARSE SUCCESS (action_node): {action_json_str}")
     else:
         # SLOW PATH: Fall back to LLM extraction
-        if "gemini" in selected_model:
+        if "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model:
             action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
         else:
             action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
@@ -959,24 +1088,33 @@ async def action_node(state: AgentState):
                 hsn_code = ""
                 official_name = prod_name
                 
-                if supabase and prod_name and "gemini" in selected_model:
+                is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+                if supabase and prod_name and is_cloud:
                     try:
-                        # Sanitize product name for search safely
-                        safe_name = re.sub(r'[^\w\s]', '', prod_name) # Remove special chars
+                        # FUZZY MATCH: Use pg_trgm RPC for typo-tolerant matching
+                        # Falls back to ilike if RPC not yet created
+                        safe_name = re.sub(r'[^\w\s]', '', prod_name).strip()
+                        res = None
                         
                         if safe_name:
-                             # Strategy: Exact/Case-Insensitive Match ONLY to avoid 500 Errors
                              try:
-                                 # Try 1: Case-insenstive exact match
-                                 res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").ilike("name", safe_name).eq("user_id", user_id_local).limit(1).execute()
-                                 
-                                 # Try 2: If no data, maybe simple EQ? (Usually covered by ilike but just in case)
-                                 if not res.data:
-                                     res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").eq("name", safe_name).eq("user_id", user_id_local).limit(1).execute()
+                                 # Primary: Fuzzy RPC (tolerates typos from voice input)
+                                 rpc_res = supabase.rpc('fuzzy_match_product', {
+                                     'query': safe_name,
+                                     'uid': user_id_local
+                                 }).execute()
+                                 if rpc_res and rpc_res.data and len(rpc_res.data) > 0:
+                                     res = rpc_res
+                             except Exception as fuzz_err:
+                                 logger.warning(f"WARN: fuzzy_match_product RPC failed, falling back to ilike: {fuzz_err}")
                              
-                             except Exception as search_err:
-                                 logger.error(f"DEBUG: Search query failed for {safe_name}: {search_err}")
-                                 res = None
+                             # Fallback: ilike (exact case-insensitive)
+                             if not res or not res.data:
+                                 try:
+                                     res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").ilike("name", f"%{safe_name}%").eq("user_id", user_id_local).limit(1).execute()
+                                 except Exception as fallback_err:
+                                     logger.error(f"ERROR: fallback ilike failed for {safe_name}: {fallback_err}")
+                                     res = None
 
                              if res and res.data and len(res.data) > 0:
                                 db_prod = res.data[0]
@@ -984,7 +1122,6 @@ async def action_node(state: AgentState):
                                 tax_percent = float(db_prod.get("tax_percent") or 0)
                                 hsn_code = db_prod.get("hsn_code", "")
                                 official_name = db_prod.get("name", prod_name)
-                                
                                 logger.info(f"DEBUG: Found {official_name}: Price={price}, Tax={tax_percent}%")
                              else:
                                 logger.info(f"DEBUG: Product not found: {safe_name}")
@@ -994,7 +1131,7 @@ async def action_node(state: AgentState):
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
 
-                elif local_db and prod_name and "gemini" not in selected_model:
+                elif local_db and prod_name and not is_cloud:
                     # LOCAL DB LOOKUP
                     try:
                         safe_name = re.sub(r'[^\w\s]', '', prod_name)
@@ -1043,12 +1180,13 @@ async def action_node(state: AgentState):
         draft_type = ""
     
     confirmation_templates = {
-        "invoice_draft": "Sure Boss, I've prepared the invoice draft. Please review and approve.",
-        "product_draft": "Sure Boss, I've prepared the product draft. Please review and approve.",
-        "customer_draft": "Sure Boss, I've prepared the customer details. Please review and approve.",
-        "payment_draft": "Sure Boss, I've prepared the payment record. Please review and approve.",
+        "invoice_draft": "Sure, I've prepared the invoice draft. Please review and approve.",
+        "product_draft": "Sure, I've prepared the product draft. Please review and approve.",
+        "customer_draft": "Sure, I've prepared the customer details. Please review and approve.",
+        "payment_draft": "Sure, I've prepared the payment record. Please review and approve.",
+        "restock_draft": "Sure, I've prepared the restock draft. Please review and approve.",
     }
-    confirmation_text = confirmation_templates.get(draft_type, "Sure Boss, I've prepared the draft. Please review and approve.")
+    confirmation_text = confirmation_templates.get(draft_type, "Sure, I've prepared the draft. Please review and approve.")
     
     class _FakeResponse:
         def __init__(self, c): self.content = c
@@ -1076,6 +1214,8 @@ async def action_node(state: AgentState):
                 draft_obj["draft_type"] = "customer"
             elif "payment" in draft_obj["type"]:
                 draft_obj["draft_type"] = "payment"
+            elif "restock" in draft_obj["type"]:
+                draft_obj["draft_type"] = "restock"
             else:
                 draft_obj["draft_type"] = "generic"
     except Exception as e:
@@ -1085,7 +1225,8 @@ async def action_node(state: AgentState):
         draft_obj = {}
 
     # Save Draft to Local DB if Offline (All types supported)
-    if draft_obj and local_db and "gemini" not in selected_model:
+    is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+    if draft_obj and local_db and not is_cloud:
         try:
              # Use the new generic action draft saver
              local_db.save_action_draft_local(draft_obj, user_id)
@@ -1100,7 +1241,7 @@ async def action_node(state: AgentState):
     
     if not draft_obj or "type" not in draft_obj or draft_obj.get("type") == "unknown":
         print("WARN Draft generation failed or was unknown type.")
-        final_text = "Sorry Boss, I couldn't understand the details for that draft. Could you please repeat with more specific information?"
+        final_text = "Sorry, I couldn't understand the details for that draft. Could you please repeat with more specific information?"
         draft_obj = {}
 
     final_payload = {
@@ -1117,7 +1258,8 @@ async def chat_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
-    selected_model = state.get("model", "gemini-2.0-flash-001")
+    selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
+    role = state.get("role", "owner")
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
@@ -1143,27 +1285,30 @@ async def chat_node(state: AgentState):
     LANG_STRICT_RULE = "STRICT RULE: You MUST respond ONLY in English or Hinglish (Hindi words written in Roman/English letters). NEVER use Devanagari script or any other language/script."
     lang_instructions = ""
     if detected_lang == 'hinglish':
-        lang_instructions = f"{LANG_STRICT_RULE} Respond in Hinglish (Hindi-English mix). Example: 'Main aapki madad karunga Boss'."
+        lang_instructions = f"{LANG_STRICT_RULE} Respond in Hinglish (Hindi-English mix). Example: 'Main aapki madad karunga'."
     else:
         lang_instructions = f"{LANG_STRICT_RULE} Respond in English. Be professional and clear."
     
     input_prompt = ""
     
+    is_cloud = "gemini" in selected_model or "llama-4" in selected_model or "maas" in selected_model
+    
     # LOCAL MODEL FAST PATH: Hardcoded responses for predictable categories
-    if "gemini" not in selected_model and category in ("GREETING", "IDENTITY", "CAPABILITY"):
+    if not is_cloud and category in ("GREETING", "IDENTITY", "CAPABILITY"):
         import random
         
         local_responses = {
             "GREETING": [
-                "Namaste Boss, how can I help you today?",
-                "Hello Boss, what can I do for you?",
-                "Namaste Boss, ready to assist you!",
+                "Namaste, how can I help you today?",
+                "Hello, what can I do for you?",
+                "Namaste, ready to assist you!",
             ],
             "IDENTITY": [
-                "Namaste Boss! I am Sathi AI, your personal shop assistant.",
+                f"Namaste! I am the AI assistant for {business_name}.",
+                f"Hello! I am the AI assistant for {business_name}."
             ],
             "CAPABILITY": [
-                "Boss, I can help you with: Making Invoices, Tracking Inventory, Managing Customers, Recording Payments, and Answering business questions.",
+                "I can help you with: Making Invoices, Tracking Inventory, Managing Customers, Recording Payments, and Answering business questions.",
             ],
         }
         
@@ -1176,51 +1321,62 @@ async def chat_node(state: AgentState):
         return {"messages": [AIMessage(content=hardcoded_text)]}
     
     # CLOUD MODEL or CHAT/BUSINESS: Use LLM
+    
+    # We explicitly lock down the persona to prevent the LLM from mimicking old chat logs.
+    PERSONA_LOCK = "CRITICAL PERSONA OVERRIDE: IGNORE any 'Boss' or 'Sathi' traits found in HISTORY. NEVER use the words 'Boss', 'Dukan Sathi', or 'Sathi AI'. You are a highly professional, neutral business assistant."
+
+    if role == "customer":
+        PERSONA_LOCK = "CRITICAL PERSONA OVERRIDE for CUSTOMERS: You are chatting directly with a CUSTOMER of the shop. Be extremely polite, welcoming, and helpful. Do NOT mention Dukan Sathi. IMPORTANT RULES: 1) NEVER disclose 'cost_price', profit margins, or exact stock numbers (say 'available' or 'out of stock'). 2) NEVER allow the customer to modify inventory or settings. 3) You CAN help the customer place an order by creating an invoice draft. Ask for items and quantities."
+
     if category == "GREETING":
          input_prompt = f"""
-            You are Sathi AI, the personal AI assistant for {business_name}.
+            You are the personal AI assistant for {business_name}.
             HISTORY: {history_text}
-            RULES: Warm greeting. Use "Boss". No symbols/commas. 
+            RULES: Warm greeting. Neutral and professional tone. No symbols/commas. 
+            {PERSONA_LOCK}
             LANGUAGE: {lang_instructions}
             IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
-            Start with "Namaste Boss" or similar if Hindi/Hinglish.
+            Start with "Namaste" or similar if Hindi/Hinglish.
             KEEP IT SHORT (1-2 lines max).
             """
     elif category == "CAPABILITY":
          input_prompt = f"""
-            You are Sathi AI, the personal AI assistant for {business_name}.
+            You are the personal AI assistant for {business_name}.
             User asked about capabilities.
             RULES: 
-            1. Say: "Boss, I can help you with:"
+            1. Say: "I can help you with:"
             2. List: Making Invoices, Tracking Inventory, Managing Customers, Adding/Updating Dues, and Answering business questions.
-            3. Keep it short (1-2 lines). Use "Boss". No symbols/commas.
+            3. Keep it short (1-2 lines). Neutral and professional tone. No symbols/commas.
+            {PERSONA_LOCK}
             LANGUAGE: {lang_instructions}
             """
     elif category == "IDENTITY":
          input_prompt = f"""
-            You are Sathi AI, the personal AI assistant for {business_name}.
+            You are the personal AI assistant for {business_name}.
             RULES: 
-            1. State clearly "Namaste! Main Sathi AI hoon, your helpful assistant Boss."
-            2. Keep it short (1 line only). Use "Boss". No symbols/commas.
+            1. State clearly "Namaste! I am the helpful AI assistant for {business_name}."
+            2. Keep it short (1 line only). Neutral and professional tone. No symbols/commas.
+            {PERSONA_LOCK}
             LANGUAGE: {lang_instructions}
             """
     elif category == "CHAT":
         input_prompt = f"""
-            You are Sathi AI, the personal AI assistant for {business_name}.
+            You are the personal AI assistant for {business_name}.
             User said: "{last_msg}"
             HISTORY: {history_text}
             RULES: 
             1. Respond naturally to the user's chat. Be helpful, polite, and professional.
-            2. Use "Boss" occasionally to maintain persona.
+            2. Maintain a neutral persona reflecting the business.
             3. Do NOT make up database data. If they ask something you don't know, say so.
             4. If they seem to want to do business (like "add item"), guide them to be specific.
             5. STRICTLY KEEP IT SHORT (1-2 lines max). No symbols/commas.
-            6. ALWAYS maintain Sathi AI persona (Friendly, Helpful, "Boss").
+            6. ALWAYS maintain a professional tone.
+            {PERSONA_LOCK}
             LANGUAGE: {lang_instructions}
             """
     else: # BUSINESS / Fallback
         # Data Retrieval
-        if "gemini" in selected_model:
+        if is_cloud:
             sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model)
             specialist_data = await execute_sql(sql_query)
         else:
@@ -1229,11 +1385,12 @@ async def chat_node(state: AgentState):
             specialist_data = execute_sql_local(sql_query)
             
         input_prompt = f"""
-        You are Sathi AI, assistant for {business_name}.
+        You are the assistant for {business_name}.
         DATA: {specialist_data}
         USER: "{last_msg}"
         HISTORY: {history_text}
-        RULES: Answer using Data. If empty, say 'No data found'. Use "Boss". No symbols/commas. REMEMBER: YOU ARE SATHI AI.
+        RULES: Answer using Data. If empty, say 'No data found'. Neutral and professional tone. No symbols/commas. REMEMBER: ACT ON BEHALF OF THE BUSINESS.
+        {PERSONA_LOCK}
         STRICTLY KEEP IT SHORT (1-2 lines max).
         LANGUAGE: {lang_instructions}
         IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
@@ -1243,8 +1400,8 @@ async def chat_node(state: AgentState):
     llm = get_llm(selected_model)
     
     # For Local Models: shorter prompts and stricter output constraints
-    if "gemini" not in selected_model:
-        input_prompt = f"SYSTEM: You are Sathi AI for {business_name}. Reply in 1-2 short lines ONLY. Use 'Boss'. No markdown. IMPORTANT: Reply ONLY in English or Hinglish (Roman script). NEVER use Devanagari/Hindi script or any other language.\n" + input_prompt
+    if not is_cloud:
+        input_prompt = f"SYSTEM: You are the AI assistant for {business_name}. Reply in 1-2 short lines ONLY. Professional tone. No markdown. IMPORTANT: Reply ONLY in English or Hinglish (Roman script). NEVER use Devanagari/Hindi script or any other language.\n" + input_prompt
 
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     
@@ -1318,7 +1475,7 @@ app = workflow.compile()
 # Memory store for conversation history (keyed by user session)
 MEMORY_STORE = {}
 
-async def process_user_input(text: str, user_token: str, model: str = "gemini-2.0-flash-001") -> str:
+async def process_user_input(text: str, user_token: str, model: str = "llama-4-scout-17b-16e-instruct-maas", role: str = "owner") -> str:
     """
     Main entry point for Sathi AI - processes user input and returns response
     
@@ -1364,7 +1521,8 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
         "messages": memory,
         "language": "hi-EN",  # Hinglish by default
         "user_token": user_token,
-        "model": model
+        "model": model,
+        "role": role
     }
     
     try:
@@ -1377,7 +1535,7 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
             ai_response = result['messages'][-1].content
         else:
             print("ERROR: Graph returned no messages!")
-            ai_response = "Sorry Boss, I am having trouble thinking right now."
+            ai_response = "Sorry, I am having trouble thinking right now."
             
         # Add AI response to memory
         memory.append(AIMessage(content=ai_response))
@@ -1387,7 +1545,7 @@ async def process_user_input(text: str, user_token: str, model: str = "gemini-2.
         
     except Exception as e:
         logger.error(f"CRITICAL ERROR in process_user_input: {e}", exc_info=True)
-        return "Sorry Boss, my brain is offline."
+        return "Sorry, my brain is offline."
 
 
 def clear_user_memory(user_token: str):

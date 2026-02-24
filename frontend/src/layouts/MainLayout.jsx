@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, Link } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
 import NavigationDrawer from '../components/NavigationDrawer';
@@ -73,9 +75,8 @@ const MainLayout = () => {
     };
 
     const toggleListening = () => {
-        setIsListening(!isListening);
-        // TODO: Integrate actual voice logic here
-        console.log("Mic toggled", !isListening);
+        setIsListening(false); // We can rely on the Chat page to handle actual listening
+        navigate('/chat', { state: { autoStartRecord: true } });
     };
 
     if (loading) {
@@ -110,7 +111,40 @@ const MainLayout = () => {
             <div className="md:hidden">
                 <BottomNav
                     isListening={isListening}
-                    onMicClick={toggleListening}
+                    // onTouchStart / onMouseDown logic: Navigate to chat and trigger 'mic-press' event
+                    onTouchStart={(e) => {
+                        e.preventDefault();
+                        window.__isMicHeld = true;
+                        if (window.location.pathname !== '/chat') {
+                            navigate('/chat', { state: { autoStartRecord: true } });
+                        } else {
+                            window.dispatchEvent(new CustomEvent('nav-mic-press'));
+                        }
+                    }}
+                    onMouseDown={(e) => {
+                        e.preventDefault();
+                        window.__isMicHeld = true;
+                        if (window.location.pathname !== '/chat') {
+                            navigate('/chat', { state: { autoStartRecord: true } });
+                        } else {
+                            window.dispatchEvent(new CustomEvent('nav-mic-press'));
+                        }
+                    }}
+                    // onTouchEnd / onMouseUp logic: Trigger 'mic-release' event
+                    onTouchEnd={(e) => {
+                        e.preventDefault();
+                        window.__isMicHeld = false;
+                        window.dispatchEvent(new CustomEvent('nav-mic-release'));
+                    }}
+                    onMouseUp={(e) => {
+                        e.preventDefault();
+                        window.__isMicHeld = false;
+                        window.dispatchEvent(new CustomEvent('nav-mic-release'));
+                    }}
+                    onMouseLeave={(e) => {
+                        window.__isMicHeld = false;
+                        window.dispatchEvent(new CustomEvent('nav-mic-release'));
+                    }}
                     onMenuClick={() => setIsMenuOpen(true)}
                 />
             </div>

@@ -111,26 +111,26 @@ const Customers = () => {
                         <Link to={`/customers/${c.id}`} key={c.id}>
                             <motion.div
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between mb-3"
+                                className="bg-white/60 backdrop-blur-xl p-5 rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 flex items-center justify-between mb-3 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-indigo-200/50 shadow-sm">
                                         {c.name[0]?.toUpperCase()}
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-slate-800">{c.name}</h3>
+                                        <h3 className="font-semibold text-slate-800 text-lg">{c.name}</h3>
                                         {c.phone && (
-                                            <p className="text-xs text-slate-500 flex items-center gap-1">
-                                                <Phone size={10} /> {c.phone}
+                                            <p className="text-sm text-slate-500 flex items-center gap-1 font-medium mt-0.5">
+                                                <Phone size={12} /> {c.phone}
                                             </p>
                                         )}
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className={`font-bold ${c.credit_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                    <div className={`font-extrabold text-lg ${c.credit_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                         ₹{(c.credit_balance || 0).toLocaleString('en-IN')}
                                     </div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">
+                                    <span className={`inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${c.credit_balance > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                         {c.credit_balance > 0 ? 'Udhar' : 'Clear'}
                                     </span>
                                 </div>

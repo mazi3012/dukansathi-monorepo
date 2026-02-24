@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
@@ -28,8 +28,47 @@ const Chat = () => {
     const fileInputRef = useRef(null);
     const timerRef = useRef(null);
     const navigate = useNavigate();
+    const location = useLocation();
     const isOnline = useOnlineStatus();
     const [localAIReady, setLocalAIReady] = useState(false);
+    const autoRecordRef = useRef(false);
+
+    // Auto-start recording if navigated from BottomNav
+    useEffect(() => {
+        if (location.state?.autoStartRecord && !autoRecordRef.current) {
+            autoRecordRef.current = true;
+            // Clear the state so it doesn't re-trigger on refresh
+            window.history.replaceState({}, document.title);
+
+            // If the user's finger is still exactly on the push-to-talk button
+            if (window.__isMicHeld) {
+                startRecording();
+            }
+        }
+    }, [location.state, startRecording]);
+
+    // Global event listeners for Push-to-Talk from BottomNav
+    useEffect(() => {
+        const handleMicPress = () => {
+            if (!isListening) {
+                startRecording();
+            }
+        };
+
+        const handleMicRelease = () => {
+            if (isListening) {
+                stopRecording();
+            }
+        };
+
+        window.addEventListener('nav-mic-press', handleMicPress);
+        window.addEventListener('nav-mic-release', handleMicRelease);
+
+        return () => {
+            window.removeEventListener('nav-mic-press', handleMicPress);
+            window.removeEventListener('nav-mic-release', handleMicRelease);
+        };
+    }, [isListening, startRecording, stopRecording]);
 
     // Check Local AI availability
     useEffect(() => {
@@ -101,8 +140,20 @@ const Chat = () => {
                 // Find or Create Customer
                 let customerId = null;
                 if (actionData.customer_name) {
-                    const { data: cust } = await supabase.from('customers')
-                        .select('id').ilike('name', actionData.customer_name.trim()).eq('user_id', user.id).maybeSingle();
+                    // Try fuzzy match first, then exact ilike
+                    let cust = null;
+                    try {
+                        const { data: fuzzyCust } = await supabase.rpc('fuzzy_match_customer', {
+                            query: actionData.customer_name.trim(),
+                            uid: user.id
+                        });
+                        if (fuzzyCust && fuzzyCust.length > 0) cust = { id: fuzzyCust[0].id };
+                    } catch (_) {
+                        // RPC not yet available — fall back to ilike
+                        const { data: ilikeCust } = await supabase.from('customers')
+                            .select('id').ilike('name', actionData.customer_name.trim()).eq('user_id', user.id).maybeSingle();
+                        cust = ilikeCust;
+                    }
 
                     if (cust) {
                         customerId = cust.id;
@@ -111,57 +162,79 @@ const Chat = () => {
                         const { data: newCust, error: createError } = await supabase.from('customers').insert({
                             user_id: user.id,
                             name: actionData.customer_name.trim(),
-                            phone: null, // Phone unknown at this stage
+                            phone: null,
                             address: null
                         }).select('id').single();
-
-                        if (!createError && newCust) {
-                            customerId = newCust.id;
-                            console.log("Auto-created new customer:", actionData.customer_name);
-                        } else {
-                            console.error("Failed to auto-create customer:", createError);
-                        }
+                        if (!createError && newCust) customerId = newCust.id;
                     }
                 }
 
-                // Create Sale Header
-                const totalAmount = actionData.items.reduce((acc, item) => acc + (item.quantity * (item.price || 0)), 0);
+                // Tax-aware Grand Total calculation
+                let grandTotal = 0;
+                let totalSubtotal = 0;
+                let totalTax = 0;
 
+                const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
+                    const qty = parseFloat(item.quantity) || 0;
+                    const rate = parseFloat(item.price) || 0;
+                    const taxPct = parseFloat(item.tax_percent) || 0;
+                    const taxAmt = (qty * rate * taxPct) / 100;
+                    const lineTotal = qty * rate + taxAmt;
+                    totalSubtotal += qty * rate;
+                    totalTax += taxAmt;
+                    grandTotal += lineTotal;
+
+                    // Find product_id via fuzzy RPC (with ilike fallback)
+                    let prodId = null;
+                    try {
+                        const { data: fp } = await supabase.rpc('fuzzy_match_product', {
+                            query: item.product_name,
+                            uid: user.id
+                        });
+                        if (fp && fp.length > 0) prodId = fp[0].id;
+                    } catch (_) {
+                        const { data: ilp } = await supabase.from('products')
+                            .select('id').ilike('name', `%${item.product_name}%`).eq('user_id', user.id).limit(1);
+                        if (ilp && ilp.length > 0) prodId = ilp[0].id;
+                    }
+
+                    return { ...item, product_id: prodId, line_total: lineTotal };
+                }));
+
+                // Create Sale Header
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
-                    customer_id: customerId, // might be null
-                    invoice_type: businessProfile?.is_gst_registered ? 'gst' : 'regular', // Use actual profile setting
-                    subtotal: totalAmount,
-                    total_amount: totalAmount,
-                    payment_status: 'paid', // Default to paid for voice actions? Or "credit" if specified? Let's assume paid for quick sales for now.
+                    customer_id: customerId,
+                    invoice_type: businessProfile?.is_gst_registered ? 'gst' : 'regular',
+                    subtotal: totalSubtotal,
+                    total_tax_amount: totalTax,
+                    total_amount: grandTotal,
+                    payment_status: 'paid',
                     created_at: new Date()
                 }).select().single();
 
                 if (saleError) throw saleError;
 
-                // Create Sale Items (Need to verify products exist?)
-                // For simplicity, we assume products match via names or just insert as text if supported. 
-                // But sale_items usually needs product_id. 
-                // Voice loop simplification: Search product by name to get ID.
-                for (const item of actionData.items) {
-                    const { data: prod } = await supabase.from('products')
-                        .select('id, name, selling_price').ilike('name', item.product_name).eq('user_id', user.id).single();
-
+                // Create Sale Items & Decrement Stock
+                for (const item of enrichedItems) {
                     await supabase.from('sale_items').insert({
                         user_id: user.id,
                         sale_id: sale.id,
-                        product_id: prod?.id,
+                        product_id: item.product_id || null,
                         quantity: item.quantity,
-                        unit_price: item.price || prod?.selling_price || 0,
-                        total_price: item.quantity * (item.price || prod?.selling_price || 0)
+                        unit_price: item.price || 0,
+                        total_price: item.line_total
                     });
-
-                    // Decrement stock
-                    if (prod?.id) {
-                        await supabase.rpc('decrement_stock', { p_id: prod.id, qty: item.quantity });
+                    // Decrement stock only if product was found
+                    if (item.product_id) {
+                        await supabase.rpc('decrement_stock', { p_id: item.product_id, qty: item.quantity });
                     }
                 }
-                alert("✅ Invoice Created Successfully!");
+
+                setMessages(prev => [
+                    ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                    { type: 'bot', text: `✅ Invoice Created! Total: ₹${grandTotal.toFixed(2)}` }
+                ]);
             }
 
             // 2. PRODUCT CREATION
@@ -189,40 +262,52 @@ const Chat = () => {
             // 3. PAYMENT RECORDING
             if (actionData.type === 'payment_draft') {
                 try {
-                    // 1. Find the customer
-                    const { data: customers, error: searchError } = await supabase
-                        .from('customers')
-                        .select('id, name, credit_balance')
-                        .ilike('name', `%${actionData.customer_name}%`)
-                        .eq('user_id', user.id)
-                        .limit(1);
+                    // Fuzzy match customer — RPC first, ilike fallback
+                    let customer = null;
+                    try {
+                        const { data: fuzzyRes } = await supabase.rpc('fuzzy_match_customer', {
+                            query: actionData.customer_name,
+                            uid: user.id
+                        });
+                        if (fuzzyRes && fuzzyRes.length > 0) customer = fuzzyRes[0];
+                    } catch (_) {
+                        const { data: customers } = await supabase
+                            .from('customers').select('id, name, credit_balance')
+                            .ilike('name', `%${actionData.customer_name}%`).eq('user_id', user.id).limit(1);
+                        if (customers && customers.length > 0) customer = customers[0];
+                    }
 
-                    if (searchError || !customers || customers.length === 0) {
+                    if (!customer) {
                         alert(`Customer "${actionData.customer_name}" not found!`);
                         return;
                     }
 
-                    const customer = customers[0];
-                    const amount = Math.abs(parseFloat(actionData.amount) || 0); // Always positive
-                    const isPayment = actionData.payment_type === 'payment'; // true = deduct dues
+                    const amount = Math.abs(parseFloat(actionData.amount) || 0);
+                    const isPayment = actionData.payment_type === 'payment';
                     const oldBalance = parseFloat(customer.credit_balance) || 0;
-
-                    // credit_balance stores POSITIVE values (e.g., ₹500 owed = 500)
-                    // 'payment' → receives money, dues go DOWN → subtract
-                    // 'credit' → gives udhar, dues go UP → add
                     const newBalance = isPayment
-                        ? Math.max(0, oldBalance - amount)   // Dues reduced, floor at 0
-                        : oldBalance + amount;               // Dues increased
+                        ? Math.max(0, oldBalance - amount)
+                        : oldBalance + amount;
 
-                    // 2. Update Customer Table
+                    // 1. Update Customer Balance
                     const { error: updateError } = await supabase
-                        .from('customers')
-                        .update({ credit_balance: newBalance })
-                        .eq('id', customer.id);
-
+                        .from('customers').update({ credit_balance: newBalance }).eq('id', customer.id);
                     if (updateError) throw updateError;
 
-                    // 3. Update Chat UI
+                    // 2. Insert Ledger Record (history)
+                    try {
+                        await supabase.from('customer_ledger').insert({
+                            user_id: user.id,
+                            customer_id: customer.id,
+                            amount,
+                            type: isPayment ? 'payment' : 'credit',
+                            mode: actionData.mode || 'Cash',
+                            note: `${isPayment ? 'Payment received' : 'Credit given'} via AI`
+                        });
+                    } catch (ledgerErr) {
+                        console.warn('Ledger insert failed (table may not exist yet):', ledgerErr);
+                    }
+
                     const action = isPayment ? '✅ Payment Received!' : '📋 Credit Added!';
                     const balanceMsg = newBalance === 0 ? '₹0 (Cleared!)' : `₹${newBalance.toFixed(2)}`;
                     setMessages(prev => [...prev, {
@@ -249,15 +334,45 @@ const Chat = () => {
                     alert("Failed to add customer: " + error.message);
                     return;
                 }
-
                 setMessages(prev => [
-                    // Remove the ActionCard (attachment) from the last AI message
                     ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                    {
-                        type: 'bot',
-                        text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}`
-                    }
+                    { type: 'bot', text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}` }
                 ]);
+            }
+
+            // 5. RESTOCK
+            if (actionData.type === 'restock_draft') {
+                try {
+                    // Find product via fuzzy match
+                    let prodId = null;
+                    let prodName = actionData.product_name;
+                    try {
+                        const { data: fp } = await supabase.rpc('fuzzy_match_product', {
+                            query: actionData.product_name,
+                            uid: user.id
+                        });
+                        if (fp && fp.length > 0) { prodId = fp[0].id; prodName = fp[0].name; }
+                    } catch (_) {
+                        const { data: ilp } = await supabase.from('products')
+                            .select('id, name').ilike('name', `%${actionData.product_name}%`).eq('user_id', user.id).limit(1);
+                        if (ilp && ilp.length > 0) { prodId = ilp[0].id; prodName = ilp[0].name; }
+                    }
+
+                    if (!prodId) {
+                        alert(`Product "${actionData.product_name}" not found! Please add it first.`);
+                        return;
+                    }
+
+                    await supabase.rpc('increment_stock', { p_id: prodId, qty: actionData.quantity_to_add });
+
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        { type: 'bot', text: `✅ Restocked!\n\n📦 ${prodName}\n+${actionData.quantity_to_add} units added to stock.` }
+                    ]);
+                } catch (err) {
+                    console.error('Restock error:', err);
+                    alert('Failed to restock: ' + err.message);
+                }
             }
 
         } catch (error) {
@@ -302,7 +417,17 @@ const Chat = () => {
                                 {msg.image && (
                                     <img src={msg.image} alt="Attachment" className="max-w-full rounded-lg mb-2 border border-white/20" />
                                 )}
-                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                {msg.text === '🎤 ...' ? (
+                                    <div className="flex items-center gap-1.5 h-5 px-2">
+                                        <div className="w-1 bg-white/80 rounded-full h-2 animate-[pulse_1s_ease-in-out_infinite]" />
+                                        <div className="w-1 bg-white/80 rounded-full h-4 animate-[pulse_1s_ease-in-out_infinite_100ms]" />
+                                        <div className="w-1 bg-white/80 rounded-full h-3 animate-[pulse_1s_ease-in-out_infinite_200ms]" />
+                                        <div className="w-1 bg-white/80 rounded-full h-5 animate-[pulse_1s_ease-in-out_infinite_300ms]" />
+                                        <div className="w-1 bg-white/80 rounded-full h-2 animate-[pulse_1s_ease-in-out_infinite_400ms]" />
+                                    </div>
+                                ) : (
+                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                )}
                             </div>
 
                             {/* Render Attachment as ActionCard */}
@@ -315,6 +440,13 @@ const Chat = () => {
                                     onApprove={(editedData) => handleApproveAction(editedData)}
                                     businessProfile={businessProfile}
                                 />
+                            )}
+                            {/* Image prompt indicator */}
+                            {msg.isImagePrompt && msg.image_url && (
+                                <div className="mt-2 rounded-xl overflow-hidden border border-indigo-200 max-w-[80%]">
+                                    <img src={msg.image_url} alt="Uploaded" className="w-full object-cover max-h-40" />
+                                    <p className="text-[10px] text-center text-indigo-500 py-1 bg-indigo-50">📷 Tap mic or type your intent above</p>
+                                </div>
                             )}
                         </div>
                     );
@@ -377,39 +509,21 @@ const Chat = () => {
                 />
 
                 {input.trim() ? (
-                    <button onClick={handleSend} className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition">
-                        <Send size={20} />
+                    <button onClick={handleSend} className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition relative overflow-hidden group">
+                        <Send size={20} className="relative z-10 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                     </button>
                 ) : (
                     <button
-                        onMouseDown={() => {
-                            timerRef.current = setTimeout(() => {
-                                startRecording();
-                            }, 500); // Wait 500ms before starting
-                        }}
-                        onMouseUp={() => {
-                            if (timerRef.current) clearTimeout(timerRef.current);
+                        onClick={() => {
                             if (isListening) stopRecording();
-                        }}
-                        onTouchStart={() => {
-                            timerRef.current = setTimeout(() => {
-                                startRecording();
-                            }, 500);
-                        }}
-                        onTouchEnd={() => {
-                            if (timerRef.current) clearTimeout(timerRef.current);
-                            if (isListening) stopRecording();
-                        }}
-                        onMouseLeave={() => {
-                            if (timerRef.current) clearTimeout(timerRef.current);
-                            if (isListening) stopRecording();
+                            else startRecording();
                         }}
                         className={`p-2.5 rounded-full shadow-md transition-all select-none ${isListening
-                            ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200'
+                            ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200 scale-110'
                             : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
                             }`}
                     >
-                        <Mic size={20} />
+                        <Mic size={20} className={isListening ? "animate-bounce" : ""} />
                     </button>
                 )}
             </div>

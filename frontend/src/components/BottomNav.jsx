@@ -16,7 +16,7 @@ const NavItem = ({ to, icon: Icon, label }) => (
     </NavLink>
 );
 
-const BottomNav = ({ isListening, onMicClick, onMenuClick }) => {
+const BottomNav = ({ isListening, onMenuClick, ...props }) => {
     return (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe z-50">
             <div className="relative flex items-center justify-between h-16 px-2 max-w-md mx-auto">
@@ -29,7 +29,14 @@ const BottomNav = ({ isListening, onMicClick, onMenuClick }) => {
 
                 {/* Center Space for FAB */}
                 <div className="w-1/5 relative">
-                    <VoiceFAB isListening={isListening} onClick={onMicClick} />
+                    <VoiceFAB
+                        isListening={isListening}
+                        onTouchStart={props.onTouchStart}
+                        onTouchEnd={props.onTouchEnd}
+                        onMouseDown={props.onMouseDown}
+                        onMouseUp={props.onMouseUp}
+                        onMouseLeave={props.onMouseLeave}
+                    />
                 </div>
 
                 {/* Right Links */}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send } from 'lucide-react';
+import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -90,22 +90,8 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/chat" icon={MessageSquare} label="AI Assistant" onClick={onClose} />
                             <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
 
-                            {/* Telegram Bot Link */}
-                            <a
-                                href="https://t.me/SathiAibot"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={onClose}
-                                className="flex items-center gap-3 p-3 rounded-lg transition-all text-slate-600 hover:bg-sky-50 hover:text-sky-600 mt-2 border-t border-slate-100 pt-4"
-                            >
-                                <div className="p-2 rounded-md bg-sky-100">
-                                    <Send size={20} strokeWidth={1.5} className="text-sky-600" />
-                                </div>
-                                <span className="font-semibold text-sm">Telegram Bot</span>
-                                <span className="ml-auto text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-600">
-                                    Open
-                                </span>
-                            </a>
+                            {/* Connections Link */}
+                            <NavItem to="/connections" icon={LinkIcon} label="Connections" onClick={onClose} />
                         </div>
 
                         {/* Footer */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw, Package, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import InvoiceTemplate from './InvoiceTemplate';
 
 const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
@@ -105,8 +105,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // It should work fine as long as profiles table structure matches what we expect.
         // If businessProfile is null (loading/error), default to "My Shop"
 
+        // INVOICE (Handled by InvoiceTemplate now, skipping this wrapper if it's external, but wait, InvoiceTemplate is inside ActionCard? No, InvoiceTemplate is separate component. The ActionCard doesn't wrap it in a box here, it just returns InvoiceTemplate).
+        // Product Draft Wrapper
         return (
-            <div className="bg-white rounded-xl shadow-lg border border-indigo-100 overflow-hidden mt-4 w-full max-w-2xl mx-auto transition-all">
+            <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-indigo-100/50 overflow-hidden mt-4 w-full max-w-2xl mx-auto transition-all">
                 {/* Header Toolbar */}
                 <div className="bg-slate-50 p-3 flex justify-between items-center border-b border-slate-200">
                     <div className="flex items-center gap-2">
@@ -224,7 +226,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         });
 
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-indigo-100 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md">
+            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-indigo-100/50 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
                 <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
                     <div className="flex items-center gap-2">
                         <Package size={18} className="text-indigo-600" />
@@ -395,7 +397,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         };
 
         return (
-            <div className={`bg-white rounded-xl shadow-sm border overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md ${isCredit ? 'border-red-200' : 'border-emerald-200'}`}>
+            <div className={`bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] ${isCredit ? 'border-red-200' : 'border-emerald-200'}`}>
                 {/* Header with Toggle */}
                 <div className={`px-4 py-3 border-b flex justify-between items-center ${isCredit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <div className={`flex items-center gap-2 ${isCredit ? 'text-red-700' : 'text-emerald-700'}`}>
@@ -502,7 +504,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 5. CUSTOMER DRAFT CARD
     if (type === 'customer_draft') {
         return (
-            <div className="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-md">
+            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-indigo-100/50 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
                 {/* Header */}
                 <div className="bg-blue-50 px-4 py-3 flex justify-between items-center border-b border-blue-100">
                     <div className="flex items-center gap-2">
@@ -572,6 +574,162 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Check size={16} /> Add Customer
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // 5. RESTOCK DRAFT CARD
+    if (type === 'restock_draft') {
+        return (
+            <div className="rounded-2xl border border-green-200 shadow-lg overflow-hidden bg-white">
+                <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                        <RefreshCw size={18} className="text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-sm">Restock Draft</h3>
+                        <p className="text-green-100 text-xs">Review &amp; approve stock addition</p>
+                    </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Product</label>
+                        <input
+                            type="text"
+                            value={localData.product_name || ''}
+                            onChange={e => setLocalData({ ...localData, product_name: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-slate-800"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Quantity to Add</label>
+                        <input
+                            type="number"
+                            value={localData.quantity_to_add || ''}
+                            onChange={e => setLocalData({ ...localData, quantity_to_add: parseInt(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-slate-800"
+                        />
+                    </div>
+                </div>
+
+                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                    <button onClick={onDiscard} className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                        <X size={16} /> Cancel
+                    </button>
+                    <button
+                        onClick={() => onApprove(localData)}
+                        disabled={!localData.product_name || !localData.quantity_to_add}
+                        className="flex-1 py-2 px-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Check size={16} /> Confirm Restock
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // 6. MULTI-ITEM BATCH DRAFT CARD (from photo or bulk AI extraction)
+    if (type === 'multi_item_draft') {
+        const PURPOSES = [
+            { value: 'invoice', label: '🧾 Invoice', color: 'indigo' },
+            { value: 'add_stock', label: '📦 Add New Products', color: 'blue' },
+            { value: 'restock', label: '🔄 Restock Existing', color: 'green' },
+        ];
+
+        const [batchItems, setBatchItems] = useState(localData.items || []);
+        const [purpose, setPurpose] = useState(localData.purpose || 'invoice');
+
+        const handleItemChange = (idx, field, val) => {
+            const updated = [...batchItems];
+            updated[idx] = { ...updated[idx], [field]: val };
+            setBatchItems(updated);
+        };
+
+        const handleApproveAll = () => {
+            onApprove({ ...localData, type: `${purpose}_draft`, items: batchItems, purpose });
+        };
+
+        return (
+            <div className="rounded-2xl border border-indigo-200 shadow-lg overflow-hidden bg-white">
+                <div className="bg-gradient-to-r from-indigo-600 to-violet-500 px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Layers size={18} className="text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-sm">Batch Review</h3>
+                        <p className="text-indigo-100 text-xs">{batchItems.length} items extracted — review and approve all</p>
+                    </div>
+                </div>
+
+                {/* Purpose Selector */}
+                <div className="px-4 pt-3 pb-2">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What are these items for?</label>
+                    <div className="flex gap-2 flex-wrap">
+                        {PURPOSES.map(p => (
+                            <button
+                                key={p.value}
+                                onClick={() => setPurpose(p.value)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${purpose === p.value
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                    }`}
+                            >{p.label}</button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="px-4 pb-3 space-y-2">
+                    <div className="grid grid-cols-12 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
+                        <span className="col-span-5">Item</span>
+                        <span className="col-span-3 text-center">Qty</span>
+                        <span className="col-span-3 text-center">Price</span>
+                        <span className="col-span-1"></span>
+                    </div>
+                    {batchItems.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-12 gap-1 items-center">
+                            <input
+                                className="col-span-5 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium"
+                                value={item.product_name || item.name || ''}
+                                onChange={e => handleItemChange(idx, 'product_name', e.target.value)}
+                                placeholder="Product"
+                            />
+                            <input
+                                className="col-span-3 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
+                                type="number" min="0"
+                                value={item.quantity || ''}
+                                onChange={e => handleItemChange(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                                placeholder="Qty"
+                            />
+                            <input
+                                className="col-span-3 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
+                                type="number" min="0"
+                                value={item.price || ''}
+                                onChange={e => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
+                                placeholder="₹"
+                            />
+                            <button
+                                onClick={() => setBatchItems(prev => prev.filter((_, i) => i !== idx))}
+                                className="col-span-1 flex items-center justify-center text-slate-300 hover:text-red-400 transition-colors"
+                            ><X size={14} /></button>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                    <button onClick={onDiscard} className="py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5">
+                        <X size={15} /> Discard
+                    </button>
+                    <button
+                        onClick={handleApproveAll}
+                        disabled={batchItems.length === 0}
+                        className="flex-1 py-2.5 px-4 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200/50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        <Check size={16} /> ✅ Approve All ({batchItems.length} items)
                     </button>
                 </div>
             </div>

@@ -285,46 +285,60 @@ const Sales = () => {
 
     return (
         <div className="pb-20 min-h-screen bg-slate-50">
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 p-4 shadow-sm flex justify-between items-center">
-                <h1 className="text-xl font-heading font-bold text-slate-900">Sales History</h1>
-                <button className="p-2 bg-slate-50 text-slate-600 rounded-lg">
+            <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-2xl border-b border-slate-200/50 p-4 md:p-6 flex justify-between items-center shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600">
+                        <FileText size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight leading-none">Sales Ledger</h1>
+                        <p className="text-sm font-medium text-slate-500 mt-1">Track and manage invoices</p>
+                    </div>
+                </div>
+                <button className="p-2.5 bg-white border border-slate-200/60 text-slate-600 rounded-xl shadow-sm hover:bg-slate-50 hover:text-indigo-600 transition-colors">
                     <Calendar size={20} />
                 </button>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-4 md:p-6 space-y-4">
                 {loading && !salesHistory.length ? (
                     <div className="flex justify-center p-10"><Loader className="animate-spin text-indigo-600" /></div>
                 ) : (
-                    salesHistory.map((sale) => (
+                    salesHistory.map((sale, index) => (
                         <motion.div
-                            key={sale.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                            className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between"
+                            key={sale.id}
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05, duration: 0.3 }}
+                            className="bg-white/60 backdrop-blur-xl rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-200/60 flex items-center justify-between hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:border-slate-300/50 transition-all duration-300 group relative overflow-hidden"
                         >
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
-                                    <FileText size={20} />
+                            {/* Background Highlight */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                            <div className="flex items-center gap-4 relative z-10">
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200/50 flex items-center justify-center text-orange-500 group-hover:scale-105 transition-transform duration-300">
+                                    <FileText size={24} className="group-hover:text-orange-600 transition-colors" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-slate-800">INV-{sale.id}</h3>
-                                    <p className="text-xs text-slate-500">
-                                        {sale.customers?.name || "Unknown"} • {new Date(sale.created_at).toLocaleDateString()}
+                                    <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-900 transition-colors">INV-{sale.id}</h3>
+                                    <p className="text-sm font-medium text-slate-500 mt-0.5">
+                                        <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md font-bold">{sale.customers?.name || "Cash Customer"}</span> <span className="mx-1">•</span> {new Date(sale.created_at).toLocaleDateString()}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-4 relative z-10">
                                 <div className="text-right mr-2">
-                                    <div className="font-bold text-slate-900">₹{sale.total_amount}</div>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold capitalize ${sale.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                    <div className="font-extrabold text-slate-900 text-xl tracking-tight">₹{sale.total_amount}</div>
+                                    <span className={`inline-block mt-1 text-[11px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${sale.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-600' : sale.payment_status === 'partial' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
                                         }`}>
                                         {sale.payment_status}
                                     </span>
                                 </div>
                                 <button
                                     onClick={() => handleViewReceipt(sale)}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg transition-colors"
+                                    className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:bg-indigo-50 focus:ring-4 focus:ring-indigo-500/10 transition-all opacity-0 group-hover:opacity-100"
                                 >
-                                    <Eye size={18} />
+                                    <Eye size={20} />
                                 </button>
                             </div>
                         </motion.div>
