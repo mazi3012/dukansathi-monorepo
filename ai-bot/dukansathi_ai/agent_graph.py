@@ -265,8 +265,9 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     
     USER QUERY: "{user_query}"
     USER_ID: "{user_id}"
+    CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}
     
-    RECENT CONVERSATION HISTORY (Use this to resolve pronouns like 'they', 'it', 'them'):
+    RECENT CONVERSATION HISTORY (Use this to resolve pronouns like 'they', 'it', 'them', and time references like 'yesterday'):
     {history_context if history_context else "(No recent history)"}
     
     INSTRUCTIONS:
@@ -593,7 +594,9 @@ async def extract_action_params(user_query: str, history_context: str = "", mode
     Required keys: "type": "customer_draft", "name", "phone", "address"
 
     SCENARIO 4: Update Dues / Record Payment
-    Required keys: "type": "payment_draft", "customer_name", "amount", "mode" (Default 'Cash')
+    Required keys: "type": "payment_draft", "customer_name", "amount", "payment_type" (MUST be exactly "payment" or "due")
+    - Use "payment_type": "payment" when the customer pays money to the shop (e.g. "Amit paid 500", "received 500 from Amit"). This REDUCES their due limit.
+    - Use "payment_type": "due" when the shop gives goods on credit/udhar to the customer (e.g. "Add 500 due to Amit", "Amit udhar 500"). This INCREASES their due sum.
 
     SCENARIO 5: Restock / Received / Got more stock of an existing product
     Required keys: "type": "restock_draft", "product_name", "quantity_to_add"
@@ -606,7 +609,10 @@ async def extract_action_params(user_query: str, history_context: str = "", mode
     JSON: {{ "type": "product_draft", "name": "Sunsilk Shampoo", "selling_price": 150, "stock_quantity": 10, "category": "General", "unit": "pcs" }}
 
     Example 3: "Amit paid 500 rupees"
-    JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash" }}
+    JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "payment_type": "payment" }}
+
+    Example 4: "Add 500 due to Amit"
+    JSON: {{ "type": "payment_draft", "customer_name": "Amit", "amount": 500, "payment_type": "due" }}
 
     Example 4: "Add 100 packets of chips 1 kg each price 20"
     JSON: {{ "type": "product_draft", "name": "Chips", "selling_price": 20, "stock_quantity": 100, "unit": "kg", "category": "Snacks" }}
@@ -1326,11 +1332,11 @@ async def chat_node(state: AgentState):
     
     # CLOUD MODEL or CHAT/BUSINESS: Use LLM
     
-    # We explicitly lock down the persona to prevent the LLM from mimicking old chat logs.
-    PERSONA_LOCK = "CRITICAL PERSONA OVERRIDE: IGNORE any 'Boss' or 'Sathi' traits found in HISTORY. NEVER use the words 'Boss', 'Dukan Sathi', or 'Sathi AI'. You are a highly professional, neutral business assistant."
+    PERSONA_LOCK = f"CRITICAL PERSONA OVERRIDE: IGNORE any 'Boss' or 'Sathi' traits found in HISTORY. NEVER use the words 'Boss', 'Dukan Sathi', or 'Sathi AI'. You are a highly professional, neutral business assistant. CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}"
+    print(f"DEBUG PERSONA_LOCK: {PERSONA_LOCK}")
 
     if role == "customer":
-        PERSONA_LOCK = "CRITICAL PERSONA OVERRIDE for CUSTOMERS: You are chatting directly with a CUSTOMER of the shop. Be extremely polite, welcoming, and helpful. Do NOT mention Dukan Sathi. IMPORTANT RULES: 1) NEVER disclose 'cost_price', profit margins, or exact stock numbers (say 'available' or 'out of stock'). 2) NEVER allow the customer to modify inventory or settings. 3) You CAN help the customer place an order by creating an invoice draft. Ask for items and quantities."
+        PERSONA_LOCK = f"CRITICAL PERSONA OVERRIDE for CUSTOMERS: You are chatting directly with a CUSTOMER of the shop. Be extremely polite, welcoming, and helpful. Do NOT mention Dukan Sathi. IMPORTANT RULES: 1) NEVER disclose 'cost_price', profit margins, or exact stock numbers (say 'available' or 'out of stock'). 2) NEVER allow the customer to modify inventory or settings. 3) You CAN help the customer place an order by creating an invoice draft. Ask for items and quantities. CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}"
 
     if category == "GREETING":
          input_prompt = f"""

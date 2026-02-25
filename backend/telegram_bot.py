@@ -275,18 +275,26 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             if not cust_res.data:
                 return f"❌ Customer '{customer_name}' not found.", None
                 
-            customer = cust_res.data[0]
-            raw_balance = customer.get("credit_balance")
-            old_balance = float(raw_balance) if raw_balance is not None else 0.0
+            customer_id = cust_res.data[0]["id"]
             
             if is_payment:
-                new_balance = float(max(0, old_balance - amount))
+                # Payment received (reduces due)
+                update_result = supabase.rpc("receive_payment", {
+                    "p_user_id": user_id,
+                    "p_customer_id": customer_id,
+                    "p_amount": amount
+                }).execute()
+                new_balance = update_result.data if update_result and update_result.data is not None else 0
+                return f"✅ Recorded ₹{amount} payment for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
             else:
-                new_balance = float(old_balance + amount)
-            
-            supabase.table("customers").update({"credit_balance": new_balance}).eq("id", customer.get("id")).execute()
-            
-            return f"✅ Recorded ₹{amount} {payment_type} for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
+                # Udhar/Credit given (increases due)
+                update_result = supabase.rpc("add_customer_credit", {
+                    "p_user_id": user_id,
+                    "p_customer_id": customer_id,
+                    "p_amount": amount
+                }).execute()
+                new_balance = update_result.data if update_result and update_result.data is not None else 0
+                return f"✅ Added ₹{amount} Udhar for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
 
         elif draft_type == "invoice_draft":
             customer_name = draft.get("customer_name", "Walk-in")

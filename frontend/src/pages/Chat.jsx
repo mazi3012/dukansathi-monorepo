@@ -285,14 +285,27 @@ const Chat = () => {
                     const amount = Math.abs(parseFloat(actionData.amount) || 0);
                     const isPayment = actionData.payment_type === 'payment';
                     const oldBalance = parseFloat(customer.credit_balance) || 0;
-                    const newBalance = isPayment
-                        ? Math.max(0, oldBalance - amount)
-                        : oldBalance + amount;
 
-                    // 1. Update Customer Balance
-                    const { error: updateError } = await supabase
-                        .from('customers').update({ credit_balance: newBalance }).eq('id', customer.id);
-                    if (updateError) throw updateError;
+                    // 1. Update Customer Balance via RPC
+                    let newBalance = oldBalance;
+
+                    if (isPayment) {
+                        const { data: updatedBalance, error: updateError } = await supabase.rpc('receive_payment', {
+                            p_user_id: user.id,
+                            p_customer_id: customer.id,
+                            p_amount: amount
+                        });
+                        if (updateError) throw updateError;
+                        newBalance = updatedBalance;
+                    } else {
+                        const { data: updatedBalance, error: updateError } = await supabase.rpc('add_customer_credit', {
+                            p_user_id: user.id,
+                            p_customer_id: customer.id,
+                            p_amount: amount
+                        });
+                        if (updateError) throw updateError;
+                        newBalance = updatedBalance;
+                    }
 
                     // 2. Insert Ledger Record (history)
                     try {

@@ -604,17 +604,30 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                         
                         customer_id = customer_result.data[0]["id"]
                         
-                        # Update credit balance (payment reduces credit)
-                        update_result = supabase.rpc("update_customer_credit", {
-                            "p_customer_id": customer_id,
-                            "p_amount": amount,
-                            "p_operation": "subtract"  # Payment reduces credit
-                        }).execute()
+                        # Determine if this is a payment or giving due
+                        payment_type = draft_data.get("payment_type", "payment")
                         
-                        if update_result and update_result.data:
+                        if payment_type == "payment":
+                            # Payment received (reduces due)
+                            update_result = supabase.rpc("receive_payment", {
+                                "p_user_id": safe_user_id,
+                                "p_customer_id": customer_id,
+                                "p_amount": amount
+                            }).execute()
+                            success_msg = f"Payment of ₹{amount} recorded for {customer_name} Boss!"
+                        else:
+                            # Udhar/Credit given (increases due)
+                            update_result = supabase.rpc("add_customer_credit", {
+                                "p_user_id": safe_user_id,
+                                "p_customer_id": customer_id,
+                                "p_amount": amount
+                            }).execute()
+                            success_msg = f"₹{amount} Udhar added for {customer_name} Boss!"
+                        
+                        if update_result and update_result.data is not None:
                             await websocket.send_json({
                                 "type": "text",
-                                "content": f"Payment of ₹{amount} recorded for {customer_name} Boss!"
+                                "content": success_msg
                             })
                         else:
                             await websocket.send_json({
