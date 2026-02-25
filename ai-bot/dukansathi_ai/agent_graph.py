@@ -180,6 +180,10 @@ def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
     Attributes are cached so we don't re-auth on every token.
     """
     try:
+        # Override legacy gemini requests
+        if "gemini" in model_name.lower():
+            model_name = "llama-4-scout-17b-16e-instruct-maas"
+            
         # Check if model is a Local Model (Ollama)
         is_cloud_model = "llama-4" in model_name.lower() or "maas" in model_name.lower()
         if not is_cloud_model:

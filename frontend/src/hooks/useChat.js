@@ -10,7 +10,12 @@ export const useChat = () => {
     const [ws, setWs] = useState(null);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
-    const [model, setModel] = useState(localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas');
+    let initialModel = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
+    if (initialModel.includes('gemini')) {
+        initialModel = 'llama-4-scout-17b-16e-instruct-maas';
+        localStorage.setItem('model_id', initialModel);
+    }
+    const [model, setModel] = useState(initialModel);
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
