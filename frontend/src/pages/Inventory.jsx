@@ -28,6 +28,18 @@ const Inventory = () => {
     const fetchData = React.useCallback(async () => {
         try {
             setLoading(true);
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                // Guest/Local AI mode — load from local SQLite
+                const res = await fetch(`${API_URL}/api/local/products`);
+                if (!res.ok) throw new Error('Local API error');
+                const localData = await res.json();
+                setProducts(localData || []);
+                return;
+            }
+
             // 1. Get User Profile for GST Strategy
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -44,19 +56,7 @@ const Inventory = () => {
             if (error) throw error;
             setProducts(productsData || []);
         } catch (error) {
-            console.error('Error fetching inventory (Supabase):', error);
-            // Fallback to Local API
-            try {
-                console.log("Attempting to fetch from Local API...");
-                const res = await fetch('http://localhost:8000/api/local/products');
-                if (res.ok) {
-                    const localData = await res.json();
-                    setProducts(localData || []);
-                    console.log("Loaded products from Local API");
-                }
-            } catch (localErr) {
-                console.error("Error fetching local products:", localErr);
-            }
+            console.error('Error fetching inventory:', error);
         } finally {
             setLoading(false);
         }
@@ -103,11 +103,17 @@ const Inventory = () => {
 
     const handleSave = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return alert("Please login first");
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+
+            let user = null;
+            if (!isGuest) {
+                const { data: authData } = await supabase.auth.getUser();
+                user = authData.user;
+                if (!user) return alert("Please login first");
+            }
 
             const payload = {
-                user_id: user.id,
+                user_id: user ? user.id : 'anon',
                 name: formData.name,
                 description: formData.description,
                 sku: formData.sku,
@@ -129,20 +135,28 @@ const Inventory = () => {
             };
 
             let error;
-            if (editingId) {
-                const { error: updateError } = await supabase
-                    .from('products')
-                    .update(payload)
-                    .eq('id', editingId);
-                error = updateError;
+            if (isGuest) {
+                const res = await fetch('http://localhost:8000/api/local/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error("Local save failed");
             } else {
-                const { error: insertError } = await supabase
-                    .from('products')
-                    .insert([payload]);
-                error = insertError;
+                if (editingId) {
+                    const { error: updateError } = await supabase
+                        .from('products')
+                        .update(payload)
+                        .eq('id', editingId);
+                    error = updateError;
+                } else {
+                    const { error: insertError } = await supabase
+                        .from('products')
+                        .insert([payload]);
+                    error = insertError;
+                }
+                if (error) throw error;
             }
-
-            if (error) throw error;
 
             setShowModal(false);
             fetchData(); // Refresh list

@@ -19,6 +19,46 @@ const CustomerDetails = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                // 1. Fetch Local Customer Info
+                const custRes = await fetch(`${API_URL}/api/local/customers/${id}`);
+                if (!custRes.ok) throw new Error('Local Customer API error');
+                const custData = await custRes.json();
+                setCustomer(custData);
+
+                // 2. Fetch Local History (Sales & Payments)
+                const [salesRes, paymentsRes] = await Promise.all([
+                    fetch(`${API_URL}/api/local/sales?customer_name=${encodeURIComponent(custData.name)}`),
+                    fetch(`${API_URL}/api/local/payments?customer_name=${encodeURIComponent(custData.name)}`)
+                ]);
+
+                const localSales = salesRes.ok ? await salesRes.json() : [];
+                const localPayments = paymentsRes.ok ? await paymentsRes.json() : [];
+
+                // Map and Merge Transactions
+                const salesTxns = localSales.map(sale => ({
+                    id: `local-sale-${sale.id}`,
+                    type: 'SALE',
+                    amount: sale.total_amount,
+                    date: new Date(sale.created_at).toLocaleDateString(),
+                    description: `Bill #${sale.id}`
+                }));
+
+                const paymentsTxns = localPayments.map(p => ({
+                    id: `local-payment-${p.id}`,
+                    type: p.payment_type === 'credit' ? 'SALE' : 'PAYMENT',
+                    amount: p.amount,
+                    date: new Date(p.created_at).toLocaleDateString(),
+                    description: p.payment_type === 'credit' ? 'Credit Added' : 'Payment Received'
+                }));
+
+                const allTxns = [...salesTxns, ...paymentsTxns].sort((a, b) => new Date(b.date) - new Date(a.date));
+                setTransactions(allTxns);
+                return;
+            }
 
             // 1. Fetch Customer Info
             const { data: custData, error: custError } = await supabase
@@ -40,9 +80,6 @@ const CustomerDetails = () => {
             if (salesError) throw salesError;
 
             // Map sales to "Transactions" format for the Ledger View
-            // Currently assuming start balance + sales = credit match. 
-            // In a full ledger, we'd have a 'payments' table too.
-            // For now, we list Sales as Debits.
             const txns = salesData.map(sale => ({
                 id: sale.id,
                 type: 'SALE',
@@ -51,13 +88,10 @@ const CustomerDetails = () => {
                 description: `Invoice #${sale.id.slice(0, 6)}...` // Shorten UUID
             }));
 
-            // TODO: Fetch Payments if/when we have a payments table
-
             setTransactions(txns);
 
         } catch (error) {
             console.error("Error fetching customer details:", error);
-            // navigate('/customers'); // Optional: redirect on error
         } finally {
             setLoading(false);
         }

@@ -14,6 +14,18 @@ const Customers = () => {
     const fetchCustomers = React.useCallback(async () => {
         try {
             setLoading(true);
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                // Guest/Local AI mode — load from local SQLite
+                const res = await fetch(`${API_URL}/api/local/customers`);
+                if (!res.ok) throw new Error('Local API error');
+                const localData = await res.json();
+                setCustomers(localData || []);
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('customers')
                 .select('*')
@@ -22,19 +34,7 @@ const Customers = () => {
             if (error) throw error;
             setCustomers(data || []);
         } catch (err) {
-            console.error("Error fetching customers (Supabase):", err);
-            // Fallback to Local API
-            try {
-                console.log("Attempting to fetch from Local API...");
-                const res = await fetch('http://localhost:8000/api/local/customers');
-                if (res.ok) {
-                    const localData = await res.json();
-                    setCustomers(localData || []);
-                    console.log("Loaded customers from Local API");
-                }
-            } catch (localErr) {
-                console.error("Error fetching local customers:", localErr);
-            }
+            console.error("Error fetching customers:", err);
         } finally {
             setLoading(false);
         }
@@ -51,23 +51,39 @@ const Customers = () => {
 
     const handleSave = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return alert("Please login");
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+
+            let user = null;
+            if (!isGuest) {
+                const { data: authData } = await supabase.auth.getUser();
+                user = authData.user;
+                if (!user) return alert("Please login");
+            }
             if (!formData.name) return alert("Name is required");
 
-            const { error } = await supabase
-                .from('customers')
-                .insert([{
-                    user_id: user.id,
-                    name: formData.name,
-                    phone: formData.phone,
-                    email: formData.email,
-                    address: formData.address,
-                    total_spend: 0,
-                    credit_balance: 0
-                }]);
+            const payload = {
+                user_id: user ? user.id : 'anon',
+                name: formData.name,
+                phone: formData.phone,
+                email: formData.email,
+                address: formData.address,
+                total_spend: 0,
+                credit_balance: 0
+            };
 
-            if (error) throw error;
+            if (isGuest) {
+                const res = await fetch('http://localhost:8000/api/local/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error("Local save failed");
+            } else {
+                const { error } = await supabase
+                    .from('customers')
+                    .insert([payload]);
+                if (error) throw error;
+            }
 
             setShowModal(false);
             setFormData({ name: '', phone: '', email: '', address: '' });

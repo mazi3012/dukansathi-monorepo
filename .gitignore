@@ -41,3 +41,10 @@ credentials.json
 google-credentials.json
 *.pem
 *.key
+
+# Test & Verification
+test_*.py
+verify_*.py
+backend.log
+telegram_bot.log
+*.db

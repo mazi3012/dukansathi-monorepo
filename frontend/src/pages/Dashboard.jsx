@@ -108,6 +108,65 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                // ── LOCAL MODE: compute all stats from SQLite ──────────────
+                const [salesRes, productsRes, customersRes] = await Promise.all([
+                    fetch(`${API_URL}/api/local/sales`),
+                    fetch(`${API_URL}/api/local/products`),
+                    fetch(`${API_URL}/api/local/customers`),
+                ]);
+                const allSales = salesRes.ok ? await salesRes.json() : [];
+                const allProducts = productsRes.ok ? await productsRes.json() : [];
+                const allCustomers = customersRes.ok ? await customersRes.json() : [];
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const filteredSales = timeframe === 'today'
+                    ? allSales.filter(s => new Date(s.created_at) >= today)
+                    : allSales;
+
+                const revenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
+                const ordersCount = filteredSales.length;
+                const lowStock = allProducts.filter(p => (p.stock_quantity || 0) < 5).length;
+                const totalCusts = allCustomers.length;
+
+                // Recent 4 sales
+                const recent = allSales.slice(0, 4).map(s => ({
+                    id: s.id,
+                    total_amount: s.total_amount,
+                    payment_method: s.payment_method || 'cash',
+                    created_at: s.created_at,
+                    customers: { name: s.customer_name || 'Walk-in' }
+                }));
+
+                // Weekly chart — last 7 days
+                const weeklyAggregated = {};
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    weeklyAggregated[d.toLocaleDateString('en-US', { weekday: 'short' })] = 0;
+                }
+                const lastWeek = new Date();
+                lastWeek.setDate(lastWeek.getDate() - 6);
+                lastWeek.setHours(0, 0, 0, 0);
+                allSales.filter(s => new Date(s.created_at) >= lastWeek).forEach(s => {
+                    const key = new Date(s.created_at).toLocaleDateString('en-US', { weekday: 'short' });
+                    if (weeklyAggregated[key] !== undefined) {
+                        weeklyAggregated[key] += parseFloat(s.total_amount) || 0;
+                    }
+                });
+
+                setSalesData(Object.values(weeklyAggregated));
+                setStats({ revenue, ordersCount, lowStockCount: lowStock, totalCustomers: totalCusts });
+                setRecentSales(recent);
+                return;
+            }
+
+            // ── ONLINE MODE: Supabase ─────────────────────────────────────
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const todayISO = today.toISOString();

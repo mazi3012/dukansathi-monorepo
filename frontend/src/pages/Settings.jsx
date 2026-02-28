@@ -349,17 +349,26 @@ const Settings = () => {
                     <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
                 </section>
 
-                {/* AI Model Selection */}
-                {ollamaStatus === 'connected' && (
-                    <section className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-                        <div className="flex flex-col mb-4">
-                            <div className="flex items-center gap-2">
-                                <Brain className="text-indigo-600" size={20} />
-                                <h2 className="font-semibold text-slate-800">Local AI Models</h2>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">Select a model to run fully offline. Click the selected model again to deselect and use the default Cloud AI.</p>
+                {/* AI Model Selection — always visible */}
+                <section className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+                    <div className="flex flex-col mb-4">
+                        <div className="flex items-center gap-2">
+                            <Brain className="text-indigo-600" size={20} />
+                            <h2 className="font-semibold text-slate-800">Local AI Models</h2>
                         </div>
+                        <p className="text-xs text-slate-500 mt-1">Select a model to run fully offline. Click the selected model again to deselect and use the default Cloud AI.</p>
+                    </div>
 
+                    {ollamaStatus === 'offline' ? (
+                        <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                            <AlertCircle size={22} className="text-amber-500 shrink-0 mt-0.5" />
+                            <div className="text-sm text-amber-800">
+                                <p className="font-bold text-amber-900 mb-1">🔧 Offline AI — Developer Feature</p>
+                                <p className="mb-2">Local AI works only on the developer machine running Ollama. This feature is <strong>under development</strong> for web deployment.</p>
+                                <p className="text-xs text-amber-600">Meanwhile, the <strong>Cloud AI</strong> (Llama-4 Scout) is fully functional and recommended for all users. Install Ollama from <a href="https://ollama.com" className="underline font-bold" target="_blank" rel="noreferrer">ollama.com</a> if you are a developer.</p>
+                            </div>
+                        </div>
+                    ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {MODEL_OPTIONS.map((opt) => {
                                 const isLocal = opt.id.includes(':') || opt.id.includes('phi') || opt.id.includes('gemma');
@@ -373,14 +382,15 @@ const Settings = () => {
                                                 markChange();
                                             }}
                                             className={`w-full p-4 rounded-xl border text-left transition-all h-full ${selectedModel === opt.id
-                                                ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
-                                                : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
+                                                    ? 'border-indigo-600 bg-indigo-50 shadow-sm ring-1 ring-indigo-600'
+                                                    : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-1">
                                                 <div className="font-semibold text-slate-800">{opt.label}</div>
                                                 {isLocal && (
-                                                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${isDownloaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${isDownloaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                                                        }`}>
                                                         {isDownloaded ? 'Local Ready' : 'External'}
                                                     </span>
                                                 )}
@@ -408,18 +418,8 @@ const Settings = () => {
                                 );
                             })}
                         </div>
-
-                        {ollamaStatus === 'offline' && (
-                            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                                <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-                                <div className="text-xs text-amber-700">
-                                    <p className="font-bold mb-1">Ollama is not running!</p>
-                                    <p>To use local models, please install Ollama from <a href="https://ollama.com" className="underline font-bold" target="_blank" rel="noreferrer">ollama.com</a> and make sure it's running on your system.</p>
-                                </div>
-                            </div>
-                        )}
-                    </section>
-                )}
+                    )}
+                </section>
 
                 {/* Voice Selection */}
                 <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">

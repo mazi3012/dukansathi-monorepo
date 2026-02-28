@@ -131,18 +131,124 @@ if setup_router:
 
 # --- Local Data Endpoints (for Offline Mode) ---
 @app.get("/api/local/customers")
-async def get_local_customers(user_id: str = "anon"):
+async def get_local_customers(user_id: str = "local_guest"):
     """Get customers from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_customers_local(user_id)
 
 @app.get("/api/local/products")
-async def get_local_products(user_id: str = "anon"):
+async def get_local_products(user_id: str = "local_guest"):
     """Get products from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_products_local(user_id)
+
+@app.post("/api/local/products")
+async def save_local_product(request: Request, user_id: str = "local_guest"):
+    """Save a product to local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    data = await request.json()
+    product_id = local_db.save_product_local(data, user_id)
+    if product_id is None:
+         raise HTTPException(status_code=500, detail="Failed to save product locally")
+    return {"status": "success", "id": product_id}
+
+@app.post("/api/local/customers")
+async def save_local_customer(request: Request, user_id: str = "local_guest"):
+    """Save a customer to local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    data = await request.json()
+    customer_id = local_db.save_customer_local(data, user_id)
+    if customer_id is None:
+         raise HTTPException(status_code=500, detail="Failed to save customer locally")
+    return {"status": "success", "id": customer_id}
+
+@app.post("/api/local/restock")
+async def restock_local_product(request: Request):
+    """Restock a product in local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    data = await request.json()
+    product = local_db.restock_product_local(data)
+    if product is None:
+        raise HTTPException(status_code=500, detail="Failed to restock product locally")
+    return {"status": "success", "product": product}
+
+@app.get("/api/local/customers/{customer_id}")
+async def get_local_customer_detail(customer_id: int):
+    """Get customer details by rowid locally."""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    customer = local_db.get_customer_by_id_local(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+@app.post("/api/local/sales")
+async def save_local_sale(request: Request):
+    """Save an offline invoice/sale to local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    data = await request.json()
+    sale_id = local_db.save_invoice_local(data)
+    if sale_id is None:
+        raise HTTPException(status_code=500, detail="Failed to save invoice locally")
+    return {"status": "success", "id": sale_id}
+
+@app.get("/api/local/sales")
+async def get_local_sales(customer_name: str = None):
+    """Get all offline invoices from local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    return local_db.get_invoices_local(customer_name)
+
+@app.post("/api/local/payments")
+async def save_local_payment(request: Request):
+    """Save an offline payment or due record to local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    data = await request.json()
+    payment_id = local_db.save_payment_local(data)
+    if payment_id is None:
+        raise HTTPException(status_code=500, detail="Failed to save payment locally")
+    return {"status": "success", "id": payment_id}
+
+@app.get("/api/local/payments")
+async def get_local_payments(customer_name: str = None):
+    """Get all offline payment/due records from local SQLite DB"""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    return local_db.get_payments_local(customer_name)
+
+@app.post("/api/local/reset-demo")
+async def reset_demo_data():
+    """Clear all demo/guest session data from local SQLite DB.
+    Called at the start of each new demo session to ensure isolation."""
+    if not local_db:
+        raise HTTPException(status_code=503, detail="Local DB not available")
+    try:
+        from dukansathi_ai.agent_graph import clear_user_memory
+        clear_user_memory("demo_session")
+        
+        conn = local_db.get_db_connection()
+        cursor = conn.cursor()
+        # Delete all rows from demo tables (correct table names from local_db schema)
+        cursor.execute("DELETE FROM local_payments")
+        cursor.execute("DELETE FROM local_sales")
+        cursor.execute("DELETE FROM customers")
+        cursor.execute("DELETE FROM products")
+        cursor.execute("DELETE FROM draft_invoices")
+        cursor.execute("DELETE FROM draft_actions")
+        conn.commit()
+        conn.close()
+        logger.info("Demo data reset: all local tables cleared.")
+        return {"status": "ok", "message": "Demo session reset. All local data cleared."}
+    except Exception as e:
+        logger.error(f"Demo reset failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
 # ---------------------------------------------
 
 # --- Telegram Bot Link Endpoint ---
@@ -440,7 +546,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             voice_id = data.get("voice_id", "en-IN-PrabhatNeural") # Default to Prabhat (English India)
             voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
             model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
-            
+            is_demo = data.get("is_demo", False)
+
+            # ── DEMO MODE OVERRIDE ─────────────────────────────────────────────
+            # In demo mode, use a stable session key and let agent_graph know
+            # to use local SQLite only (via is_demo flag). Keep the user's
+            # chosen model for generation quality.
+            if is_demo:
+                user_token = "demo_session"
+                user_id = "demo_session"
+
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
             if user_id and len(user_id) > 10:
@@ -667,15 +782,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                 is_local_mode = model_id.startswith("local:") or model_id in ["phi3:mini", "gemma:2b", "time:latest"]
                 
                 if is_local_mode or data.get("ai_mode") == "local":
-                     # Strip 'local:' prefix if present
                      local_model_name = model_id.replace("local:", "") if model_id.startswith("local:") else model_id
-                     print(f"[AI] Using LOCAL AI Engine ({local_model_name})...")
-                     # ROUTE THROUGH AGENT GRAPH (Unified Flow)
-                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name)
+                     print(f"[AI] Using LOCAL AI Engine ({local_model_name}) demo={is_demo}...")
+                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name, is_demo=is_demo)
                      
                 else:
-                    # Cloud AI (Existing)
-                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
+                    # Cloud AI
+                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id, is_demo=is_demo)
 
                 print(f"[AI] AI Raw Response: {ai_response_raw[:100]}...")
                 

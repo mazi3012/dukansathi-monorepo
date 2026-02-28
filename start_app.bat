@@ -4,6 +4,20 @@ echo       Starting Dukan Sathi Locally
 echo =========================================
 echo.
 
+:: --- Pre-flight Checks (Offline Voice) ---
+set "OFFLINE_VOICE_READY=YES"
+
+if not exist "backend\vosk-model-small-en-in-0.4" (
+    echo [WARNING] Vosk model not found in backend folder!
+    echo           Offline Speech-to-Text will be disabled.
+    set "OFFLINE_VOICE_READY=NO"
+)
+
+if "%OFFLINE_VOICE_READY%"=="YES" (
+    echo [OK] Offline Voice components detected.
+)
+echo.
+
 :: 1. Start Ollama
 echo [1/3] Starting Local AI (Ollama)...
 start "Ollama Local AI" cmd /c "ollama serve"

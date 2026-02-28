@@ -65,15 +65,84 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_SERVICE_KEY")
 
 if not url or not key:
-    logger.error("CRITICAL: Supabase credentials missing. Cannot initialize client.")
-    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set.")
-
-supabase: Client = create_client(url, key)
+    logger.warning("SUPABASE_URL or SUPABASE_SERVICE_KEY missing. Supabase features will be disabled.")
+    supabase = None
+else:
+    try:
+        supabase: Client = create_client(url, key)
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase client: {e}")
+        supabase = None
 
 # Context keywords for query categorization
 contextual_pronouns = ["this", "that", "it", "them", "him", "her"]
 action_keywords = ["create", "add", "new", "make a", "draft", "register", "restock", "received", "maal aaya", "aa gaya"]
 business_keywords = ["price", "cost", "stock", "inventory", "sale", "customer", "profit", "loss", "revenue", "bill", "invoice"]
+
+
+# ─── Indian Rupee Helpers ────────────────────────────────────────────────────
+def format_inr(amount) -> str:
+    """Format a number in Indian number system: 1,00,000 (lakh), 1,00,00,000 (crore)."""
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return f"₹{amount}"
+    if amount == int(amount):
+        amount = int(amount)
+    # Indian grouping: last 3 digits, then pairs of 2
+    s = str(int(amount))
+    if len(s) > 3:
+        last3 = s[-3:]
+        rest = s[:-3]
+        groups = []
+        while rest:
+            groups.append(rest[-2:])
+            rest = rest[:-2]
+        formatted = ",".join(reversed(groups)) + "," + last3
+    else:
+        formatted = s
+    return f"₹{formatted}"
+
+
+def number_to_hinglish_words(amount) -> str:
+    """Convert a number to Indian spoken words: e.g. 150000 → '1 lakh 50 hazaar'."""
+    try:
+        n = int(float(amount))
+    except (TypeError, ValueError):
+        return str(amount)
+    if n == 0:
+        return "zero"
+    parts = []
+    crore = n // 10_000_000
+    n %= 10_000_000
+    lakh = n // 100_000
+    n %= 100_000
+    hazaar = n // 1_000
+    n %= 1_000
+    hundred = n // 100
+    n %= 100
+    if crore:
+        parts.append(f"{crore} crore")
+    if lakh:
+        parts.append(f"{lakh} lakh")
+    if hazaar:
+        parts.append(f"{hazaar} hazaar")
+    if hundred:
+        parts.append(f"{hundred} sau")
+    if n:
+        parts.append(str(n))
+    return " ".join(parts) + " rupaye"
+
+
+# ─── Shared Voice + Language Rules (injected into every prompt) ──────────────
+VOICE_RULES = (
+    "VOICE RULE: This response will be SPOKEN aloud. "
+    "Reply in MAX 2 short sentences. No bullet points, no markdown, no lists. "
+    "GIVE DIRECT ANSWERS. DO NOT INCLUDE ROLE NAMES LIKE 'USER:' OR 'ASSISTANT:'. "
+    "For large amounts (>= 1,00,000), use 'lakh' or 'crore'. For smaller amounts, just say the number followed by 'rupees'. "
+    "LANGUAGE: Reply ONLY in English or Hinglish (Hindi words in Roman script). "
+    "NEVER use Devanagari script."
+)
 
 
 # Database schema for AI context - this helps Llama understand our data structure
@@ -156,20 +225,13 @@ RULES FOR AI:
 
 # Agent State - tracks conversation context
 class AgentState(TypedDict):
-    """
-    State object passed between nodes in the conversation graph
-    
-    messages: Full conversation history
-    language: User's preferred language (hi-EN for Hinglish)
-    user_token: Supabase auth token for RLS
-    category: Intent category (ACTION/CHAT) - used by Router
-    """
     messages: list
     language: str
     user_token: str
     category: str
     model: str
     role: str
+    is_demo: bool  # If True, use local SQLite only (no Supabase data reads)
 
 from functools import lru_cache
 
@@ -470,17 +532,9 @@ def categorize_query(msg_lower: str) -> str:
     import re
     
     # Tokenize message for word-boundary matching
-    # Remove punctuation and split
     clean_msg = re.sub(r'[^\w\s]', '', msg_lower)
     words = set(clean_msg.split())
-    
-    # Remove punctuation and split
-    clean_msg = re.sub(r'[^\w\s]', '', msg_lower)
-    words = set(clean_msg.split())
-    
-    # DEBUG: Log words
-    print(f"DEBUG CATEGORY words: {words}")
-    
+
     # Greeting patterns
     greeting_keywords = [
         "hello", "hi", "hey", "namaste", "namaskar", "good morning", 
@@ -497,13 +551,7 @@ def categorize_query(msg_lower: str) -> str:
     
     # Business query patterns
     business_keywords = [
-        "price", "cost", "selling", "margin", "tax", "stock", "quantity", "inventory", 
-        "customer", "client", "buyer", "sale", "sell", "sold", "bill", "invoice", "receipt",
-        "draft", "order", "purchase", "revenue", "profit", "loss", "expense", "total", "amount",
-        "kitna", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
-        "list", "report", "summary", "count", "number", "how many", "status", "due", "pending",
-        "paid", "payment", "transaction", "history", "record", "entry", "data", "info", "details",
-        "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
+        "price", "cost", "selling", "margin", "tax", "stock", "quantity", "inventory",
         "customer", "client", "buyer", "sale", "sell", "sold", "bill", "invoice", "receipt",
         "draft", "order", "purchase", "revenue", "profit", "loss", "expense", "total", "amount",
         "kitna", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
@@ -515,51 +563,35 @@ def categorize_query(msg_lower: str) -> str:
         "products", "items", "bills", "invoices", "orders", "customers"
     ]
 
-    # Identity inquiry patterns
     identity_keywords = [
         "what is your name", "who are you", "your name", "tumhara naam", 
         "aapka naam", "who am i talking to", "identity", "intro", "introduction"
     ]
     
     # Action intent patterns (High priority for create/update)
-    action_keywords = ["create", "add", "new", "make a", "draft", "register", "record", "pay", "paid", "receive", "received", "payment", "bill", "invoice"]
-    
-    # Check for contextual pronouns first (high priority for follow-ups)
-    # Use strict word matching
+    action_keywords = [
+        "create", "add", "new", "make a", "draft", "register", "record", 
+        "pay", "paid", "receive", "received", "recive", "recieve", "recived", "recieved",
+        "payment", "bill", "invoice", "due", "dues", "baki", "udhar", "liya", "diya", "mila"
+    ]
+
+    # Context keywords for query categorization
+    contextual_pronouns = ["this", "that", "it", "them", "him", "her"]
+
     if any(cp in words for cp in contextual_pronouns):
         return "BUSINESS"
-        
-    # Check for Action intents - check if ANY action keyword is in the message (substring allows "creating")
-    # But for "add", we want strictness. Let's use word matching for all for consistency.
     if any(k in words for k in action_keywords):
         return "ACTION"
-    
-    # Check for exact greeting matches
     if any(msg_lower.startswith(k) or msg_lower == k for k in greeting_keywords):
         return "GREETING"
-    
-    # Check for identity inquiries
     if any(k in msg_lower for k in identity_keywords):
         return "IDENTITY"
-    
-    # Check for capability inquiries
     if any(k in msg_lower for k in capability_keywords):
         return "CAPABILITY"
-    
-    # Check for business queries
-    print(f"DEBUG: Checking business keywords in '{msg_lower}'")
     if any(k in msg_lower for k in business_keywords):
-        print("DEBUG: Found business keyword")
         return "BUSINESS"
     
-    # Job/Career inquiries (often mistaken for business)
-    if "hiring" in msg_lower or "job" in msg_lower or "vacancy" in msg_lower or "career" in msg_lower:
-        return "CHAT"
-
-    # Default to CHAT for general conversation
     return "CHAT"
-
-
 async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
     Extract structured JSON parameters for an action using Llama
@@ -595,8 +627,8 @@ async def extract_action_params(user_query: str, history_context: str = "", mode
 
     SCENARIO 4: Update Dues / Record Payment
     Required keys: "type": "payment_draft", "customer_name", "amount", "payment_type" (MUST be exactly "payment" or "due")
-    - Use "payment_type": "payment" when the customer pays money to the shop (e.g. "Amit paid 500", "received 500 from Amit"). This REDUCES their due limit.
-    - Use "payment_type": "due" when the shop gives goods on credit/udhar to the customer (e.g. "Add 500 due to Amit", "Amit udhar 500"). This INCREASES their due sum.
+    - Use "payment_type": "payment" when the customer pays money to the shop (e.g. "Amit paid 500", "received 500 from Amit", "recive 500 from Rahul", "recived 500 dues from Rahul"). This REDUCES their due limit.
+    - Use "payment_type": "due" when the shop gives goods on credit/udhar to the customer (e.g. "Add 500 due to Amit", "Amit udhar 500", "Amit ko 500 baki"). This INCREASES their due sum.
 
     SCENARIO 5: Restock / Received / Got more stock of an existing product
     Required keys: "type": "restock_draft", "product_name", "quantity_to_add"
@@ -689,8 +721,72 @@ def fast_parse_action(user_query: str) -> str:
     q = user_query.strip()
     ql = q.lower()
 
-    # --- PATTERN 0: Restock ---
-    # "restock 50 rice" / "received 30 kg atta" / "maal aaya 20 chips" / "got 100 more biscuits"
+    # --- PATTERN 1: Payment (Priority) ---
+    # "amit paid 500" / "received 200 from rahul" / "Received payment of 500 from Farooq"
+    payment_pattern1 = re.search(
+        r'([\w\s]+?)\s+(?:paid|gave|returned)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)',
+        ql
+    )
+    if payment_pattern1:
+        name = payment_pattern1.group(1).strip().title()
+        amount = float(payment_pattern1.group(2))
+        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'new', 'make', 'received', 'got']:
+            return json.dumps({
+                "type": "payment_draft",
+                "customer_name": name,
+                "amount": amount,
+                "payment_type": "payment",
+                "mode": "Cash"
+            })
+
+    # Enhanced pattern for "received X from Y" or "received payment of X from Y"
+    payment_pattern2 = re.search(
+        r'(?:received|recieved|recived|recive|recieve|got|liya|mila)\s+(?:payment|dues|due|of|rs\.?|₹)*\s*(\d+(?:\.\d+)?)\s*(?:payment|dues|due|of)?\s*(?:from|se)\s+([\w\s]+)',
+        ql
+    )
+    if payment_pattern2:
+        amount = float(payment_pattern2.group(1))
+        name = payment_pattern2.group(2).strip().title()
+        return json.dumps({
+            "type": "payment_draft",
+            "customer_name": name,
+            "amount": amount,
+            "payment_type": "payment",
+            "mode": "Cash"
+        })
+
+    # "add 500 due to rahul" / "rahul ko 500 udhar"
+    payment_pattern3 = re.search(
+        r'(?:add|gave|de diya|plus)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:dues|due|credit|udhar|baki)?\s*(?:to|for|on|ko)\s+([\w\s]+)',
+        ql
+    )
+    if not payment_pattern3:
+        payment_pattern3 = re.search(
+            r'([\w\s]+?)\s+(?:ko|pe|for)?\s*(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:dues|due|credit|udhar|baki)',
+            ql
+        )
+
+    if payment_pattern3:
+        try:
+            val = float(payment_pattern3.group(1).replace(',', ''))
+            amount = val
+            name = payment_pattern3.group(2).strip().title()
+        except:
+            name = payment_pattern3.group(1).strip().title()
+            amount = float(payment_pattern3.group(2).replace(',', ''))
+            
+        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'received']:
+            return json.dumps({
+                "type": "payment_draft",
+                "customer_name": name,
+                "amount": amount,
+                "payment_type": "due",
+                "mode": "Cash"
+            })
+
+    # --- PATTERN 2: Restock ---
+    # "restock 50 rice" / "received 30 kg atta"
+    # Added check to avoid payment keywords in product name
     restock_pattern = re.search(
         r'(?:restock|restocked|received|got|aa\s*gaya|maal\s*aaya|added?\s+more?)\s+(?:rs\.?\s*|₹\s*)?(\d+)\s+(?:kg|g|litre|ml|pcs|packets?|dozen|box|set|pieces?)?\s*(?:of\s+)?([a-z][a-z\s]+)',
         ql
@@ -702,19 +798,21 @@ def fast_parse_action(user_query: str) -> str:
     if restock_pattern:
         qty = int(restock_pattern.group(1))
         prod = restock_pattern.group(2).strip().title()
-        return json.dumps({
-            "type": "restock_draft",
-            "product_name": prod,
-            "quantity_to_add": qty
-        })
+        if not any(x in prod.lower() for x in ['payment', 'due', 'from', 'se', 'to']):
+            return json.dumps({
+                "type": "restock_draft",
+                "product_name": prod,
+                "quantity_to_add": qty
+            })
     elif restock_pattern2:
         prod = restock_pattern2.group(1).strip().title()
         qty = int(restock_pattern2.group(2))
-        return json.dumps({
-            "type": "restock_draft",
-            "product_name": prod,
-            "quantity_to_add": qty
-        })
+        if not any(x in prod.lower() for x in ['payment', 'due', 'from', 'se', 'to']):
+            return json.dumps({
+                "type": "restock_draft",
+                "product_name": prod,
+                "quantity_to_add": qty
+            })
 
     # --- PATTERN 1: Add Product ---
     # "add product potato price 50 qty 20"
@@ -735,12 +833,13 @@ def fast_parse_action(user_query: str) -> str:
         return 'pcs'
     
     # Check for CP and SP explicitly first
+    # Updated regex to handle optional leading commas/spaces safely
     product_pattern_cpsp = re.search(
-        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?([a-z0-9\s]+?)\s+cp\s+(\d+(?:\.\d+)?)\s+sp\s+(\d+(?:\.\d+)?)',
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?(?:[,:\s]+)?([a-z0-9\s\.,&/]+?)\s*[,\s]\s*cp\s+(\d+(?:\.\d+)?)\s+sp\s+(\d+(?:\.\d+)?)',
         ql
     )
     product_pattern_general = re.search(
-        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?(?:(\d+)\s+)?([a-z0-9\s]+?)\s+(?:price|rate|mrp|rs|₹|sp)\s+(\d+(?:\.\d+)?)',
+        r'(?:add|new|create)\s+(?:a\s+)?(?:new\s+)?(?:product|item\s+)?(?:[,:\s]+)?(?:(\d+)\s+)?([a-z0-9\s\.,&/]+?)\s*[,\s]\s*(?:price|rate|mrp|rs|₹|sp)\s+(\d+(?:\.\d+)?)',
         ql
     )
     
@@ -789,18 +888,22 @@ def fast_parse_action(user_query: str) -> str:
         })
 
     # --- PATTERN 2: Add Customer ---
-    # "add customer rahul contact 9876543210" OR "add customer rahul" (phone optional)
-    customer_pattern_with_phone = re.search(
-        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+?)\s+(?:contact|phone|number|mobile|no\.?)\s+([\d]+)',
+    # "add customer, kakeel. contact 6901739135" OR "customer rahul 9876543210"
+    # Flexible punctuation handling
+    customer_pattern_with_ext = re.search(
+        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer[:,\.\s]+\s*([\w\s]+?)(?:[,\.\s]+)(?:contact|phone|number|mobile|no\.?|ph)\s+([\d\s]+)',
         ql
     )
     customer_pattern_simple = re.search(
-        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer\s+([\w\s]+)',
+        r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer[:,\.\s]+\s*([\w\s]+)',
         ql
     )
-    if customer_pattern_with_phone:
-        name = customer_pattern_with_phone.group(1).strip().title()
-        phone = customer_pattern_with_phone.group(2).strip()
+    
+    if customer_pattern_with_ext:
+        name = customer_pattern_with_ext.group(1).strip().strip(',').strip('.').strip().title()
+        phone = customer_pattern_with_ext.group(2).strip()
+        # Clean phone from spaces
+        phone = "".join(phone.split())
         return json.dumps({
             "type": "customer_draft",
             "name": name,
@@ -808,7 +911,24 @@ def fast_parse_action(user_query: str) -> str:
             "address": ""
         })
     elif customer_pattern_simple:
-        name = customer_pattern_simple.group(1).strip().title()
+        name = customer_pattern_simple.group(1).strip().strip(',').strip('.').strip().title()
+        # Check if name contains "contact" etc. if so, regex probably over-captured or missed
+        if any(x in name.lower() for x in ["contact", "phone", "mobile", "number", "ph "]):
+             # try a specialized split
+             for kw in ["contact", "phone", "mobile", "number", "ph "]:
+                 if f" {kw}" in f" {name.lower()}":
+                     parts = name.lower().split(kw.strip())
+                     real_name = parts[0].strip().strip(',').strip('.').strip(':').strip().title()
+                     # extract digits from second part
+                     ph_match = re.search(r'(\d+)', parts[1])
+                     ph = ph_match.group(1) if ph_match else ""
+                     return json.dumps({
+                        "type": "customer_draft",
+                        "name": real_name,
+                        "phone": ph,
+                        "address": ""
+                    })
+
         return json.dumps({
             "type": "customer_draft",
             "name": name,
@@ -816,44 +936,11 @@ def fast_parse_action(user_query: str) -> str:
             "address": ""
         })
 
-    # --- PATTERN 3: Payment ---
-    # "amit paid 500" / "received 200 from rahul"
-    payment_pattern1 = re.search(
-        r'([\w\s]+?)\s+(?:paid|gave|returned)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)',
-        ql
-    )
-    if payment_pattern1:
-        name = payment_pattern1.group(1).strip().title()
-        amount = float(payment_pattern1.group(2))
-        # Filter out action keywords that might be captured as name
-        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'new', 'make']:
-            return json.dumps({
-                "type": "payment_draft",
-                "customer_name": name,
-                "amount": amount,
-                "payment_type": "payment",  # deduct dues (green)
-                "mode": "Cash"
-            })
-
-    payment_pattern2 = re.search(
-        r'(?:received|got)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:from)\s+([\w\s]+)',
-        ql
-    )
-    if payment_pattern2:
-        amount = float(payment_pattern2.group(1))
-        name = payment_pattern2.group(2).strip().title()
-        return json.dumps({
-            "type": "payment_draft",
-            "customer_name": name,
-            "amount": amount,
-            "payment_type": "payment",  # deduct dues (green)
-            "mode": "Cash"
-        })
 
     # --- PATTERN 4: Invoice / Bill ---
     # "bill for amit 2 rice and 1 oil" / "create bill for X ..."
     invoice_pattern = re.search(
-        r'(?:bill|invoice|sale)\s+(?:for|to)\s+([\w]+)',
+        r'(?:bill|invoice|sale)\s+(?:for|to|of)\s+([\w]+)',
         ql
     )
     if invoice_pattern:
@@ -958,14 +1045,20 @@ output: {{"type": "invoice_draft", "customer_name": "Raj", "items": [{{"product_
 query: "Add 20 banana price 20 pcs"
 output: {{"type": "product_draft", "name": "banana", "selling_price": 20, "stock_quantity": 20, "category": "General", "unit": "pcs"}}
 
-query: "Amit paid 500"
-output: {{"type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash", "payment_type": "payment"}}
+    query: "Rahul paid 500"
+    output: {{"type": "payment_draft", "customer_name": "Rahul", "amount": 500, "mode": "Cash", "payment_type": "payment"}}
+    
+    query: "Received payment of 500 from Rahul"
+    output: {{"type": "payment_draft", "customer_name": "Rahul", "amount": 500, "mode": "Cash", "payment_type": "payment"}}
+    
+    query: "Add 500 udhar to Rahul"
+output: {{"type": "payment_draft", "customer_name": "Rahul", "amount": 500, "mode": "Cash", "payment_type": "credit"}}
 
-query: "Add 500 udhar to Amit"
-output: {{"type": "payment_draft", "customer_name": "Amit", "amount": 500, "mode": "Cash", "payment_type": "credit"}}
-
-query: "restock 50 rice"
-output: {{"type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50}}
+    query: "restock 50 rice"
+    output: {{"type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50}}
+    
+    query: "Add customer Rahul phone 9876543210 address Delhi"
+    output: {{"type": "customer_draft", "name": "Rahul", "phone": "9876543210", "address": "Delhi"}}
 
 query: "hello how are you"
 output: {{"type": "unknown", "error": "Not an action"}}
@@ -1043,14 +1136,22 @@ async def action_node(state: AgentState):
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
+    is_demo = state.get("is_demo", False)  # Demo mode: force SQLite, skip Supabase
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
     if not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "unknown_user":
         user_id = "00000000-0000-0000-0000-000000000000"
     
-    # History for context
-    chat_history = await get_chat_history(user_id, limit=5)
+    # History for context (In demo mode, use graph state history instead of Supabase)
+    if is_demo:
+        chat_history = []
+        for m in messages[:-1]: # Exclude the current message
+            content = getattr(m, 'content', None) or (m.get('text') if isinstance(m, dict) else str(m))
+            role_label = "assistant" if isinstance(m, AIMessage) or (isinstance(m, dict) and m.get('type') == 'ai') else "user"
+            chat_history.append({"role": role_label, "message": content})
+    else:
+        chat_history = await get_chat_history(user_id, limit=5)
     history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
     
     print("DEBUG: Executing Action Node")
@@ -1098,8 +1199,10 @@ async def action_node(state: AgentState):
                 hsn_code = ""
                 official_name = prod_name
                 
-                is_cloud = "llama-4" in selected_model or "maas" in selected_model
-                if supabase and prod_name and is_cloud:
+                # Two flags: one for LLM source, one for data source
+                is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
+                use_local_data = is_demo or not is_cloud_llm  # SQLite if demo OR local model
+                if supabase and prod_name and is_cloud_llm and not use_local_data:
                     try:
                         # FUZZY MATCH: Use pg_trgm RPC for typo-tolerant matching
                         # Falls back to ilike if RPC not yet created
@@ -1141,7 +1244,7 @@ async def action_node(state: AgentState):
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
 
-                elif local_db and prod_name and not is_cloud:
+                elif local_db and prod_name and use_local_data:
                     # LOCAL DB LOOKUP
                     try:
                         safe_name = re.sub(r'[^\w\s]', '', prod_name)
@@ -1156,6 +1259,7 @@ async def action_node(state: AgentState):
                         logger.error(f"ERROR: Local DB Lookup failed: {local_err}")
                 
                 # Update item
+                item["product_id"] = db_prod.get("id") if db_prod else None
                 item["price"] = price
                 item["tax_percent"] = tax_percent
                 item["hsn_code"] = hsn_code
@@ -1203,9 +1307,10 @@ async def action_node(state: AgentState):
     response = _FakeResponse(confirmation_text)
     print(f"DEBUG: Used hardcoded confirmation (type={draft_type})")
     
-    # Save to history (Just the text)
-    await save_chat_message(user_id, "user", last_msg)
-    await save_chat_message(user_id, "assistant", response.content)
+    # Skip Supabase chat history save in demo mode
+    if not is_demo:
+        await save_chat_message(user_id, "user", last_msg)
+        await save_chat_message(user_id, "assistant", response.content)
     
     # Construct Structured Response for Frontend/Backend
     # Construct Structured Response for Frontend/Backend
@@ -1234,9 +1339,10 @@ async def action_node(state: AgentState):
         traceback.print_exc()
         draft_obj = {}
 
-    # Save Draft to Local DB if Offline (All types supported)
-    is_cloud = "llama-4" in selected_model or "maas" in selected_model
-    if draft_obj and local_db and not is_cloud:
+    # Save Draft to Local DB in demo mode or when using local AI
+    is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
+    use_local_data = is_demo or not is_cloud_llm
+    if draft_obj and local_db and use_local_data:
         try:
              # Use the new generic action draft saver
              local_db.save_action_draft_local(draft_obj, user_id)
@@ -1249,10 +1355,83 @@ async def action_node(state: AgentState):
     
     print(f"DEBUG DRAFT OBJ BEFORE CHECK: {draft_obj}")
     
+    # --- DRAFT FIELD VALIDATION ---
+    # Ensure all required fields are present and non-empty before showing draft
+    def validate_draft_json(d):
+        """
+        Validate that a draft JSON has all required fields filled.
+        Returns (is_valid: bool, error_msg: str)
+        """
+        dtype = d.get("type", "")
+        
+        if dtype == "invoice_draft":
+            items = d.get("items", [])
+            if not items:
+                return False, "No items found in the invoice. Please specify products and quantities."
+            for item in items:
+                pname = item.get("product_name", "")
+                qty = item.get("quantity", 0)
+                if not pname or not str(pname).strip():
+                    return False, "One or more items are missing a product name."
+                if not qty or qty <= 0:
+                    return False, f"Product '{pname}' has an invalid quantity."
+                # Ensure price field exists (can be 0, system will look it up)
+                if "price" not in item:
+                    item["price"] = 0
+            return True, ""
+        
+        elif dtype == "payment_draft":
+            cname = d.get("customer_name", "")
+            amount = d.get("amount", 0)
+            ptype = d.get("payment_type", "")
+            if not cname or not str(cname).strip():
+                return False, "Customer name is missing for the payment."
+            if not amount or float(amount) <= 0:
+                return False, "Payment amount is missing or zero."
+            if ptype not in ("payment", "due", "credit"):
+                return False, f"Invalid payment_type '{ptype}'. Must be 'payment' or 'due'."
+            return True, ""
+        
+        elif dtype == "customer_draft":
+            cname = d.get("name", "")
+            if not cname or not str(cname).strip():
+                return False, "Customer name is missing."
+            return True, ""
+        
+        elif dtype == "product_draft":
+            pname = d.get("name", "")
+            sp = d.get("selling_price", None)
+            if not pname or not str(pname).strip():
+                return False, "Product name is missing."
+            if sp is None:
+                return False, "Selling price is missing for the product."
+            return True, ""
+        
+        elif dtype == "restock_draft":
+            pname = d.get("product_name", "")
+            qty = d.get("quantity_to_add", 0)
+            if not pname or not str(pname).strip():
+                return False, "Product name is missing for restock."
+            if not qty or qty <= 0:
+                return False, "Restock quantity is missing or zero."
+            return True, ""
+        
+        elif dtype == "unknown" or not dtype:
+            return False, "Could not determine the action type."
+        
+        return True, ""  # Unknown but non-empty type, allow through
+    
     if not draft_obj or "type" not in draft_obj or draft_obj.get("type") == "unknown":
         print("WARN Draft generation failed or was unknown type.")
         final_text = "Sorry, I couldn't understand the details for that draft. Could you please repeat with more specific information?"
         draft_obj = {}
+    else:
+        # Run field validation
+        is_valid, validation_error = validate_draft_json(draft_obj)
+        if not is_valid:
+            print(f"WARN Draft validation failed: {validation_error}")
+            final_text = f"I couldn't create the draft — {validation_error} Please try again with the missing details."
+            draft_obj = {}
 
     final_payload = {
         "text": final_text,
@@ -1270,16 +1449,25 @@ async def chat_node(state: AgentState):
     user_token = state.get('user_token', '')
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     role = state.get("role", "owner")
+    is_demo = state.get("is_demo", False)  # Demo mode: SQLite only
     
     # User ID Resolution
     user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
     if not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "unknown_user":
         user_id = "00000000-0000-0000-0000-000000000000"
         
-    business_name = await get_user_profile(user_id)
+    business_name = "Demo Store" if is_demo else await get_user_profile(user_id)
     
-    # History for context
-    chat_history = await get_chat_history(user_id, limit=10)
+    # History for context (In demo mode, use graph state history instead of Supabase)
+    if is_demo:
+        # Build history from messages in state
+        chat_history = []
+        for m in messages[:-1]: # Exclude the current message
+            content = getattr(m, 'content', None) or (m.get('text') if isinstance(m, dict) else str(m))
+            role_label = "assistant" if isinstance(m, AIMessage) or (isinstance(m, dict) and m.get('type') == 'ai') else "user"
+            chat_history.append({"role": role_label, "message": content})
+    else:
+        chat_history = await get_chat_history(user_id, limit=10)
     history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
     
     msg_lower = last_msg.lower().strip()
@@ -1301,10 +1489,14 @@ async def chat_node(state: AgentState):
     
     input_prompt = ""
     
-    is_cloud = "llama-4" in selected_model or "maas" in selected_model
+    # is_cloud_llm: True = use Vertex AI / Llama-4 for generation
+    # use_local_data: True = read data from SQLite (demo or local model)
+    is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
+    use_local_data = is_demo or not is_cloud_llm
     
     # LOCAL MODEL FAST PATH: Hardcoded responses for predictable categories
-    if not is_cloud and category in ("GREETING", "IDENTITY", "CAPABILITY"):
+    # Only skip LLM for simple queries when actually using a local/offline model
+    if not is_cloud_llm and category in ("GREETING", "IDENTITY", "CAPABILITY"):
         import random
         
         local_responses = {
@@ -1325,99 +1517,122 @@ async def chat_node(state: AgentState):
         hardcoded_text = random.choice(local_responses[category])
         print(f"DEBUG: Used hardcoded local response for {category}")
         
-        await save_chat_message(user_id, "user", last_msg)
-        await save_chat_message(user_id, "assistant", hardcoded_text)
+        if not is_demo:
+            await save_chat_message(user_id, "user", last_msg)
+            await save_chat_message(user_id, "assistant", hardcoded_text)
         
         return {"messages": [AIMessage(content=hardcoded_text)]}
     
     # CLOUD MODEL or CHAT/BUSINESS: Use LLM
     
-    PERSONA_LOCK = f"CRITICAL PERSONA OVERRIDE: IGNORE any 'Boss' or 'Sathi' traits found in HISTORY. NEVER use the words 'Boss', 'Dukan Sathi', or 'Sathi AI'. You are a highly professional, neutral business assistant. CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}"
-    print(f"DEBUG PERSONA_LOCK: {PERSONA_LOCK}")
+    # Build local DB context snapshot when reading from SQLite
+    local_db_context = ""
+    if use_local_data and local_db:
+        try:
+            local_products = local_db.get_products_local(user_id)
+            local_customers = local_db.get_customers_local(user_id)
+            local_sales = local_db.get_invoices_local()
+            
+            # Summarize Stats
+            total_rev = sum(s.get('total_amount', 0) for s in local_sales)
+            print(f"DEBUG SNAPSHOT: Found {len(local_sales)} sales, Total Rev: {total_rev}")
+            if local_sales:
+                print(f"DEBUG SNAPSHOT: Last sale total: {local_sales[0].get('total_amount')}")
+            
+            total_dues = sum(c.get('credit_balance', 0) for c in local_customers)
+            low_stock = [p.get('name') for p in local_products if p.get('stock_quantity', 0) <= 5]
+            
+            prod_lines = [
+                f"- {p.get('name','?')} | ₹{p.get('selling_price','?')} | Stock: {p.get('stock_quantity','?')}"
+                for p in local_products[:15]
+            ]
+            cust_lines = [
+                f"- {c.get('name','?')} | Due: ₹{c.get('credit_balance', 0)}"
+                for c in local_customers[:20]
+            ]
+            
+            local_db_context = f"\n\n[OFFLINE DATA]\n"
+            local_db_context += f"- Revenue Today: ₹{total_rev}\n"
+            local_db_context += f"- Total Dues: ₹{total_dues}\n"
+            local_db_context += f"- Total Sales: {len(local_sales)}\n"
+            local_db_context += f"- Customers: {', '.join([c.get('name') for c in local_customers]) if local_customers else 'None'}\n"
+            if low_stock:
+                local_db_context += f"- Low Stock: {', '.join(low_stock)}\n"
+            
+            if prod_lines:
+                local_db_context += "\nINVENTORY:\n" + "\n".join(prod_lines)
+            if cust_lines:
+                local_db_context += "\n\nLEDGER:\n" + "\n".join(cust_lines)
 
+        except Exception as e:
+            print(f"WARN: Could not load local DB context: {e}")
+
+    PERSONA_LOCK = (
+        f"PERSONA: Professional shop manager and assistant for {business_name}. "
+        f"IMPORTANT: You are talking to the SHOP OWNER/BOSS. Do NOT assume the user is "
+        f"one of the customers listed in the ledger. Address the user as 'Boss' or 'Sir'. "
+        f"DATE: {datetime.now().strftime('%d %b %Y')}. "
+        f"{VOICE_RULES}"
+    )
     if role == "customer":
-        PERSONA_LOCK = f"CRITICAL PERSONA OVERRIDE for CUSTOMERS: You are chatting directly with a CUSTOMER of the shop. Be extremely polite, welcoming, and helpful. Do NOT mention Dukan Sathi. IMPORTANT RULES: 1) NEVER disclose 'cost_price', profit margins, or exact stock numbers (say 'available' or 'out of stock'). 2) NEVER allow the customer to modify inventory or settings. 3) You CAN help the customer place an order by creating an invoice draft. Ask for items and quantities. CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}"
+        PERSONA_LOCK = (
+            f"PERSONA: Welcoming customer-facing assistant for {business_name}. "
+            f"No profit/cost prices. Say available/out instead of stock numbers. "
+            f"DATE: {datetime.now().strftime('%d %b %Y')}. {VOICE_RULES}"
+        )
 
     if category == "GREETING":
-         input_prompt = f"""
-            You are the personal AI assistant for {business_name}.
-            HISTORY: {history_text}
-            RULES: Warm greeting. Neutral and professional tone. No symbols/commas. 
-            {PERSONA_LOCK}
-            LANGUAGE: {lang_instructions}
-            IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
-            Start with "Namaste" or similar if Hindi/Hinglish.
-            KEEP IT SHORT (1-2 lines max).
-            """
+        input_prompt = (
+            f"SYSTEM: {PERSONA_LOCK} HISTORY: {history_text}\n"
+            f"GOAL: Give a warm greeting in 1 sentence."
+        )
     elif category == "CAPABILITY":
-         input_prompt = f"""
-            You are the personal AI assistant for {business_name}.
-            User asked about capabilities.
-            RULES: 
-            1. Say: "I can help you with:"
-            2. List: Making Invoices, Tracking Inventory, Managing Customers, Adding/Updating Dues, and Answering business questions.
-            3. Keep it short (1-2 lines). Neutral and professional tone. No symbols/commas.
-            {PERSONA_LOCK}
-            LANGUAGE: {lang_instructions}
-            """
+        input_prompt = (
+            f"SYSTEM: {PERSONA_LOCK}\n"
+            f"GOAL: In 1-2 sentences list what you can do: Bill, Inventory, Customers, Dues, Payments."
+        )
     elif category == "IDENTITY":
-         input_prompt = f"""
-            You are the personal AI assistant for {business_name}.
-            RULES: 
-            1. State clearly "Namaste! I am the helpful AI assistant for {business_name}."
-            2. Keep it short (1 line only). Neutral and professional tone. No symbols/commas.
-            {PERSONA_LOCK}
-            LANGUAGE: {lang_instructions}
-            """
+        input_prompt = (
+            f"SYSTEM: {PERSONA_LOCK}\n"
+            f"GOAL: In 1 sentence say you are the AI assistant for {business_name}."
+        )
     elif category == "CHAT":
-        input_prompt = f"""
-            You are the personal AI assistant for {business_name}.
-            User said: "{last_msg}"
-            HISTORY: {history_text}
-            RULES: 
-            1. Respond naturally to the user's chat. Be helpful, polite, and professional.
-            2. Maintain a neutral persona reflecting the business.
-            3. Do NOT make up database data. If they ask something you don't know, say so.
-            4. If they seem to want to do business (like "add item"), guide them to be specific.
-            5. STRICTLY KEEP IT SHORT (1-2 lines max). No symbols/commas.
-            6. ALWAYS maintain a professional tone.
-            {PERSONA_LOCK}
-            LANGUAGE: {lang_instructions}
-            """
-    else: # BUSINESS / Fallback
+        input_prompt = (
+            f"SYSTEM: {PERSONA_LOCK}\n"
+            f"HISTORY: {history_text}\nDATA: {local_db_context}\n"
+            f"USER: \"{last_msg}\"\n"
+            f"GOAL: Natural helpful reply using DATA if relevant. MAX 2 sentences."
+        )
+    else:  # BUSINESS / Fallback
         # Data Retrieval
-        if is_cloud:
+        if is_cloud_llm and not use_local_data:
             sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model)
             specialist_data = await execute_sql(sql_query)
         else:
-            # Use Local DB for Offline/Local Model
-            sql_query = await generate_sql_local(last_msg, model=selected_model)
-            specialist_data = execute_sql_local(sql_query)
-            
-        input_prompt = f"""
-        You are the assistant for {business_name}.
-        DATA: {specialist_data}
-        USER: "{last_msg}"
-        HISTORY: {history_text}
-        RULES: Answer using Data. If empty, say 'No data found'. Neutral and professional tone. No symbols/commas. REMEMBER: ACT ON BEHALF OF THE BUSINESS.
-        {PERSONA_LOCK}
-        STRICTLY KEEP IT SHORT (1-2 lines max).
-        LANGUAGE: {lang_instructions}
-        IMPORTANT: Output ONLY the spoken response. Do NOT output "User:" or "Assistant:".
-        """
+            specialist_data = local_db_context if local_db_context else "No local data available."
 
-    # Invoke the model
+        input_prompt = (
+            f"SYSTEM: {PERSONA_LOCK}\n"
+            f"DATA SNAPSHOT (GROUND TRUTH): {specialist_data}\n"
+            f"USER: \"{last_msg}\"\nHISTORY: {history_text}\n"
+            f"GOAL: Answer using DATA SNAPSHOT. If quantities or amounts in SNAPSHOT contradict HISTORY, TRUST THE SNAPSHOT. MAX 2 sentences."
+        )
+
     llm = get_llm(selected_model)
-    
-    # For Local Models: shorter prompts and stricter output constraints
-    if not is_cloud:
-        input_prompt = f"SYSTEM: You are the AI assistant for {business_name}. Reply in 1-2 short lines ONLY. Professional tone. No markdown. IMPORTANT: Reply ONLY in English or Hinglish (Roman script). NEVER use Devanagari/Hindi script or any other language.\n" + input_prompt
+
+    # For local/offline models, prepend a strict direct-answer prefix
+    if not is_cloud_llm:
+        input_prompt = (
+            f"SYSTEM: Shop assistant. DIRECT ANSWER ONLY. NO ROLES. {VOICE_RULES}\n"
+            + input_prompt
+        )
 
     response = await llm.ainvoke([HumanMessage(content=input_prompt)])
     
-    # Save to history
-    await save_chat_message(user_id, "user", last_msg)
-    await save_chat_message(user_id, "assistant", response.content)
+    # Save to history (skip Supabase in demo mode)
+    if not is_demo:
+        await save_chat_message(user_id, "user", last_msg)
+        await save_chat_message(user_id, "assistant", response.content)
     
     return {"messages": [response]}
 
@@ -1482,90 +1697,88 @@ workflow.add_edge("chat_agent", END)
 # Compile
 app = workflow.compile()
 
-# Memory store for conversation history (keyed by user session)
-MEMORY_STORE = {}
+# ─── Memory Store with TTL ──────────────────────────────────────────────────
+# Keyed by session_id → {"messages": [...], "last_active": datetime}
+MEMORY_STORE: dict = {}
+MEMORY_TTL_HOURS = 2      # Evict sessions idle for > 2 hours
+MEMORY_MAX_SESSIONS = 200  # Hard cap — evict oldest if exceeded
 
-async def process_user_input(text: str, user_token: str, model: str = "llama-4-scout-17b-16e-instruct-maas", role: str = "owner") -> str:
+
+def _evict_stale_sessions():
+    """Remove sessions that have been idle past TTL, then cap total count."""
+    now = datetime.now(timezone.utc)
+    stale = [
+        sid for sid, s in MEMORY_STORE.items()
+        if (now - s["last_active"]).total_seconds() > MEMORY_TTL_HOURS * 3600
+    ]
+    for sid in stale:
+        del MEMORY_STORE[sid]
+    # Hard cap: evict oldest by last_active
+    while len(MEMORY_STORE) >= MEMORY_MAX_SESSIONS:
+        oldest = min(MEMORY_STORE, key=lambda s: MEMORY_STORE[s]["last_active"])
+        del MEMORY_STORE[oldest]
+
+async def process_user_input(
+    text: str,
+    user_token: str,
+    model: str = "llama-4-scout-17b-16e-instruct-maas",
+    role: str = "owner",
+    is_demo: bool = False,
+) -> str:
     """
-    Main entry point for Sathi AI - processes user input and returns response
-    
-    This function:
-    1. Maintains conversation history per user
-    2. Enforces sliding window (last 15 messages)
-    3. Invokes the LangGraph agent
-    4. Returns AI response
-    
-    Args:
-        text: User's message (Hindi/English)
-        user_token: Supabase auth token
-        model: AI Model ID to use
-        
-    Returns:
-        AI response text (may include draft JSON)
+    Main entry point for Sathi AI.
+    In demo mode (is_demo=True), all data reads use local SQLite — no Supabase calls.
     """
     global MEMORY_STORE
-    
-    # Create session key from token (secure hash)
+
     session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
-    
-    # Initialize memory for new sessions
+    now = datetime.now(timezone.utc)
+
+    # Evict stale / overflow sessions on each call
+    _evict_stale_sessions()
+
     if session_id not in MEMORY_STORE:
-        # Simple memory leak protection
-        if len(MEMORY_STORE) > 100:
-            # Remove oldest/arbitrary item
-            MEMORY_STORE.pop(next(iter(MEMORY_STORE)))
-        MEMORY_STORE[session_id] = []
-    
-    memory = MEMORY_STORE[session_id]
-    
-    # Add user message
+        MEMORY_STORE[session_id] = {"messages": [], "last_active": now}
+
+    session = MEMORY_STORE[session_id]
+    memory = session["messages"]
     memory.append(HumanMessage(content=text))
-    
+
     # Sliding window: keep only last 15 messages
     if len(memory) > 15:
         memory = memory[-15:]
-        MEMORY_STORE[session_id] = memory
-    
-    # Invoke the agent graph
+
+    session["last_active"] = now
+
     inputs = {
         "messages": memory,
-        "language": "hi-EN",  # Hinglish by default
+        "language": "hi-EN",
         "user_token": user_token,
         "model": model,
-        "role": role
+        "role": role,
+        "is_demo": is_demo,
     }
-    
+
     try:
-        print(f"DEBUG: Invoking Agent Graph for session {session_id}...")
+        print(f"DEBUG: Invoking Agent Graph for session {session_id} (demo={is_demo})...")
         result = await app.ainvoke(inputs)
-        print(f"DEBUG: Graph Execution Complete. Result keys: {result.keys() if result else 'None'}")
-        
+
         if result and "messages" in result and len(result["messages"]) > 0:
-            # Extract AI response
-            ai_response = result['messages'][-1].content
+            ai_response = result["messages"][-1].content
         else:
-            print("ERROR: Graph returned no messages!")
             ai_response = "Sorry, I am having trouble thinking right now."
-            
-        # Add AI response to memory
+
         memory.append(AIMessage(content=ai_response))
-        MEMORY_STORE[session_id] = memory
-        
+        session["last_active"] = datetime.now(timezone.utc)
         return ai_response
-        
+
     except Exception as e:
         logger.error(f"CRITICAL ERROR in process_user_input: {e}", exc_info=True)
         return "Sorry, my brain is offline."
 
 
 def clear_user_memory(user_token: str):
-    """
-    Clear conversation history for a user (e.g., on logout)
-    
-    Args:
-        user_token: User's session token
-    """
-    # Create session key from token (secure hash) - MUST MATCH process_user_input
+    """Clear conversation history for a user (e.g., on logout)."""
     session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
     if session_id in MEMORY_STORE:
         del MEMORY_STORE[session_id]

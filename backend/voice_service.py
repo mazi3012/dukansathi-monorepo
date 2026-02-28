@@ -26,6 +26,55 @@ load_dotenv()
 # Initialize Async Groq Client for STT
 groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
+# --- Offline STT (faster-whisper / Whisper Small) Initialization ---
+import threading as _threading
+_whisper_model = None
+_whisper_ready = _threading.Event()  # Set ONLY when loading has fully finished
+
+def _load_whisper_in_background():
+    """Load faster-whisper model. Tries GPU (CUDA) first, auto-falls back to CPU on DLL errors."""
+    global _whisper_model
+    try:
+        from faster_whisper import WhisperModel
+
+        # Try GPU first
+        try:
+            import ctranslate2
+            cuda_types = ctranslate2.get_supported_compute_types("cuda")
+            if cuda_types:
+                print("[OK] Trying Whisper on CUDA GPU (float16)...")
+                _whisper_model = WhisperModel("small", device="cuda", compute_type="float16")
+                print("[OK] Whisper Small running on GPU — Offline STT Ready")
+                return
+        except Exception as gpu_err:
+            # Catches cublas64_12.dll / cudnn not found errors
+            if "cublas" in str(gpu_err).lower() or "cudnn" in str(gpu_err).lower() or "cuda" in str(gpu_err).lower():
+                print(f"[WARN] GPU not available ({gpu_err.__class__.__name__}: {gpu_err})")
+                print("[INFO] CUDA 12 libraries missing. Falling back to CPU (int8).")
+                print("[TIP]  To enable GPU: install CUDA Toolkit 12 from https://developer.nvidia.com/cuda-downloads")
+            else:
+                print(f"[WARN] GPU init failed: {gpu_err}")
+
+        # Fallback: CPU with int8 (still fast for Whisper Small)
+        print("[OK] Loading Whisper 'small' on CPU (int8)...")
+        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8", cpu_threads=4)
+        print("[OK] Whisper Small loaded on CPU — Offline STT Ready")
+
+    except ImportError:
+        print("[ERR] faster-whisper not installed. Run: pip install faster-whisper")
+    except Exception as e:
+        print(f"[ERR] Failed to load Whisper model: {e}")
+    finally:
+        _whisper_ready.set()  # Always unblock callers
+
+def _get_whisper_model(timeout: float = 90.0):
+    """Wait up to `timeout` seconds for the model to load, then return it."""
+    _whisper_ready.wait(timeout=timeout)
+    return _whisper_model
+
+# Start background loading
+_threading.Thread(target=_load_whisper_in_background, daemon=True).start()
+
 # Initialize Google Cloud TTS Client
 # Automatically uses GOOGLE_APPLICATION_CREDENTIALS from .env
 try:
@@ -57,19 +106,20 @@ VOICE_MAPPING = {
 
 async def transcribe_audio(audio_data: bytes) -> str:
     """
-    Convert speech to text using Groq's Whisper model (FREE)
+    Convert speech to text using Groq's Whisper model (FREE).
+    Fallback to local Whisper Small (faster-whisper) if Groq fails or offline.
     """
     try:
         audio_file = io.BytesIO(audio_data)
         audio_file.name = "audio.webm"
         
-        print(f"STT: Transcribing {len(audio_data)} bytes...")
+        print(f"STT: Transcribing {len(audio_data)} bytes via Groq...")
         
         transcription = await groq_client.audio.transcriptions.create(
             file=(audio_file.name, audio_file),
             model="whisper-large-v3",
             response_format="json",
-            language="en",   # Lock to English/Hinglish (Roman script). Hinglish still works as it uses English phonology.
+            language="en",   # Lock to English/Hinglish (Roman script)
             temperature=0.0
         )
         
@@ -77,8 +127,100 @@ async def transcribe_audio(audio_data: bytes) -> str:
         return transcription.text
         
     except Exception as e:
-        print(f"STT Error: {e}")
-        return ""
+        print(f"STT Groq Error — Falling back to LOCAL Whisper Small: {e}")
+        return await transcribe_audio_offline(audio_data)
+
+async def transcribe_audio_offline(audio_data: bytes) -> str:
+    """
+    Convert speech to text entirely offline using faster-whisper (Whisper Small).
+    Automatically uses GPU (CUDA) if available, falls back to CPU.
+    Audio processing via portable imageio-ffmpeg (no system ffmpeg needed).
+    """
+    temp_in_name = None
+    temp_out_name = None
+    try:
+        import asyncio
+        import subprocess
+
+        # Write incoming audio to temp file
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_in:
+            temp_in.write(audio_data)
+            temp_in_name = temp_in.name
+
+        temp_out_name = temp_in_name.replace(".webm", ".wav")
+
+        # Convert to WAV using portable imageio-ffmpeg binary
+        try:
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            subprocess.run(
+                [ffmpeg_exe, "-y", "-i", temp_in_name, "-ar", "16000", "-ac", "1", "-f", "wav", temp_out_name],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, ImportError) as ffmpeg_err:
+            return f"[Offline STT Error: Audio conversion failed — {ffmpeg_err}]"
+
+        # Get (or load) the Whisper model
+        model = _get_whisper_model()
+        if model is None:
+            return "[Offline STT Error: Whisper model not loaded. Please restart the backend.]"
+
+        print(f"[Whisper] Transcribing {len(audio_data)} bytes locally...")
+
+        # Run blocking Whisper inference in an executor thread (non-blocking async)
+        loop = asyncio.get_running_loop()
+        
+        def _run_whisper():
+            global _whisper_model
+            try:
+                segments, info = model.transcribe(
+                    temp_out_name,
+                    language="en",
+                    beam_size=5,
+                    vad_filter=True,
+                    vad_parameters={
+                        "min_silence_duration_ms": 500,
+                        "speech_pad_ms": 200
+                    }
+                )
+                return " ".join(seg.text.strip() for seg in segments)
+            except Exception as transcribe_err:
+                err_str = str(transcribe_err).lower()
+                if "cublas" in err_str or "cudnn" in err_str or "cuda" in err_str or "library" in err_str:
+                    # CUDA DLLs load lazily — failure happens here on first transcribe()
+                    print(f"[WARN] GPU transcription failed ({transcribe_err.__class__.__name__}). Reloading on CPU...")
+                    from faster_whisper import WhisperModel
+                    _whisper_model = WhisperModel("small", device="cpu", compute_type="int8", cpu_threads=4)
+                    print("[OK] Whisper reloaded on CPU (int8) — retrying transcription")
+                    segments, info = _whisper_model.transcribe(
+                        temp_out_name,
+                        language="en",
+                        beam_size=5,
+                        vad_filter=True,
+                        vad_parameters={
+                            "min_silence_duration_ms": 500,
+                            "speech_pad_ms": 200
+                        }
+                    )
+                    return " ".join(seg.text.strip() for seg in segments)
+                raise  # re-raise non-CUDA errors
+
+        result_text = await loop.run_in_executor(None, _run_whisper)
+        
+        print(f"[Whisper] Result: '{result_text}'")
+        return result_text.strip()
+
+    except Exception as e:
+        print(f"[Whisper] Offline STT Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"[Offline STT failed: {e}]"
+    finally:
+        # Clean up temp files
+        for f in [temp_in_name, temp_out_name]:
+            if f and os.path.exists(f):
+                try: os.remove(f)
+                except: pass
 
 
 async def speak_text(

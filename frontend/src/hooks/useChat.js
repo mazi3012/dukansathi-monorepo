@@ -1,9 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+const DEMO_CHAT_KEY = 'demo_chat_messages';
+const isDemo = () => sessionStorage.getItem('guest_mode') === 'true';
+
+const getInitialMessages = () => {
+    if (isDemo()) {
+        try {
+            const saved = sessionStorage.getItem(DEMO_CHAT_KEY);
+            if (saved) return JSON.parse(saved);
+        } catch (_) { /* ignore parse errors */ }
+    }
+    return [{ type: 'ai', text: 'Namaste Boss! Main aapka Dukan Sathi AI hoon. Store ka saara hisaar-kitaab mere paas hai. Aaj kya check karna hai?' }];
+};
+
 export const useChat = () => {
-    const [messages, setMessages] = useState([
-        { type: 'ai', text: 'Namaste! Main Sathi AI hoon. Boliye main aapki kya madad kar sakta hoon?' }
-    ]);
+    const [messages, setMessages] = useState(getInitialMessages);
+
     const [isListening, setIsListening] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -37,6 +49,17 @@ export const useChat = () => {
             window.removeEventListener('storage', handleSettingsChange);
         };
     }, []);
+
+    // Persist chat messages for demo mode (session-only)
+    useEffect(() => {
+        if (isDemo()) {
+            try {
+                sessionStorage.setItem(DEMO_CHAT_KEY, JSON.stringify(messages));
+            } catch (err) {
+                console.error("Failed to save demo chat:", err);
+            }
+        }
+    }, [messages]);
 
     // Function to toggle mute
     const toggleMute = () => {
@@ -305,11 +328,12 @@ export const useChat = () => {
             type: 'text',
             content: text,
             user_id: userId,
-            access_token: session?.access_token, // Sending token too just in case
+            access_token: session?.access_token,
             voice_id: voice,
             voice_rate: voiceSpeed,
-            model: navigator.onLine ? model : 'phi3:mini', // Fallback to phi3:mini if offline
-            ai_mode: navigator.onLine ? 'cloud' : 'local'
+            model: navigator.onLine ? model : 'phi3:mini',
+            ai_mode: navigator.onLine ? 'cloud' : 'local',
+            is_demo: sessionStorage.getItem('guest_mode') === 'true'
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
     }, [ws, voice, voiceSpeed, model]);
@@ -374,7 +398,8 @@ export const useChat = () => {
                                 voice_id: voice,
                                 voice_rate: voiceSpeed,
                                 model: navigator.onLine ? model : 'phi3:mini',
-                                ai_mode: navigator.onLine ? 'cloud' : 'local'
+                                ai_mode: navigator.onLine ? 'cloud' : 'local',
+                                is_demo: sessionStorage.getItem('guest_mode') === 'true'
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);

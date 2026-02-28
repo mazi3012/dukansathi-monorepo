@@ -82,21 +82,28 @@ const Sales = () => {
 
     const fetchData = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                // Profile for GST settings
-                const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-                setUserProfile(profile);
-                if (profile?.is_gst_registered) {
-                    setBillType('GST');
-                }
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                // Guest mode — load local products & customers for invoice form
+                const [prodsRes, custsRes] = await Promise.all([
+                    fetch(`${API_URL}/api/local/products`),
+                    fetch(`${API_URL}/api/local/customers`)
+                ]);
+                setProductsList(prodsRes.ok ? await prodsRes.json() : []);
+                setCustomers(custsRes.ok ? await custsRes.json() : []);
+                return;
             }
 
-            // Products
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+                setUserProfile(profile);
+                if (profile?.is_gst_registered) setBillType('GST');
+            }
             const { data: prods } = await supabase.from('products').select('*');
             setProductsList(prods || []);
-
-            // Customers
             const { data: custs } = await supabase.from('customers').select('*');
             setCustomers(custs || []);
         } catch (error) {
@@ -107,13 +114,29 @@ const Sales = () => {
     const fetchHistory = async () => {
         try {
             setLoading(true);
-            // Fetch sales with customer name attached
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
+            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+            if (isGuest) {
+                const res = await fetch(`${API_URL}/api/local/sales`);
+                if (!res.ok) throw new Error('Local API error');
+                const localSales = await res.json();
+                // Map local sale shape → UI shape
+                setSalesHistory(localSales.map(s => ({
+                    id: s.id,
+                    total_amount: s.total_amount,
+                    payment_status: s.payment_status || 'paid',
+                    payment_method: s.payment_method || 'cash',
+                    created_at: s.created_at,
+                    customers: { name: s.customer_name || 'Walk-in Customer' }
+                })));
+                return;
+            }
             const { data: sales, error } = await supabase
                 .from('sales')
                 .select('*, customers(name)')
                 .order('created_at', { ascending: false })
                 .limit(20);
-
             if (error) throw error;
             setSalesHistory(sales || []);
         } catch (error) {

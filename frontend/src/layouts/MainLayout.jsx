@@ -21,7 +21,7 @@ const MainLayout = () => {
 
         // Listen for auth changes (like sign out)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            const isGuest = localStorage.getItem('guest_mode') === 'true';
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
 
             if (!session && !isGuest) {
                 navigate('/landing');
@@ -35,7 +35,7 @@ const MainLayout = () => {
 
     const checkUser = async () => {
         try {
-            const isGuest = localStorage.getItem('guest_mode') === 'true';
+            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
 
             if (isGuest) {
                 // Set dummy guest user
@@ -83,11 +83,16 @@ const MainLayout = () => {
         return <Loader />;
     }
 
+    const isDemo = sessionStorage.getItem('guest_mode') === 'true';
+
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
 
+
             {/* Desktop Sidebar (Hidden on Mobile) */}
-            <Sidebar />
+            <div>
+                <Sidebar />
+            </div>
 
             {/* Navigation Drawer Overlay (Mobile Only) */}
             <NavigationDrawer

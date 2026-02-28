@@ -25,13 +25,6 @@ const Login = () => {
         }
     };
 
-    const handleGuestLogin = () => {
-        setLoading(true);
-        localStorage.setItem('guest_mode', 'true');
-        setTimeout(() => {
-            navigate('/');
-        }, 800);
-    };
 
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row overflow-hidden selection:bg-indigo-500/30">
@@ -125,20 +118,6 @@ const Login = () => {
                                 </svg>
                             )}
                             <span className="relative z-10">Continue with Google</span>
-                        </button>
-
-                        <div className="relative flex items-center py-4">
-                            <div className="flex-grow border-t border-white/5"></div>
-                            <span className="flex-shrink-0 mx-4 text-xs font-medium text-slate-500 uppercase tracking-widest">or</span>
-                            <div className="flex-grow border-t border-white/5"></div>
-                        </div>
-
-                        <button
-                            onClick={handleGuestLogin}
-                            disabled={loading}
-                            className="w-full text-center text-sm font-medium text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-                        >
-                            Continue as Guest (Demo)
                         </button>
                     </div>
 

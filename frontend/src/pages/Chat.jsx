@@ -95,7 +95,7 @@ const Chat = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Fetch Business Profile on Mount
+    // Fetch Business Profile on Mount (skip in demo/guest mode)
     useEffect(() => {
         const fetchProfile = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -131,6 +131,156 @@ const Chat = () => {
     };
 
     const handleApproveAction = async (actionData) => {
+        console.log('🚀 Approving Action:', actionData);
+        const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+        // Use a unified type variable for easier matching
+        const actionType = actionData.type || actionData.draft_type;
+
+        // ── OFFLINE / LOCAL AI MODE (FALLBACK) ────────────────────────────────
+        if (!isOnline && localAIReady) {
+            try {
+                if (actionType === 'product' || actionType === 'product_draft') {
+                    const res = await fetch(`${API_URL}/api/local/products`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: actionData.name,
+                            selling_price: actionData.selling_price,
+                            cost_price: actionData.cost_price || 0,
+                            stock_quantity: actionData.stock_quantity,
+                            category: actionData.category || 'General'
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        { type: 'bot', text: `✅ Product Saved Locally!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}` }
+                    ]);
+                    return;
+                }
+
+                if (actionType === 'customer' || actionType === 'customer_draft') {
+                    const res = await fetch(`${API_URL}/api/local/customers`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: actionData.name,
+                            phone: actionData.phone || null,
+                            address: actionData.address || null
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        { type: 'bot', text: `✅ Customer Saved Locally!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}` }
+                    ]);
+                    return;
+                }
+
+                if (actionType === 'invoice' || actionType === 'invoice_draft') {
+                    // Calculate totals from items
+                    const items = actionData.items || [];
+                    const totalAmount = actionData.total_amount ||
+                        items.reduce((sum, item) => sum + ((item.price || item.unit_price || 0) * (item.quantity || 1)), 0);
+
+                    const res = await fetch(`${API_URL}/api/local/sales`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customer_name: actionData.customer_name || 'Walk-in Customer',
+                            items: items,
+                            total_amount: totalAmount,
+                            payment_method: actionData.payment_method || 'cash',
+                            payment_status: totalAmount > 0 ? 'paid' : 'credit',
+                            amount_paid: totalAmount,
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                    const result = await res.json();
+                    const itemsSummary = items.map(i =>
+                        `• ${i.product_name || i.name} × ${i.quantity} = ₹${((i.price || i.unit_price || 0) * (i.quantity || 1)).toFixed(2)}`
+                    ).join('\n');
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        {
+                            type: 'bot',
+                            text: `✅ Bill #${result.id} Saved Locally!\n\n👤 ${actionData.customer_name || 'Walk-in Customer'}\n${itemsSummary}\n\n💰 Total: ₹${totalAmount.toFixed(2)}\n📦 Saved to your offline store.`
+                        }
+                    ]);
+                    return;
+                }
+
+                if (actionType === 'payment' || actionType === 'payment_draft') {
+                    const res = await fetch(`${API_URL}/api/local/payments`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customer_name: actionData.customer_name,
+                            amount: actionData.amount,
+                            payment_type: actionData.payment_type || 'payment',
+                            mode: actionData.mode || 'Cash',
+                            note: actionData.note || ''
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                    const result = await res.json();
+
+                    const isCredit = (actionData.payment_type || 'payment') === 'credit';
+                    const emoji = isCredit ? '🔴' : '🟢';
+                    const label = isCredit ? 'Due Added' : 'Payment Received';
+                    const newBalance = result.new_balance;
+                    const balanceMsg = newBalance !== null && newBalance !== undefined
+                        ? `\nNew Due Balance: ₹${parseFloat(newBalance).toFixed(2)}`
+                        : '';
+
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        {
+                            type: 'bot',
+                            text: `${emoji} ${label} Saved!\n\n👤 ${actionData.customer_name}\n💰 ₹${actionData.amount}\n💳 Mode: ${actionData.mode || 'Cash'}${balanceMsg}\n📦 Saved to your offline store.`
+                        }
+                    ]);
+                    return;
+                }
+
+                if (actionType === 'restock' || actionType === 'restock_draft') {
+                    const res = await fetch(`${API_URL}/api/local/restock`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            product_id: actionData.product_id || null,
+                            product_name: actionData.product_name,
+                            quantity_to_add: actionData.quantity_to_add
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                    const result = await res.json();
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        {
+                            type: 'bot',
+                            text: `✅ Restocked Locally!\n\n📦 ${result.product?.name || actionData.product_name}\n+${actionData.quantity_to_add} units added to stock.\nNew Stock: ${result.product?.stock_quantity || 'Updated'}`
+                        }
+                    ]);
+                    return;
+                }
+
+                // Other draft types not yet supported in local mode
+                setMessages(prev => [...prev, {
+                    type: 'bot',
+                    text: `⚠️ This action requires an internet connection for full processing.`
+                }]);
+                return;
+
+            } catch (err) {
+                console.error('Local save error:', err);
+                setMessages(prev => [...prev, { type: 'bot', text: `❌ Failed to save locally: ${err.message}` }]);
+                return;
+            }
+        }
+
+        // ── ONLINE / SUPABASE MODE ────────────────────────────────────────────
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return alert("Please login first");

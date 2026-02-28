@@ -20,35 +20,90 @@
 
 ---
 
-## Architecture
+## 🏗️ Architecture: Hybrid OpenClaw™ Engine
 
+DukanSathi is built on a **Hybrid-Edge** architecture that intelligently balances cloud power with local privacy and performance.
+
+### 1. Hybrid Process Flow
+How the app switches between Cloud (Llama 4.1 Scout) and Local (Phi-3 Mini) based on connectivity and hardware availability.
+
+```mermaid
+graph TD
+    A["User Voice Command"] --> B{"Connectivity?"}
+    
+    B -- "Online" --> C["Llama 4.1 Scout / Cloud RAG"]
+    C --> D["Supabase Global Sync"]
+    D --> E["Edge TTS Output"]
+    
+    B -- "Offline/Edge" --> F["Hardware Capability Check"]
+    F --> G{"AMD NPU Detected?"}
+    
+    G -- "Yes" --> H["Phi-3 Mini + NPU Offload"]
+    G -- "No" --> I["Phi-3 Mini + CPU/GPU"]
+    
+    H --> J["SQLite Local Update"]
+    I --> J
+    J --> K["Browser Native TTS Output"]
+    
+    K --> L["Voice Confirmation: 'Done Boss!'"]
+    E --> L
+    
+    style H fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style G fill:#fff9c4,stroke:#fbc02d
 ```
-                   ┌─────────────────┐
-                   │   Frontend      │
-                   │  React + Vite   │  ← Vercel
-                   │  Tailwind CSS   │
-                   └────────┬────────┘
-                            │ WebSocket (ws://...)
-                            │ REST (Supabase SDK)
-                   ┌────────▼────────┐
-                   │    Backend      │
-                   │   FastAPI       │  ← Render
-                   │   Python 3.11   │
-                   └───┬────────┬────┘
-                       │        │
-            ┌──────────▼──┐  ┌──▼──────────────┐
-            │  AI Bot     │  │  Voice Services  │
-            │ agent_graph │  │  STT: Groq       │
-            │ Gemini/Local│  │  TTS: Edge-TTS   │
-            └─────────────┘  └─────────────────┘
-                       │
-            ┌──────────▼──────────┐
-            │     Supabase        │
-            │  PostgreSQL DB      │
-            │  Auth               │
-            │  Storage (images)   │
-            └─────────────────────┘
+
+### 2. System Layers (Hardware Aware)
+The application stack is optimized for **AMD Ryzen™ AI** hardware, offloading inference to the NPU for maximum efficiency.
+
+```mermaid
+graph BT
+    subgraph Cloud["Cloud Layer (Massive RAG)"]
+        S[(Supabase DB)]
+        L[Llama 4.1 Scout]
+    end
+
+    subgraph Backend["Hybrid Backend Layer (FastAPI)"]
+        Orch[Orchestrator]
+        SQL[(SQLite Local)]
+        AI[Phi-3 Mini Engine]
+        STT[Whisper Small STT]
+    end
+
+    subgraph Hardware["Hardware Acceleration Layer"]
+        CPU[Core CPU]
+        GPU[Radeon Graphics]
+        NPU[AMD Ryzen AI NPU]
+    end
+
+    subgraph Frontend["Frontend Layer (React SPA)"]
+        UI[Voice Dashboard]
+        WS[WebSocket Client]
+    end
+
+    UI <--> WS
+    WS <--> Orch
+    Orch <--> SQL
+    Orch <--> AI
+    Orch <--> STT
+    
+    AI -- Offload --> NPU
+    AI -- Fallback --> GPU
+    
+    Orch -- Sync --> S
+    Orch -- Proxy --> L
+
+    style NPU fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
 ```
+
+---
+
+## 🚀 AMD Ryzen™ AI Optimization
+
+DukanSathi is specifically engineered to take advantage of the **AMD Ryzen™ AI NPU**:
+
+- **NPU-First Inference**: When running offline, the **Phi-3 Mini** LLM and **Whisper STT** are offloaded to the NPU via ONNX Runtime, drastically reducing CPU load and improving battery life.
+- **Latency Reduction**: On-device processing eliminates round-trip latency, making the "Voice Dashboard" experience feel instantaneous.
+- **Privacy by Design**: Sensitive business data (customer dues, profit margins) is processed locally on-device, ensuring it never leaves the shopkeeper's hardware unless explicitly synced.
 
 ---
 
