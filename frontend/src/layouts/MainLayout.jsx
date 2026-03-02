@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, Link } from 'react-router-dom';
+import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 
 const MainLayout = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [isListening, setIsListening] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
@@ -88,7 +89,7 @@ const MainLayout = () => {
     }
 
     return (
-        <div className={`flex bg-bg-main font-sans text-text-main transition-colors duration-300 ${window.location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}>
+        <div className={`flex bg-bg-main font-sans text-text-main transition-colors duration-300 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}>
             {/* Ambient Background Glows */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px] dark:bg-indigo-500/10" />
@@ -110,13 +111,13 @@ const MainLayout = () => {
 
             {/* Main Content Area */}
             {/* Adjusted classes for better mobile/desktop layout */}
-            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${window.location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}>
+            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}>
 
 
-                <div className={`${window.location.pathname === '/chat' ? 'h-full flex flex-col w-full pb-0' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
+                <div className={`${location.pathname === '/chat' ? 'h-[100dvh] flex flex-col w-full pb-0' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
                     <PageTransition
-                        key={window.location.pathname}
-                        className={window.location.pathname === '/chat' ? 'h-full flex flex-col' : ''}
+                        key={location.pathname}
+                        className={location.pathname === '/chat' ? 'h-full flex flex-col' : ''}
                     >
                         <Outlet context={{ user }} />
                     </PageTransition>
@@ -127,7 +128,7 @@ const MainLayout = () => {
             <Toaster position="top-center" />
 
             {/* Sticky Bottom Nav (Hidden on Desktop or specifically on Chat page) */}
-            {window.location.pathname !== '/chat' && (
+            {location.pathname !== '/chat' && (
                 <div className="md:hidden">
                     <BottomNav
                         isListening={isListening}
