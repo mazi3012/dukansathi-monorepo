@@ -94,7 +94,11 @@ export const useChat = () => {
     const onMessageHandlerRef = useRef(null);
 
     const connectWebSocket = useCallback(() => {
-        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://127.0.0.1:8000/ws/chat';
+        let wsUrl = import.meta.env.VITE_BACKEND_WS_URL;
+        if (!wsUrl) {
+            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws/chat';
+        }
         const socket = new WebSocket(wsUrl);
         wsRef.current = socket;
         setWs(socket);

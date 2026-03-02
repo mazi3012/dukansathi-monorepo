@@ -28,7 +28,11 @@ export default function StoreFront() {
 
     // WebSocket Connection
     useEffect(() => {
-        const wsUrl = import.meta.env.VITE_BACKEND_WS_URL || 'ws://127.0.0.1:8000/ws';
+        let wsUrl = import.meta.env.VITE_BACKEND_WS_URL;
+        if (!wsUrl) {
+            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws';
+        }
         // Replace base /ws or /ws/chat with our customer endpoint
         const customerWsUrl = wsUrl.replace(/\/ws(\/chat)?$/, `/ws/customer_chat/${storeId}`);
 
@@ -203,10 +207,10 @@ export default function StoreFront() {
                         >
                             <div
                                 className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.type.includes('user')
-                                        ? 'bg-blue-600 text-white rounded-br-none'
-                                        : msg.type === 'error'
-                                            ? 'bg-red-100 text-red-800 border border-red-200'
-                                            : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-none'
+                                    ? 'bg-blue-600 text-white rounded-br-none'
+                                    : msg.type === 'error'
+                                        ? 'bg-red-100 text-red-800 border border-red-200'
+                                        : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-none'
                                     }`}
                             >
                                 <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
@@ -229,8 +233,8 @@ export default function StoreFront() {
                         onMouseUp={(e) => { e.preventDefault(); stopRecording(); }}
                         onMouseLeave={stopRecording}
                         className={`p-4 rounded-full flex-shrink-0 shadow-lg ${isListening
-                                ? 'bg-red-500 text-white animate-pulse shadow-red-200'
-                                : 'bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700'
+                            ? 'bg-red-500 text-white animate-pulse shadow-red-200'
+                            : 'bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700'
                             } transition-colors`}
                     >
                         {isListening ? <Square size={24} fill="currentColor" /> : <Mic size={24} />}
