@@ -567,7 +567,7 @@ const Chat = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-hide relative z-10">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-hide relative z-10 pb-0">
                 {messages.map((msg, idx) => {
                     const hasAttachment = msg.attachment && Object.keys(msg.attachment).length > 0;
                     const isUser = msg.type === 'user' || msg.type === 'user-audio';
@@ -575,7 +575,7 @@ const Chat = () => {
                     return (
                         <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                             <div className={`
-                                max-w-[95%] md:max-w-[85%] rounded-[28px] px-5 py-4 shadow-xl text-sm leading-relaxed overflow-hidden relative group
+                                max-w-[95%] md:max-w-[85%] rounded-[28px] px-5 py-3 shadow-xl text-sm leading-relaxed overflow-hidden relative group
                                 ${isUser
                                     ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-500/20'
                                     : 'glass-card text-text-main rounded-tl-none border border-card-border/50 transition-colors'}
@@ -602,7 +602,7 @@ const Chat = () => {
                                 )}
 
                                 {/* Timestamp/Meta if needed can go here */}
-                                <div className={`text-[9px] mt-2 opacity-40 font-black uppercase tracking-tighter ${isUser ? 'text-white' : 'text-text-muted'}`}>
+                                <div className={`text-[9px] mt-1.5 opacity-40 font-black uppercase tracking-tighter ${isUser ? 'text-white' : 'text-text-muted'}`}>
                                     {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                             </div>
@@ -634,11 +634,11 @@ const Chat = () => {
                         </div>
                     );
                 })}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-4" /> {/* Small bottom padding for messages */}
 
                 {isThinking && (
                     <div className="flex justify-start">
-                        <div className="glass-card rounded-[28px] rounded-tl-none px-6 py-4 border border-card-border/50 shadow-xl">
+                        <div className="glass-card rounded-[28px] rounded-tl-none px-6 py-4 border border-card-border/50 shadow-xl mb-4">
                             <div className="flex space-x-2 items-center h-6">
                                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
                                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
@@ -647,13 +647,11 @@ const Chat = () => {
                         </div>
                     </div>
                 )}
-                {/* Spacer to prevent messages from hiding behind absolute input */}
-                <div className="h-16 w-full shrink-0"></div>
             </div>
 
             {/* Status Floating Bar */}
             {(isThinking || isPlaying) && (
-                <div className="absolute top-[68px] left-12 right-12 z-20 flex justify-center">
+                <div className="absolute top-[68px] left-12 right-12 z-20 flex justify-center pointer-events-none">
                     <div className="px-3 py-1 glass-card rounded-full border border-indigo-500/20 shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4">
                         <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />
                         <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">
@@ -663,21 +661,21 @@ const Chat = () => {
                 </div>
             )}
 
-            {/* Input Area - Absolute Bottom Docked, using absolute positioning to guarantee zero gap */}
-            <div className="absolute bottom-0 left-0 right-0 px-0 pt-1.5 pb-0 bg-bg-main/80 backdrop-blur-xl border-t border-card-border z-20 w-full">
-                <div className="w-full flex items-center gap-0.5 px-0.5 min-h-[44px]">
-                    <div className="flex items-center gap-0.5 glass-card rounded-md p-0 border border-card-border/50">
+            {/* Input Area - Flex docked instead of absolute positioning */}
+            <div className="shrink-0 px-2 pt-1 pb-[env(safe-area-inset-bottom,0.5rem)] bg-bg-main/80 backdrop-blur-xl border-t border-card-border z-20 w-full mb-2">
+                <div className="w-full flex items-center gap-1 min-h-[40px]">
+                    <div className="flex items-center gap-1 glass-card rounded-md p-1 border border-card-border/50">
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-[26px] h-[26px] flex items-center justify-center text-text-muted hover:text-indigo-500 rounded-md transition-all"
+                            className="w-[28px] h-[28px] flex items-center justify-center text-text-muted hover:text-indigo-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-all"
                         >
-                            <ImageIcon size={13} />
+                            <ImageIcon size={14} />
                         </button>
                         <button
                             onClick={toggleMute}
-                            className={`w-[26px] h-[26px] flex items-center justify-center rounded-md transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
+                            className={`w-[28px] h-[28px] flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
                         >
-                            {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
+                            {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
                         </button>
                     </div>
 
@@ -697,13 +695,13 @@ const Chat = () => {
                             onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
                             placeholder={isOnline ? "Message Sathi..." : "Offline..."}
                             disabled={!isOnline && !localAIReady}
-                            className={`w-full bg-card-bg text-text-main placeholder-text-muted/40 font-bold px-3 py-3 rounded-md border border-card-border focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-sm transition-all`}
+                            className={`w-full bg-card-bg text-text-main placeholder-text-muted/50 font-medium px-3 py-2 rounded-lg border border-card-border focus:outline-none focus:ring-1 focus:ring-indigo-500/80 focus:border-indigo-500/80 text-[15px] transition-all`}
                         />
                     </div>
 
                     {input.trim() ? (
-                        <button onClick={handleSend} className="w-8 h-8 bg-indigo-600 text-white rounded-md shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                            <Send size={14} />
+                        <button onClick={handleSend} className="w-[36px] h-[36px] bg-indigo-600 text-white rounded-lg shadow-md hover:shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center shrink-0">
+                            <Send size={16} className="-ml-0.5" />
                         </button>
                     ) : (
                         <button
@@ -711,12 +709,12 @@ const Chat = () => {
                                 if (isListening) stopRecording();
                                 else startRecording();
                             }}
-                            className={`w-8 h-8 rounded-md shadow-lg transition-all flex items-center justify-center ${isListening
+                            className={`w-[36px] h-[36px] rounded-lg shadow-md transition-all flex items-center justify-center shrink-0 ${isListening
                                 ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse'
-                                : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
+                                : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 hover:shadow-indigo-500/40 active:scale-95'
                                 }`}
                         >
-                            <Mic size={14} className={isListening ? "animate-bounce" : ""} />
+                            <Mic size={16} className={isListening ? "animate-bounce" : ""} />
                         </button>
                     )}
                 </div>
