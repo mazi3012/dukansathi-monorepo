@@ -115,12 +115,15 @@ const MainLayout = () => {
 
 
                 <div className={`${location.pathname === '/chat' ? 'h-[100dvh] flex flex-col w-full pb-0' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
-                    <PageTransition
-                        key={location.pathname}
-                        className={location.pathname === '/chat' ? 'h-full flex flex-col' : ''}
-                    >
+                    {location.pathname === '/chat' ? (
                         <Outlet context={{ user }} />
-                    </PageTransition>
+                    ) : (
+                        <PageTransition
+                            key={location.pathname}
+                        >
+                            <Outlet context={{ user }} />
+                        </PageTransition>
+                    )}
                 </div>
             </main>
 

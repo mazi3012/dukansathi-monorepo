@@ -545,7 +545,7 @@ const Chat = () => {
     };
 
     return (
-        <div className="flex flex-col h-full relative overflow-hidden min-h-0 overflow-y-clip"> {/* Force clip to prevent any scrolling gap */}
+        <div className="fixed inset-0 md:left-64 flex flex-col bg-bg-main z-50 overflow-hidden min-h-0 overflow-y-clip"> {/* Force clip and absolute fixed bounds to bypass MainLayout margins */}
             {/* Ambient Background Glows */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
