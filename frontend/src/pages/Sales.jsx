@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
 import InvoiceTemplate from '../components/InvoiceTemplate';
+import toast from 'react-hot-toast';
 
 
 const Sales = () => {
@@ -168,6 +169,21 @@ const Sales = () => {
             win.document.write('<html><head>' + style + '</head><body>' + content + '</body></html>');
             win.document.close();
             win.print();
+        }
+    };
+
+    const handleDeleteSale = async (id, e) => {
+        e.stopPropagation();
+        if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
+            try {
+                const { error } = await supabase.from('sales').delete().eq('id', id);
+                if (error) throw error;
+                toast.success("Sale deleted successfully");
+                fetchHistory(); // Refresh history list
+            } catch (err) {
+                console.error("Error deleting sale:", err);
+                toast.error("Failed to delete sale. " + err.message);
+            }
         }
     };
 
@@ -406,8 +422,16 @@ const Sales = () => {
                                                 <span className="text-[9px] font-black text-red-500 mt-1 uppercase tracking-tighter">Due: ₹{sale.balance_due}</span>
                                             )}
                                         </div>
-                                        <div className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted group-hover:text-indigo-500 group-hover:border-indigo-500/50 transition-all">
-                                            <ArrowUpRight size={20} />
+                                        <div className="flex gap-2 relative z-20">
+                                            <button
+                                                onClick={(e) => handleDeleteSale(sale.id, e)}
+                                                className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                            <div className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted group-hover:text-indigo-500 group-hover:border-indigo-500/50 transition-all">
+                                                <ArrowUpRight size={20} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

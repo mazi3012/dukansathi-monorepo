@@ -149,7 +149,8 @@ const Chat = () => {
                             selling_price: actionData.selling_price,
                             cost_price: actionData.cost_price || 0,
                             stock_quantity: actionData.stock_quantity,
-                            category: actionData.category || 'General'
+                            category: actionData.category || 'General',
+                            unit: actionData.unit || 'pcs'
                         })
                     });
                     if (!res.ok) throw new Error(await res.text());
@@ -389,24 +390,60 @@ const Chat = () => {
 
             // 2. PRODUCT CREATION
             if (actionData.type === 'product_draft') {
-                const { error } = await supabase.from('products').insert({
-                    user_id: user.id,
-                    name: actionData.name,
-                    selling_price: actionData.selling_price,
-                    cost_price: actionData.cost_price || 0,
-                    stock_quantity: actionData.stock_quantity,
-                    category: actionData.category || 'General'
-                });
-                if (error) throw error;
+                try {
+                    // Check if exact product exists (case insensitive)
+                    const { data: existingProd, error: findErr } = await supabase.from('products')
+                        .select('*')
+                        .ilike('name', actionData.name)
+                        .eq('user_id', user.id)
+                        .limit(1)
+                        .maybeSingle();
 
-                setMessages(prev => [
-                    // Remove the ActionCard (attachment) from the last AI message
-                    ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                    {
-                        type: 'bot',
-                        text: `✅ Product Added!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}`
+                    if (existingProd) {
+                        // Product exists, so we treat it as a Restock / Update
+                        const addedQty = parseInt(actionData.stock_quantity) || 0;
+                        const newStock = parseInt(existingProd.stock_quantity || 0) + addedQty;
+
+                        const { error } = await supabase.from('products').update({
+                            selling_price: actionData.selling_price || existingProd.selling_price,
+                            cost_price: actionData.cost_price || existingProd.cost_price,
+                            stock_quantity: newStock,
+                            category: actionData.category || existingProd.category,
+                            unit: actionData.unit || existingProd.unit
+                        }).eq('id', existingProd.id);
+                        if (error) throw error;
+
+                        setMessages(prev => [
+                            ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                            {
+                                type: 'bot',
+                                text: `✅ Product Restocked & Updated!\n\n📦 ${existingProd.name}\n💰 Price: ₹${actionData.selling_price || existingProd.selling_price}\n📈 Added: +${addedQty}\n📊 New Total Stock: ${newStock}`
+                            }
+                        ]);
+                    } else {
+                        // Insert new product
+                        const { error } = await supabase.from('products').insert({
+                            user_id: user.id,
+                            name: actionData.name,
+                            selling_price: actionData.selling_price,
+                            cost_price: actionData.cost_price || 0,
+                            stock_quantity: actionData.stock_quantity,
+                            category: actionData.category || 'General',
+                            unit: actionData.unit || 'pcs'
+                        });
+                        if (error) throw error;
+
+                        setMessages(prev => [
+                            ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                            {
+                                type: 'bot',
+                                text: `✅ Product Added!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}`
+                            }
+                        ]);
                     }
-                ]);
+                } catch (err) {
+                    throw err; // Let outer error handler catch it
+                }
             }
 
             // 3. PAYMENT RECORDING
@@ -551,15 +588,19 @@ const Chat = () => {
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Header (Top) */}
-            <header className="flex-none flex items-center gap-2 p-2 bg-bg-main/90 backdrop-blur-md border-b border-card-border/30 z-20">
-                <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/50 hover:text-indigo-500 transition-colors">
+            <header className="flex-none flex items-center gap-2 p-2 px-3 md:px-4 md:py-3 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/30 z-20 sticky top-0 shrink-0">
+                <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0">
                     <ArrowLeft size={20} />
                 </button>
-                <div className="flex flex-col">
-                    <h2 className="font-heading font-bold text-lg leading-tight">Dukan Sathi AI</h2>
-                    <div className="flex items-center gap-1.5 opacity-80">
-                        <div className={`w-2 h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')}`}></div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+
+                {/* Slim Pill Header */}
+                <div className="flex items-center gap-2 md:gap-2.5 bg-card-bg/60 border border-card-border/50 py-1.5 md:py-2 px-3 md:px-4 rounded-full shadow-sm max-w-fit backdrop-blur-md">
+                    <img src="/src/assets/logo.svg" alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain" />
+                    <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap">Dukan Sathi AI</h2>
+                    <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1"></div>
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500')} transition-all duration-300`}></div>
+                        <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-text-muted mt-[1px]">
                             {model === 'phi3:mini' ? 'Local Compute' : (isOnline ? 'Cloud AI' : 'Offline')}
                         </span>
                     </div>
@@ -607,7 +648,7 @@ const Chat = () => {
 
                             {/* Attachments (e.g., Invoices, Approvals) */}
                             {hasAttachment && (
-                                <div className="mt-3 w-full max-w-[95%] sm:max-w-md animate-in slide-in-from-bottom-2">
+                                <div className="mt-3 w-full max-w-[95%] sm:max-w-md md:max-w-xl lg:max-w-2xl animate-in slide-in-from-bottom-2">
                                     <ActionCard
                                         actionData={msg.attachment}
                                         onDiscard={() => setMessages(prev => prev.map((m, i) => i === idx ? { ...m, attachment: null } : m))}
@@ -653,26 +694,28 @@ const Chat = () => {
                         </div>
                     </div>
                 )}
-                <div ref={messagesEndRef} className="h-2" />
+                <div ref={messagesEndRef} className="h-6" />
+                {/* Spacer for fixed footer */}
+                <div className="h-20 shrink-0" />
             </main>
 
             {/* Input Bar (Bottom - firmly locked) */}
-            <footer className="flex-none bg-bg-main/90 backdrop-blur-xl border-t border-card-border/50 pb-[env(safe-area-inset-bottom)] z-20">
-                <div className="p-3 md:p-4 w-full flex items-end gap-2 max-w-5xl mx-auto">
+            <footer className="fixed bottom-0 left-0 right-0 md:left-64 bg-bg-main/95 backdrop-blur-xl border-t border-card-border/50 z-50">
+                <div className="p-2 px-3 md:p-3 md:px-4 w-full flex items-end gap-2 max-w-5xl mx-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]">
 
                     {/* Prefix Icons */}
                     <div className="flex items-center gap-1 shrink-0 pb-1">
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors"
                         >
-                            <ImageIcon size={22} strokeWidth={1.5} />
+                            <ImageIcon size={20} strokeWidth={1.5} />
                         </button>
                         <button
                             onClick={toggleMute}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'}`}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'}`}
                         >
-                            {isMuted ? <VolumeX size={22} strokeWidth={1.5} /> : <Volume2 size={22} strokeWidth={1.5} />}
+                            {isMuted ? <VolumeX size={20} strokeWidth={1.5} /> : <Volume2 size={20} strokeWidth={1.5} />}
                         </button>
                     </div>
 
@@ -685,7 +728,7 @@ const Chat = () => {
                     />
 
                     {/* Text Field */}
-                    <div className="flex-1 bg-card-bg/50 border border-card-border rounded-3xl pb-0 flex items-center shadow-sm">
+                    <div className="flex-1 bg-card-bg/50 border border-card-border rounded-3xl pb-0 flex items-center shadow-sm min-h-[44px]">
                         <textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -697,9 +740,9 @@ const Chat = () => {
                             }}
                             placeholder={isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."}
                             disabled={!isOnline && !localAIReady}
-                            className="w-full bg-transparent text-text-main placeholder-text-muted px-4 py-3.5 focus:outline-none resize-none overflow-hidden min-h-[50px] max-h-[120px] rounded-3xl"
+                            className="w-full bg-transparent text-text-main text-sm md:text-base placeholder-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl"
                             rows={1}
-                            style={{ height: input ? 'auto' : '50px' }}
+                            style={{ height: input ? 'auto' : '44px' }}
                         />
                     </div>
 
@@ -708,9 +751,9 @@ const Chat = () => {
                         {input.trim() ? (
                             <button
                                 onClick={handleSend}
-                                className="w-[46px] h-[46px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95"
+                                className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95"
                             >
-                                <Send size={20} className="translate-x-[2px]" />
+                                <Send size={18} className="translate-x-[2px]" />
                             </button>
                         ) : (
                             <button
@@ -718,12 +761,12 @@ const Chat = () => {
                                     if (isListening) stopRecording();
                                     else startRecording();
                                 }}
-                                className={`w-[46px] h-[46px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
+                                className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
                                     ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse'
                                     : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'
                                     }`}
                             >
-                                <Mic size={20} />
+                                <Mic size={18} />
                             </button>
                         )}
                     </div>

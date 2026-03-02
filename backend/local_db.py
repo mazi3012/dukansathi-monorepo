@@ -300,11 +300,23 @@ def save_product_local(product_data, user_id):
         existing = c.fetchone()
         
         if existing:
+            # Check existing stock to increment
+            c.execute("SELECT stock_quantity FROM products WHERE id = ?", (existing['id'],))
+            row = c.fetchone()
+            old_stock = row['stock_quantity'] if row and row['stock_quantity'] is not None else 0
+            
+            try:
+                added_qty = int(product_data.get('stock_quantity', 0))
+            except (ValueError, TypeError):
+                added_qty = 0
+                
+            new_stock = old_stock + added_qty
+            
             # Update existing
             c.execute('''UPDATE products SET 
                          selling_price = ?, stock_quantity = ?, category = ?, unit = ?
                          WHERE id = ?''',
-                      (product_data.get('selling_price'), product_data.get('stock_quantity'), 
+                      (product_data.get('selling_price'), new_stock, 
                        product_data.get('category'), product_data.get('unit', 'pcs'), existing['id']))
             product_id = existing['id']
         else:

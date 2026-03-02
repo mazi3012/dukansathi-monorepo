@@ -106,22 +106,21 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // If businessProfile is null (loading/error), default to "My Shop"
 
         // INVOICE (Handled by InvoiceTemplate now, skipping this wrapper if it's external, but wait, InvoiceTemplate is inside ActionCard? No, InvoiceTemplate is separate component. The ActionCard doesn't wrap it in a box here, it just returns InvoiceTemplate).
-        // Product Draft Wrapper
         return (
-            <div className="glass-card rounded-[28px] shadow-xl border border-card-border/50 overflow-hidden mt-4 w-full max-w-2xl mx-auto transition-all">
+            <div className="glass-card rounded-[28px] shadow-xl border border-card-border/50 overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 transition-all">
                 {/* Header Toolbar */}
-                <div className="bg-card-bg/40 p-3 flex justify-between items-center border-b border-card-border/50">
-                    <div className="flex items-center gap-2">
-                        <FileText size={18} className="text-indigo-600" />
-                        <span className="font-bold text-text-main font-bold text-sm">
-                            {isGstShop ? "Draft Tax Invoice (GST)" : "Draft Receipt"}
+                <div className="bg-indigo-600 px-4 py-3 flex justify-between items-center">
+                    <div className="flex items-center gap-2 text-white">
+                        <FileText size={18} />
+                        <span className="font-bold text-sm">
+                            {isGstShop ? "Draft Tax Invoice" : "Draft Receipt"}
                         </span>
-                        {isEditing && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 rounded-full border border-amber-200 animate-pulse">EDITING</span>}
+                        {isEditing && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full animate-pulse tracking-wider">EDITING</span>}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 text-white">
                         <button
                             onClick={() => setIsEditing(!isEditing)}
-                            className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-slate-200 text-text-muted'}`}
+                            className="p-1.5 rounded-lg transition-colors hover:bg-white/20"
                             title="Edit Draft"
                         >
                             {isEditing ? <Check size={16} /> : <Edit2 size={16} />}
@@ -129,90 +128,127 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     </div>
                 </div>
 
-                <div className="p-0 overflow-hidden relative">
+                <div className="p-0 overflow-hidden relative bg-card-bg/30">
                     {/* EDIT MODE OVERLAY / FORM */}
                     {isEditing ? (
-                        <div className="p-6 bg-transparent">
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-text-muted mb-1">Customer Name</label>
-                                <input
-                                    value={localData.customer_name || ''}
-                                    onChange={(e) => handleCustomerNameChange(e.target.value)}
-                                    className="w-full border border-card-border/80 rounded p-2 text-sm focus:border-indigo-500 outline-none"
-                                />
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">Customer Name</label>
+                                <div className="relative">
+                                    <User className="absolute left-3 top-2.5 text-text-muted/70" size={16} />
+                                    <input
+                                        value={localData.customer_name || ''}
+                                        onChange={(e) => handleCustomerNameChange(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-text-main"
+                                        placeholder="Enter customer name..."
+                                    />
+                                </div>
                             </div>
 
                             <div className="space-y-3">
-                                <label className="block text-xs font-bold text-text-muted mb-1">Items</label>
+                                <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">Items</label>
                                 {localData.items?.map((item, idx) => (
-                                    <div key={idx} className="flex gap-2 items-center bg-card-bg/40 p-2 rounded border border-card-border/30">
-                                        <div className="flex-1">
-                                            <p className="text-xs text-text-muted/70 font-mono">Item</p>
-                                            <input
-                                                value={item.product_name}
-                                                onChange={(e) => handleInvoiceItemChange(idx, 'product_name', e.target.value)}
-                                                className="w-full bg-bg-main/50 font-medium text-text-main border-b border-transparent focus:border-indigo-300 outline-none text-sm"
-                                            />
-                                        </div>
-                                        <div className="w-20">
-                                            <p className="text-[10px] text-text-muted/70">Qty</p>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) => handleInvoiceItemChange(idx, 'quantity', e.target.value)}
-                                                    className="w-full border rounded p-1 text-sm text-center"
-                                                />
-                                                {item.unit && <span className="text-[10px] text-text-muted font-bold">{item.unit}</span>}
+                                    <div key={idx} className="flex flex-col gap-2 bg-bg-main/50 p-3 rounded-xl border border-card-border/30">
+                                        <input
+                                            value={item.product_name}
+                                            onChange={(e) => handleInvoiceItemChange(idx, 'product_name', e.target.value)}
+                                            className="w-full bg-transparent font-medium border-b border-card-border/50 focus:border-indigo-500 outline-none text-sm pb-1 text-text-main"
+                                            placeholder="Item name"
+                                        />
+                                        <div className="flex gap-2 items-center mt-1">
+                                            <div className="flex-1">
+                                                <p className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Qty</p>
+                                                <div className="flex items-center gap-1 border border-card-border/50 rounded-lg px-2 bg-card-bg/50 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                    <input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        onChange={(e) => handleInvoiceItemChange(idx, 'quantity', e.target.value)}
+                                                        className="w-full py-1 text-sm bg-transparent outline-none font-medium text-center text-text-main"
+                                                    />
+                                                    {item.unit && <span className="text-[10px] text-text-muted font-bold pr-1">{item.unit}</span>}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="w-24">
-                                            <p className="text-[10px] text-text-muted/70">Rate (₹)</p>
-                                            <input
-                                                type="number"
-                                                value={item.price || 0}
-                                                onChange={(e) => handleInvoiceItemChange(idx, 'price', e.target.value)}
-                                                className="w-full border rounded p-1 text-sm text-right"
-                                            />
-                                        </div>
-                                        <div className="w-20 text-right">
-                                            <p className="text-[10px] text-text-muted/70">Total</p>
-                                            <p className="font-bold text-text-main mt-1">₹{(item.quantity * item.price) || 0}</p>
+                                            <div className="w-6 text-center text-text-muted font-bold text-xs mt-4">×</div>
+                                            <div className="flex-1">
+                                                <p className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Rate</p>
+                                                <div className="flex items-center gap-1 border border-card-border/50 rounded-lg px-2 bg-card-bg/50 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                    <span className="text-[10px] text-text-muted font-bold">₹</span>
+                                                    <input
+                                                        type="number"
+                                                        value={item.price || 0}
+                                                        onChange={(e) => handleInvoiceItemChange(idx, 'price', e.target.value)}
+                                                        className="w-full py-1 text-sm bg-transparent outline-none font-medium text-text-main"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-right">
+                                                <p className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Total</p>
+                                                <p className="font-bold text-text-main mt-1 text-sm">₹{((item.quantity * item.price) || 0).toFixed(2)}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-
-                            <div className="mt-6 flex justify-between items-center bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/20">
-                                <span className="font-bold text-text-main font-bold">Total Amount</span>
-                                <span className="font-bold text-2xl text-indigo-700">₹{grandTotal}</span>
-                            </div>
                         </div>
                     ) : (
                         /* VIEW MODE (PREVIEW) */
-                        <div className="transform scale-[0.85] origin-top border-b border-card-border/30">
-                            <InvoiceTemplate
-                                sale={mockSale}
-                                items={templateItems}
-                                businessProfile={businessProfile || { business_name: "Loading...", address: "Please approve to finalize" }}
-                            />
+                        <div className="p-5 flex flex-col gap-4">
+                            <div className="flex justify-between items-start border-b border-card-border/30 pb-3">
+                                <div>
+                                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Bill To</p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <User size={14} className="text-indigo-500" />
+                                        <p className="font-bold text-text-main text-base">{localData.customer_name || 'Walk-in Customer'}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold text-text-muted/70 uppercase tracking-widest">{new Date().toLocaleDateString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-12 text-[10px] font-bold text-text-muted/70 uppercase tracking-wider mb-1 px-1">
+                                    <span className="col-span-6">Item</span>
+                                    <span className="col-span-3 text-center">Qty × Rate</span>
+                                    <span className="col-span-3 text-right">Amount</span>
+                                </div>
+                                {templateItems.map((item, idx) => (
+                                    <div key={idx} className="grid grid-cols-12 gap-1 items-center pb-2 border-b border-card-border/10 last:border-0 last:pb-0">
+                                        <div className="col-span-6 pr-2">
+                                            <p className="text-sm font-semibold text-text-main leading-tight truncate">{item.name}</p>
+                                        </div>
+                                        <div className="col-span-3 text-center">
+                                            <p className="text-xs font-medium text-text-muted">{item.quantity} × ₹{item.unit_price}</p>
+                                        </div>
+                                        <div className="col-span-3 text-right">
+                                            <p className="text-sm font-bold text-text-main">₹{((item.quantity * item.unit_price)).toFixed(2)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
+
+                    {/* Grand Total Area (Always visible) */}
+                    <div className={`mt-2 flex justify-between items-center p-4 border-y border-card-border/50 ${isEditing ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : 'bg-transparent'}`}>
+                        <span className="font-bold text-text-muted text-sm uppercase tracking-wider">Total Amount</span>
+                        <span className="font-black text-2xl text-indigo-600">₹{grandTotal.toFixed(2)}</span>
+                    </div>
                 </div>
 
                 {/* Footer Actions */}
-                <div className="bg-card-bg/40 p-4 flex justify-between gap-4 border-t border-card-border/50">
+                <div className="bg-card-bg/40 p-3 sm:p-4 flex gap-3">
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2.5 text-text-muted font-bold hover:bg-slate-200 rounded-lg transition-colors border border-card-border/80 text-sm"
+                        className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
                     >
-                        Discard
+                        <X size={16} /> Discard
                     </button>
                     <button
                         onClick={() => onApprove(localData)}
-                        className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition-all transform active:scale-95 flex justify-center items-center gap-2 text-sm"
+                        className="flex-1 py-2 px-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2 text-sm"
                     >
-                        <Check size={18} /> Approve Invoice
+                        <Check size={18} /> Approve
                     </button>
                 </div>
             </div>
@@ -229,7 +265,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         });
 
         return (
-            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
+            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
                 <div className="bg-indigo-500/10 px-4 py-3 flex justify-between items-center border-b border-indigo-500/20">
                     <div className="flex items-center gap-2">
                         <Package size={18} className="text-indigo-600" />
@@ -255,7 +291,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         />
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                         {/* Selling Price */}
                         <div className="flex-1">
                             <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
@@ -289,7 +325,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 <select
                                     value={localData.unit || 'pcs'}
                                     onChange={(e) => setLocalData({ ...localData, unit: e.target.value })}
-                                    className="w-24 px-2 py-2 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-transparent font-bold text-text-main"
+                                    className="w-20 px-1 sm:px-2 py-2 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-transparent font-bold text-text-main"
                                 >
                                     <option value="pcs">pcs</option>
                                     <option value="kg">kg</option>
@@ -323,7 +359,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     {/* Extended Details (Collapsible) */}
                     {showDetails && (
                         <div className="pt-2 space-y-4 border-t border-card-border/30 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="flex gap-4">
+                            <div className="flex flex-col sm:flex-row gap-4">
                                 {/* Cost Price */}
                                 <div className="flex-1">
                                     <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
@@ -418,7 +454,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         };
 
         return (
-            <div className={`glass-card rounded-[28px] border overflow-hidden w-full max-w-md mx-auto my-4 shadow-lg transition-all duration-300 hover:shadow-lg ${isCredit ? 'border-red-500/30 hover:border-red-500/50 hover:shadow-red-500/10' : 'border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-emerald-500/10'}`}>
+            <div className={`glass-card rounded-[28px] border overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 shadow-lg transition-all duration-300 hover:shadow-lg ${isCredit ? 'border-red-500/30 hover:border-red-500/50 hover:shadow-red-500/10' : 'border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-emerald-500/10'}`}>
                 {/* Header with Toggle */}
                 <div className={`px-4 py-3 border-b flex justify-between items-center ${isCredit ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <div className={`flex items-center gap-2 ${isCredit ? 'text-red-700' : 'text-emerald-700'}`}>
@@ -525,7 +561,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 5. CUSTOMER DRAFT CARD
     if (type === 'customer_draft') {
         return (
-            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
+            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
                 {/* Header */}
                 <div className="bg-blue-500/10 px-4 py-3 flex justify-between items-center border-b border-blue-500/20">
                     <div className="flex items-center gap-2">

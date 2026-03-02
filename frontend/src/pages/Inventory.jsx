@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Package, Edit2, ChevronDown, ChevronUp, Loader2, Filter, Download as DownloadIcon, ArrowUpRight, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Package, Edit2, ChevronDown, ChevronUp, Loader2, Filter, Download as DownloadIcon, ArrowUpRight, AlertTriangle, Trash2 } from 'lucide-react';
 import { InventorySkeleton, HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -146,6 +146,21 @@ const Inventory = () => {
         }
     };
 
+    const handleDeleteProduct = async (id, e) => {
+        e.stopPropagation();
+        if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
+            try {
+                const { error } = await supabase.from('products').delete().eq('id', id);
+                if (error) throw error;
+                toast.success("Product deleted successfully");
+                fetchData();
+            } catch (err) {
+                console.error("Error deleting product:", err);
+                toast.error("Failed to delete product. " + err.message);
+            }
+        }
+    };
+
 
     return (
         <div className="pb-20 min-h-screen relative overflow-hidden">
@@ -272,12 +287,20 @@ const Inventory = () => {
                                                 </span>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => handleEdit(product)}
-                                            className="w-12 h-12 rounded-2xl bg-card-bg/80 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all active:scale-90 shadow-lg"
-                                        >
-                                            <Edit2 size={18} />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={(e) => handleDeleteProduct(product.id, e)}
+                                                className="w-12 h-12 rounded-2xl bg-red-500/5 backdrop-blur-xl border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/10 transition-all active:scale-90 shadow-lg"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleEdit(product)}
+                                                className="w-12 h-12 rounded-2xl bg-card-bg/80 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all active:scale-90 shadow-lg"
+                                            >
+                                                <Edit2 size={18} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {isLowStock && (

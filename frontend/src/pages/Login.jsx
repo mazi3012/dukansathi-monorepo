@@ -36,9 +36,7 @@ const Login = () => {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-600/10 rounded-full blur-[100px] mix-blend-screen pointer-events-none" />
 
                 <Link to="/landing" className="relative z-10 flex items-center gap-3 text-white">
-                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <span className="text-white font-bold font-heading text-lg">DS</span>
-                    </div>
+                    <img src="/src/assets/logo.svg" alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                     <span className="font-bold text-white font-heading text-xl tracking-tight">Dukan Sathi</span>
                 </Link>
 

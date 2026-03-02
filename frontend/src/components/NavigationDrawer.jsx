@@ -73,22 +73,16 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         {/* Header */}
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
-                                {user?.user_metadata?.avatar_url ? (
-                                    <img
-                                        src={user.user_metadata.avatar_url}
-                                        alt="Profile"
-                                        className="w-12 h-12 rounded-full border border-slate-200"
-                                    />
-                                ) : (
-                                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg">
-                                        {user?.email?.[0]?.toUpperCase() || 'U'}
-                                    </div>
-                                )}
+                                <img
+                                    src="/src/assets/logo.svg"
+                                    alt="DukanSathi Logo"
+                                    className="w-12 h-12 object-contain drop-shadow shadow-indigo-500/20"
+                                />
                                 <div>
                                     <h2 className="text-xl font-black font-heading text-text-main tracking-tight transition-colors">
                                         {user?.user_metadata?.full_name || 'Dukan Sathi'}
                                     </h2>
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{user?.email}</p>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{user?.email || 'App Mode'}</p>
                                 </div>
                             </div>
                             <button

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users } from 'lucide-react';
+import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
@@ -77,6 +77,22 @@ const Customers = () => {
         } catch (err) {
             console.error("Error adding customer:", err);
             toast.error("Failed to add customer: " + err.message);
+        }
+    };
+
+    const handleDeleteCustomer = async (id, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
+            try {
+                const { error } = await supabase.from('customers').delete().eq('id', id);
+                if (error) throw error;
+                toast.success("Customer deleted successfully");
+                fetchCustomers();
+            } catch (err) {
+                console.error("Error deleting customer:", err);
+                toast.error("Failed to delete customer. " + err.message);
+            }
         }
     };
 
@@ -178,9 +194,17 @@ const Customers = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <button className="w-8 h-8 rounded-lg bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 transition-colors">
-                                        <ArrowUpRight size={16} />
-                                    </button>
+                                    <div className="flex gap-2 relative z-20">
+                                        <button
+                                            onClick={(e) => handleDeleteCustomer(c.id, e)}
+                                            className="w-8 h-8 rounded-lg bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                        <button className="w-8 h-8 rounded-lg bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 transition-colors">
+                                            <ArrowUpRight size={16} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 pt-6 border-t border-card-border/50 relative z-10">

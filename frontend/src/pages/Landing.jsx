@@ -32,9 +32,7 @@ const Landing = () => {
             >
                 <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <span className="text-white font-bold font-heading text-lg">DS</span>
-                        </div>
+                        <img src="/src/assets/logo.svg" alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                         <span className="font-bold text-white font-heading text-xl tracking-tight">Dukan Sathi</span>
                         <div className="ml-2 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-bold text-indigo-400 tracking-wider">RYZEN AI ENHANCED</div>
                     </div>
