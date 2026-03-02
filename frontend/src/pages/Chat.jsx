@@ -661,21 +661,21 @@ const Chat = () => {
                 </div>
             )}
 
-            {/* Input Area - Flex docked instead of absolute positioning */}
-            <div className="shrink-0 px-2 pt-1 pb-[env(safe-area-inset-bottom,0.5rem)] bg-bg-main/80 backdrop-blur-xl border-t border-card-border z-20 w-full mb-2">
-                <div className="w-full flex items-center gap-1 min-h-[40px]">
-                    <div className="flex items-center gap-1 glass-card rounded-md p-1 border border-card-border/50">
+            {/* Input Area */}
+            <div className="flex-none bg-bg-main border-t border-card-border/50 pb-[env(safe-area-inset-bottom)] z-20 w-full relative">
+                <div className="flex items-center gap-2 px-3 py-3">
+                    <div className="flex items-center gap-1 shrink-0">
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-[28px] h-[28px] flex items-center justify-center text-text-muted hover:text-indigo-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-all"
+                            className="p-2.5 text-text-muted hover:text-indigo-500 hover:bg-card-bg/80 rounded-full transition-all"
                         >
-                            <ImageIcon size={14} />
+                            <ImageIcon size={22} />
                         </button>
                         <button
                             onClick={toggleMute}
-                            className={`w-[28px] h-[28px] flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
+                            className={`p-2.5 rounded-full hover:bg-card-bg/80 transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
                         >
-                            {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
+                            {isMuted ? <VolumeX size={22} /> : <Volume2 size={22} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
                         </button>
                     </div>
 
@@ -695,28 +695,30 @@ const Chat = () => {
                             onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
                             placeholder={isOnline ? "Message Sathi..." : "Offline..."}
                             disabled={!isOnline && !localAIReady}
-                            className={`w-full bg-card-bg text-text-main placeholder-text-muted/50 font-medium px-3 py-2 rounded-lg border border-card-border focus:outline-none focus:ring-1 focus:ring-indigo-500/80 focus:border-indigo-500/80 text-[15px] transition-all`}
+                            className="w-full bg-card-bg/80 backdrop-blur-sm text-text-main placeholder-text-muted/60 font-medium px-5 py-3 rounded-full border border-card-border focus:outline-none focus:ring-1 focus:ring-indigo-500/50 shadow-sm text-[16px] transition-all"
                         />
                     </div>
 
-                    {input.trim() ? (
-                        <button onClick={handleSend} className="w-[36px] h-[36px] bg-indigo-600 text-white rounded-lg shadow-md hover:shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center shrink-0">
-                            <Send size={16} className="-ml-0.5" />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => {
-                                if (isListening) stopRecording();
-                                else startRecording();
-                            }}
-                            className={`w-[36px] h-[36px] rounded-lg shadow-md transition-all flex items-center justify-center shrink-0 ${isListening
-                                ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse'
-                                : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 hover:shadow-indigo-500/40 active:scale-95'
-                                }`}
-                        >
-                            <Mic size={16} className={isListening ? "animate-bounce" : ""} />
-                        </button>
-                    )}
+                    <div className="shrink-0 flex items-center pl-1 pr-1">
+                        {input.trim() ? (
+                            <button onClick={handleSend} className="w-[46px] h-[46px] bg-indigo-600 text-white rounded-full shadow-lg hover:shadow-indigo-500/40 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
+                                <Send size={20} className="translate-x-[2px]" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    if (isListening) stopRecording();
+                                    else startRecording();
+                                }}
+                                className={`w-[46px] h-[46px] rounded-full shadow-lg transition-all flex items-center justify-center ${isListening
+                                    ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse'
+                                    : 'bg-indigo-600 text-white shadow-indigo-500/40 hover:bg-indigo-500 active:scale-95'
+                                    }`}
+                            >
+                                <Mic size={20} className={isListening ? "animate-bounce" : ""} />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
