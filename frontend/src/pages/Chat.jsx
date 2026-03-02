@@ -545,29 +545,29 @@ const Chat = () => {
     };
 
     return (
-        <div className="fixed inset-0 md:left-64 flex flex-col bg-bg-main z-50 overflow-hidden min-h-0 overflow-y-clip"> {/* Force clip and absolute fixed bounds to bypass MainLayout margins */}
-            {/* Ambient Background Glows */}
+        <div className="absolute inset-0 flex flex-col bg-bg-main overflow-hidden z-50">
+            {/* Ambient Glows */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-            {/* Chat Header - Ultra Slim & Sticky */}
-            <div className="flex items-center gap-2 p-1.5 sticky top-0 z-30 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/30 transition-all">
-                <button onClick={() => navigate(-1)} className="w-8 h-8 rounded-lg bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-sm">
-                    <ArrowLeft size={16} />
+            {/* Header (Top) */}
+            <header className="flex-none flex items-center gap-2 p-2 bg-bg-main/90 backdrop-blur-md border-b border-card-border/30 z-20">
+                <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/50 hover:text-indigo-500 transition-colors">
+                    <ArrowLeft size={20} />
                 </button>
-                <div className="flex flex-row items-center gap-3 px-1">
-                    <h2 className="font-heading font-black text-lg text-text-main tracking-tight leading-none transition-colors">Dukan Sathi AI</h2>
-                    <div className="flex items-center gap-1.5 h-full pt-0.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')} transition-all`}></div>
-                        <span className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] leading-none transition-colors">
-                            {model === 'phi3:mini' ? 'Local' : (isOnline ? 'Cloud' : 'Offline')}
+                <div className="flex flex-col">
+                    <h2 className="font-heading font-bold text-lg leading-tight">Dukan Sathi AI</h2>
+                    <div className="flex items-center gap-1.5 opacity-80">
+                        <div className={`w-2 h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')}`}></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                            {model === 'phi3:mini' ? 'Local Compute' : (isOnline ? 'Cloud AI' : 'Offline')}
                         </span>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-hide relative z-10 pb-0">
+            {/* Messages Area (Middle - stretches to fill) */}
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 z-10 scrollbar-hide relative">
                 {messages.map((msg, idx) => {
                     const hasAttachment = msg.attachment && Object.keys(msg.attachment).length > 0;
                     const isUser = msg.type === 'user' || msg.type === 'user-audio';
@@ -575,107 +575,104 @@ const Chat = () => {
                     return (
                         <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                             <div className={`
-                                max-w-[95%] md:max-w-[85%] rounded-[28px] px-5 py-3 shadow-xl text-sm leading-relaxed overflow-hidden relative group
+                                max-w-[90%] md:max-w-[75%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed relative group shadow-sm
                                 ${isUser
-                                    ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-500/20'
-                                    : 'glass-card text-text-main rounded-tl-none border border-card-border/50 transition-colors'}
+                                    ? 'bg-indigo-600 text-white rounded-br-sm'
+                                    : 'glass-card border border-card-border/50 text-text-main rounded-bl-sm'}
                             `}>
-                                {/* Inner Glow for User Messages */}
-                                {isUser && <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />}
-
-                                {msg.image && (
-                                    <div className="rounded-2xl overflow-hidden mb-3 border border-white/10 group-hover:scale-[1.02] transition-transform">
-                                        <img src={msg.image} alt="Attachment" className="w-full object-cover" />
-                                    </div>
-                                )}
-
+                                {/* Waveform animation for talking */}
                                 {msg.text === '🎤 ...' ? (
-                                    <div className="flex items-center gap-2 h-6 px-2">
-                                        <div className="w-1.5 bg-white/80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite]" />
-                                        <div className="w-1.5 bg-white/80 rounded-full h-5 animate-[voice-wave_1s_ease-in-out_infinite_100ms]" />
-                                        <div className="w-1.5 bg-white/80 rounded-full h-4 animate-[voice-wave_1s_ease-in-out_infinite_200ms]" />
-                                        <div className="w-1.5 bg-white/80 rounded-full h-6 animate-[voice-wave_1s_ease-in-out_infinite_300ms]" />
-                                        <div className="w-1.5 bg-white/80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite_400ms]" />
+                                    <div className="flex items-center gap-1.5 h-6">
+                                        <div className="w-1.5 bg-current opacity-80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite]" />
+                                        <div className="w-1.5 bg-current opacity-80 rounded-full h-5 animate-[voice-wave_1s_ease-in-out_infinite_100ms]" />
+                                        <div className="w-1.5 bg-current opacity-80 rounded-full h-4 animate-[voice-wave_1s_ease-in-out_infinite_200ms]" />
+                                        <div className="w-1.5 bg-current opacity-80 rounded-full h-6 animate-[voice-wave_1s_ease-in-out_infinite_300ms]" />
+                                        <div className="w-1.5 bg-current opacity-80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite_400ms]" />
                                     </div>
                                 ) : (
-                                    <p className={`whitespace-pre-wrap font-bold ${isUser ? 'text-white' : 'text-text-main'}`}>{msg.text}</p>
+                                    <p className={`whitespace-pre-wrap font-medium ${isUser ? 'text-white' : 'text-text-main'}`}>{msg.text}</p>
                                 )}
 
-                                {/* Timestamp/Meta if needed can go here */}
-                                <div className={`text-[9px] mt-1.5 opacity-40 font-black uppercase tracking-tighter ${isUser ? 'text-white' : 'text-text-muted'}`}>
-                                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
+                                {msg.image && (
+                                    <div className="mt-2 rounded-xl overflow-hidden shadow-sm">
+                                        <img src={msg.image} alt="Attachment" className="w-full object-cover max-h-60" />
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Render Attachment as ActionCard */}
+                            {/* Timestamp */}
+                            <span className="text-[10px] text-text-muted mt-1 px-2 opacity-70 font-medium">
+                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+
+                            {/* Attachments (e.g., Invoices, Approvals) */}
                             {hasAttachment && (
-                                <div className="mt-4 w-full max-w-[90%] transform hover:scale-[1.01] transition-transform">
+                                <div className="mt-3 w-full max-w-[95%] sm:max-w-md animate-in slide-in-from-bottom-2">
                                     <ActionCard
                                         actionData={msg.attachment}
-                                        onDiscard={() => setMessages(prev => prev.map((m, i) =>
-                                            i === idx ? { ...m, attachment: null } : m
-                                        ))}
+                                        onDiscard={() => setMessages(prev => prev.map((m, i) => i === idx ? { ...m, attachment: null } : m))}
                                         onApprove={(editedData) => handleApproveAction(editedData)}
                                         businessProfile={businessProfile}
                                     />
                                 </div>
                             )}
 
-                            {/* Image prompt indicator */}
+                            {/* Visual Scan Prompt */}
                             {msg.isImagePrompt && msg.image_url && (
-                                <div className="mt-3 glass-card rounded-2xl overflow-hidden border border-indigo-500/20 max-w-[80%] shadow-lg shadow-indigo-500/5 animate-in zoom-in-95 duration-300">
+                                <div className="mt-3 glass-card rounded-2xl overflow-hidden border border-indigo-500/20 max-w-[80%] shadow-lg shadow-indigo-500/10">
                                     <img src={msg.image_url} alt="Uploaded" className="w-full object-cover max-h-48" />
-                                    <div className="p-3 bg-indigo-500/5 flex items-center justify-center gap-2">
-                                        <Mic size={12} className="text-indigo-500 animate-pulse" />
-                                        <p className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">Visual Scan Active • Tap Mic to Describe</p>
+                                    <div className="p-3 bg-indigo-500/10 flex items-center justify-center gap-2">
+                                        <Mic size={14} className="text-indigo-500 animate-pulse" />
+                                        <span className="text-xs font-bold text-indigo-500">Tap Mic to describe this image</span>
                                     </div>
                                 </div>
                             )}
                         </div>
                     );
                 })}
-                <div ref={messagesEndRef} className="h-4" /> {/* Small bottom padding for messages */}
 
-                {isThinking && (
-                    <div className="flex justify-start">
-                        <div className="glass-card rounded-[28px] rounded-tl-none px-6 py-4 border border-card-border/50 shadow-xl mb-4">
-                            <div className="flex space-x-2 items-center h-6">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-                            </div>
+                {/* Thinking / Playing Indicators */}
+                {(isThinking || isPlaying) && (
+                    <div className="flex justify-start animate-in fade-in zoom-in duration-300">
+                        <div className="glass-card rounded-3xl rounded-bl-sm px-5 py-4 border border-card-border/50 text-text-muted text-sm flex items-center gap-3">
+                            {isThinking ? (
+                                <>
+                                    <div className="flex gap-1">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></div>
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></div>
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></div>
+                                    </div>
+                                    <span className="font-medium animate-pulse">Thinking...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Volume2 size={16} className="text-indigo-500 animate-pulse" />
+                                    <span className="font-medium">Speaking...</span>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
-            </div>
+                <div ref={messagesEndRef} className="h-2" />
+            </main>
 
-            {/* Status Floating Bar */}
-            {(isThinking || isPlaying) && (
-                <div className="absolute top-[68px] left-12 right-12 z-20 flex justify-center pointer-events-none">
-                    <div className="px-3 py-1 glass-card rounded-full border border-indigo-500/20 shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4">
-                        <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />
-                        <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">
-                            {isThinking ? "Thinking..." : "Playing..."}
-                        </span>
-                    </div>
-                </div>
-            )}
+            {/* Input Bar (Bottom - firmly locked) */}
+            <footer className="flex-none bg-bg-main/90 backdrop-blur-xl border-t border-card-border/50 pb-[env(safe-area-inset-bottom)] z-20">
+                <div className="p-3 md:p-4 w-full flex items-end gap-2 max-w-5xl mx-auto">
 
-            {/* Input Area */}
-            <div className="flex-none bg-bg-main border-t border-card-border/50 pb-[env(safe-area-inset-bottom)] z-20 w-full relative">
-                <div className="flex items-center gap-2 px-3 py-3">
-                    <div className="flex items-center gap-1 shrink-0">
+                    {/* Prefix Icons */}
+                    <div className="flex items-center gap-1 shrink-0 pb-1">
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2.5 text-text-muted hover:text-indigo-500 hover:bg-card-bg/80 rounded-full transition-all"
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors"
                         >
-                            <ImageIcon size={22} />
+                            <ImageIcon size={22} strokeWidth={1.5} />
                         </button>
                         <button
                             onClick={toggleMute}
-                            className={`p-2.5 rounded-full hover:bg-card-bg/80 transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'}`}
                         >
-                            {isMuted ? <VolumeX size={22} /> : <Volume2 size={22} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
+                            {isMuted ? <VolumeX size={22} strokeWidth={1.5} /> : <Volume2 size={22} strokeWidth={1.5} />}
                         </button>
                     </div>
 
@@ -687,21 +684,32 @@ const Chat = () => {
                         accept="image/*"
                     />
 
-                    <div className="flex-1 relative">
-                        <input
-                            type="text"
+                    {/* Text Field */}
+                    <div className="flex-1 bg-card-bg/50 border border-card-border rounded-3xl pb-0 flex items-center shadow-sm">
+                        <textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
-                            placeholder={isOnline ? "Message Sathi..." : "Offline..."}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (isOnline || localAIReady) handleSend();
+                                }
+                            }}
+                            placeholder={isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."}
                             disabled={!isOnline && !localAIReady}
-                            className="w-full bg-card-bg/80 backdrop-blur-sm text-text-main placeholder-text-muted/60 font-medium px-5 py-3 rounded-full border border-card-border focus:outline-none focus:ring-1 focus:ring-indigo-500/50 shadow-sm text-[16px] transition-all"
+                            className="w-full bg-transparent text-text-main placeholder-text-muted px-4 py-3.5 focus:outline-none resize-none overflow-hidden min-h-[50px] max-h-[120px] rounded-3xl"
+                            rows={1}
+                            style={{ height: input ? 'auto' : '50px' }}
                         />
                     </div>
 
-                    <div className="shrink-0 flex items-center pl-1 pr-1">
+                    {/* Submit / Mic Button */}
+                    <div className="shrink-0 pb-0.5">
                         {input.trim() ? (
-                            <button onClick={handleSend} className="w-[46px] h-[46px] bg-indigo-600 text-white rounded-full shadow-lg hover:shadow-indigo-500/40 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
+                            <button
+                                onClick={handleSend}
+                                className="w-[46px] h-[46px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95"
+                            >
                                 <Send size={20} className="translate-x-[2px]" />
                             </button>
                         ) : (
@@ -710,17 +718,18 @@ const Chat = () => {
                                     if (isListening) stopRecording();
                                     else startRecording();
                                 }}
-                                className={`w-[46px] h-[46px] rounded-full shadow-lg transition-all flex items-center justify-center ${isListening
-                                    ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse'
-                                    : 'bg-indigo-600 text-white shadow-indigo-500/40 hover:bg-indigo-500 active:scale-95'
+                                className={`w-[46px] h-[46px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
+                                    ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse'
+                                    : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'
                                     }`}
                             >
-                                <Mic size={20} className={isListening ? "animate-bounce" : ""} />
+                                <Mic size={20} />
                             </button>
                         )}
                     </div>
+
                 </div>
-            </div>
+            </footer>
         </div>
     );
 };
