@@ -28,8 +28,16 @@ def init_db():
         stock_quantity INTEGER,
         category TEXT,
         tax_percent REAL,
+        unit TEXT DEFAULT 'pcs',
         user_id TEXT
     )''')
+    
+    # Check if unit column exists for existing DBs
+    c.execute("PRAGMA table_info(products)")
+    columns = [col['name'] for col in c.fetchall()]
+    if 'unit' not in columns:
+        logger.info("Adding 'unit' column to products table...")
+        c.execute("ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'pcs'")
     
     # Customers Table
     c.execute('''CREATE TABLE IF NOT EXISTS customers (
@@ -102,10 +110,10 @@ def sync_products_from_cloud(products_data):
     # Upsert logic (simplified: replace)
     for p in products_data:
         c.execute('''INSERT OR REPLACE INTO products 
-                     (id, name, selling_price, cost_price, stock_quantity, category, tax_percent, user_id)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                     (id, name, selling_price, cost_price, stock_quantity, category, tax_percent, unit, user_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                   (p.get('id'), p.get('name'), p.get('selling_price'), p.get('cost_price'), 
-                   p.get('stock_quantity'), p.get('category'), p.get('tax_percent'), p.get('user_id')))
+                   p.get('stock_quantity'), p.get('category'), p.get('tax_percent'), p.get('unit', 'pcs'), p.get('user_id')))
     
     conn.commit()
     conn.close()
@@ -294,19 +302,19 @@ def save_product_local(product_data, user_id):
         if existing:
             # Update existing
             c.execute('''UPDATE products SET 
-                         selling_price = ?, stock_quantity = ?, category = ?
+                         selling_price = ?, stock_quantity = ?, category = ?, unit = ?
                          WHERE id = ?''',
                       (product_data.get('selling_price'), product_data.get('stock_quantity'), 
-                       product_data.get('category'), existing['id']))
+                       product_data.get('category'), product_data.get('unit', 'pcs'), existing['id']))
             product_id = existing['id']
         else:
             # Insert new
             c.execute('''INSERT INTO products 
-                         (name, selling_price, cost_price, stock_quantity, category, user_id)
-                         VALUES (?, ?, ?, ?, ?, ?)''',
+                         (name, selling_price, cost_price, stock_quantity, category, unit, user_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
                       (product_data.get('name'), product_data.get('selling_price'), 
                        product_data.get('cost_price', 0), product_data.get('stock_quantity'), 
-                       product_data.get('category'), user_id))
+                       product_data.get('category'), product_data.get('unit', 'pcs'), user_id))
             product_id = c.lastrowid
             
         conn.commit()

@@ -108,12 +108,12 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // INVOICE (Handled by InvoiceTemplate now, skipping this wrapper if it's external, but wait, InvoiceTemplate is inside ActionCard? No, InvoiceTemplate is separate component. The ActionCard doesn't wrap it in a box here, it just returns InvoiceTemplate).
         // Product Draft Wrapper
         return (
-            <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-indigo-100/50 overflow-hidden mt-4 w-full max-w-2xl mx-auto transition-all">
+            <div className="glass-card rounded-[28px] shadow-xl border border-card-border/50 overflow-hidden mt-4 w-full max-w-2xl mx-auto transition-all">
                 {/* Header Toolbar */}
-                <div className="bg-slate-50 p-3 flex justify-between items-center border-b border-slate-200">
+                <div className="bg-card-bg/40 p-3 flex justify-between items-center border-b border-card-border/50">
                     <div className="flex items-center gap-2">
                         <FileText size={18} className="text-indigo-600" />
-                        <span className="font-bold text-indigo-900 text-sm">
+                        <span className="font-bold text-text-main font-bold text-sm">
                             {isGstShop ? "Draft Tax Invoice (GST)" : "Draft Receipt"}
                         </span>
                         {isEditing && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 rounded-full border border-amber-200 animate-pulse">EDITING</span>}
@@ -121,7 +121,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <div className="flex gap-2">
                         <button
                             onClick={() => setIsEditing(!isEditing)}
-                            className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-slate-200 text-slate-500'}`}
+                            className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-slate-200 text-text-muted'}`}
                             title="Edit Draft"
                         >
                             {isEditing ? <Check size={16} /> : <Edit2 size={16} />}
@@ -132,39 +132,42 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 <div className="p-0 overflow-hidden relative">
                     {/* EDIT MODE OVERLAY / FORM */}
                     {isEditing ? (
-                        <div className="p-6 bg-white">
+                        <div className="p-6 bg-transparent">
                             <div className="mb-4">
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Customer Name</label>
+                                <label className="block text-xs font-bold text-text-muted mb-1">Customer Name</label>
                                 <input
                                     value={localData.customer_name || ''}
                                     onChange={(e) => handleCustomerNameChange(e.target.value)}
-                                    className="w-full border border-slate-300 rounded p-2 text-sm focus:border-indigo-500 outline-none"
+                                    className="w-full border border-card-border/80 rounded p-2 text-sm focus:border-indigo-500 outline-none"
                                 />
                             </div>
 
                             <div className="space-y-3">
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Items</label>
+                                <label className="block text-xs font-bold text-text-muted mb-1">Items</label>
                                 {localData.items?.map((item, idx) => (
-                                    <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded border border-slate-100">
+                                    <div key={idx} className="flex gap-2 items-center bg-card-bg/40 p-2 rounded border border-card-border/30">
                                         <div className="flex-1">
-                                            <p className="text-xs text-slate-400 font-mono">Item</p>
+                                            <p className="text-xs text-text-muted/70 font-mono">Item</p>
                                             <input
                                                 value={item.product_name}
                                                 onChange={(e) => handleInvoiceItemChange(idx, 'product_name', e.target.value)}
-                                                className="w-full bg-transparent font-medium text-slate-700 border-b border-transparent focus:border-indigo-300 outline-none text-sm"
+                                                className="w-full bg-bg-main/50 font-medium text-text-main border-b border-transparent focus:border-indigo-300 outline-none text-sm"
                                             />
                                         </div>
                                         <div className="w-20">
-                                            <p className="text-[10px] text-slate-400">Qty</p>
-                                            <input
-                                                type="number"
-                                                value={item.quantity}
-                                                onChange={(e) => handleInvoiceItemChange(idx, 'quantity', e.target.value)}
-                                                className="w-full border rounded p-1 text-sm text-center"
-                                            />
+                                            <p className="text-[10px] text-text-muted/70">Qty</p>
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(e) => handleInvoiceItemChange(idx, 'quantity', e.target.value)}
+                                                    className="w-full border rounded p-1 text-sm text-center"
+                                                />
+                                                {item.unit && <span className="text-[10px] text-text-muted font-bold">{item.unit}</span>}
+                                            </div>
                                         </div>
                                         <div className="w-24">
-                                            <p className="text-[10px] text-slate-400">Rate (₹)</p>
+                                            <p className="text-[10px] text-text-muted/70">Rate (₹)</p>
                                             <input
                                                 type="number"
                                                 value={item.price || 0}
@@ -173,21 +176,21 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                             />
                                         </div>
                                         <div className="w-20 text-right">
-                                            <p className="text-[10px] text-slate-400">Total</p>
-                                            <p className="font-bold text-slate-700 mt-1">₹{(item.quantity * item.price) || 0}</p>
+                                            <p className="text-[10px] text-text-muted/70">Total</p>
+                                            <p className="font-bold text-text-main mt-1">₹{(item.quantity * item.price) || 0}</p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="mt-6 flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-                                <span className="font-bold text-indigo-900">Total Amount</span>
+                            <div className="mt-6 flex justify-between items-center bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/20">
+                                <span className="font-bold text-text-main font-bold">Total Amount</span>
                                 <span className="font-bold text-2xl text-indigo-700">₹{grandTotal}</span>
                             </div>
                         </div>
                     ) : (
                         /* VIEW MODE (PREVIEW) */
-                        <div className="transform scale-[0.85] origin-top border-b border-slate-100">
+                        <div className="transform scale-[0.85] origin-top border-b border-card-border/30">
                             <InvoiceTemplate
                                 sale={mockSale}
                                 items={templateItems}
@@ -198,10 +201,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 </div>
 
                 {/* Footer Actions */}
-                <div className="bg-slate-50 p-4 flex justify-between gap-4 border-t border-slate-200">
+                <div className="bg-card-bg/40 p-4 flex justify-between gap-4 border-t border-card-border/50">
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2.5 text-slate-500 font-bold hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 text-sm"
+                        className="flex-1 py-2.5 text-text-muted font-bold hover:bg-slate-200 rounded-lg transition-colors border border-card-border/80 text-sm"
                     >
                         Discard
                     </button>
@@ -226,13 +229,13 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         });
 
         return (
-            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-indigo-100/50 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-                <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
+            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
+                <div className="bg-indigo-500/10 px-4 py-3 flex justify-between items-center border-b border-indigo-500/20">
                     <div className="flex items-center gap-2">
                         <Package size={18} className="text-indigo-600" />
-                        <span className="font-bold text-indigo-900 text-sm">New Product Draft</span>
+                        <span className="font-bold text-text-main font-bold text-sm">New Product Draft</span>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-indigo-200 text-indigo-600 rounded-full uppercase tracking-wider">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-transparent border border-indigo-500/30 text-indigo-600 rounded-full uppercase tracking-wider">
                         ADD STOCK
                     </span>
                 </div>
@@ -240,14 +243,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 <div className="p-4 space-y-4">
                     {/* Product Name */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                             Product Name
                         </label>
                         <input
                             type="text"
                             value={localData.name || ''}
                             onChange={(e) => setLocalData({ ...localData, name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-slate-700"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-text-main"
                             placeholder="e.g. Maggi Masala"
                         />
                     </div>
@@ -255,16 +258,16 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <div className="flex gap-4">
                         {/* Selling Price */}
                         <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                 Selling Price (SP)
                             </label>
                             <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                                <span className="absolute left-3 top-2 text-text-muted/70 font-bold">₹</span>
                                 <input
                                     type="number"
                                     value={localData.selling_price || ''}
                                     onChange={(e) => setLocalData({ ...localData, selling_price: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-bold text-slate-800"
+                                    className="w-full pl-8 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-bold text-text-main"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -272,16 +275,34 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                         {/* Stock Quantity */}
                         <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                 Stock Qty
                             </label>
-                            <input
-                                type="number"
-                                value={localData.stock_quantity || ''}
-                                onChange={(e) => setLocalData({ ...localData, stock_quantity: parseInt(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-bold text-slate-800"
-                                placeholder="0"
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    value={localData.stock_quantity || ''}
+                                    onChange={(e) => setLocalData({ ...localData, stock_quantity: parseInt(e.target.value) || 0 })}
+                                    className="flex-1 px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-bold text-text-main"
+                                    placeholder="0"
+                                />
+                                <select
+                                    value={localData.unit || 'pcs'}
+                                    onChange={(e) => setLocalData({ ...localData, unit: e.target.value })}
+                                    className="w-24 px-2 py-2 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-transparent font-bold text-text-main"
+                                >
+                                    <option value="pcs">pcs</option>
+                                    <option value="kg">kg</option>
+                                    <option value="g">g</option>
+                                    <option value="litre">litre</option>
+                                    <option value="ml">ml</option>
+                                    <option value="dozen">dozen</option>
+                                    <option value="box">box</option>
+                                    <option value="packet">packet</option>
+                                    <option value="metre">metre</option>
+                                    <option value="set">set</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -301,20 +322,20 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                     {/* Extended Details (Collapsible) */}
                     {showDetails && (
-                        <div className="pt-2 space-y-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="pt-2 space-y-4 border-t border-card-border/30 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div className="flex gap-4">
                                 {/* Cost Price */}
                                 <div className="flex-1">
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                         Cost Price (CP)
                                     </label>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                                        <span className="absolute left-3 top-2 text-text-muted/70 font-bold">₹</span>
                                         <input
                                             type="number"
                                             value={localData.cost_price || ''}
                                             onChange={(e) => setLocalData({ ...localData, cost_price: parseFloat(e.target.value) || 0 })}
-                                            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 outline-none font-medium text-slate-600 bg-slate-50"
+                                            className="w-full pl-8 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-slate-400 outline-none font-medium text-text-main bg-card-bg/40"
                                             placeholder="Optional"
                                         />
                                     </div>
@@ -322,13 +343,13 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                                 {/* Category */}
                                 <div className="flex-1">
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                         Category
                                     </label>
                                     <select
                                         value={localData.category || 'General'}
                                         onChange={(e) => setLocalData({ ...localData, category: e.target.value })}
-                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-slate-700"
+                                        className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-bg-main/50 font-medium text-text-main"
                                     >
                                         <option value="General">General</option>
                                         <option value="Grocery">Grocery</option>
@@ -342,10 +363,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     )}
                 </div>
 
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <div className="px-4 py-3 bg-card-bg/40 border-t border-card-border/30 flex gap-3">
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <X size={16} /> Discard
                     </button>
@@ -397,9 +418,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         };
 
         return (
-            <div className={`bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] ${isCredit ? 'border-red-200' : 'border-emerald-200'}`}>
+            <div className={`glass-card rounded-[28px] border overflow-hidden w-full max-w-md mx-auto my-4 shadow-lg transition-all duration-300 hover:shadow-lg ${isCredit ? 'border-red-500/30 hover:border-red-500/50 hover:shadow-red-500/10' : 'border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-emerald-500/10'}`}>
                 {/* Header with Toggle */}
-                <div className={`px-4 py-3 border-b flex justify-between items-center ${isCredit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                <div className={`px-4 py-3 border-b flex justify-between items-center ${isCredit ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <div className={`flex items-center gap-2 ${isCredit ? 'text-red-700' : 'text-emerald-700'}`}>
                         <div className={`p-1.5 rounded-lg ${isCredit ? 'bg-red-100' : 'bg-emerald-100'}`}>
                             <ThemeIcon size={16} />
@@ -409,22 +430,22 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         </span>
                     </div>
                     {/* Status Badge */}
-                    <span className={`text-[10px] font-bold px-2 py-0.5 bg-white border rounded-full uppercase tracking-wider ${isCredit ? 'border-red-200 text-red-600' : 'border-emerald-200 text-emerald-600'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 bg-transparent border rounded-full uppercase tracking-wider ${isCredit ? 'border-red-500/30 text-red-600' : 'border-emerald-500/30 text-emerald-600'}`}>
                         DRAFT
                     </span>
                 </div>
 
                 {/* Toggle Switch */}
-                <div className="flex bg-slate-100 p-1 mx-4 mt-4 rounded-lg">
+                <div className="flex bg-bg-main/50 p-1 mx-4 mt-4 rounded-lg">
                     <button
                         onClick={() => setMode('credit')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${isCredit ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${isCredit ? 'bg-transparent text-red-600 shadow-sm' : 'text-text-muted hover:text-text-main'}`}
                     >
                         Give Credit (Red)
                     </button>
                     <button
                         onClick={() => setMode('payment')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${!isCredit ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${!isCredit ? 'bg-transparent text-emerald-600 shadow-sm' : 'text-text-muted hover:text-text-main'}`}
                     >
                         Get Payment (Green)
                     </button>
@@ -433,16 +454,16 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 <div className="p-4 space-y-4">
                     {/* Customer */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                             Customer Name
                         </label>
                         <div className="relative">
-                            <User className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                            <User className="absolute left-3 top-2.5 text-text-muted/70" size={16} />
                             <input
                                 type="text"
                                 value={localData.customer_name || ''}
                                 onChange={(e) => setLocalData({ ...localData, customer_name: e.target.value })}
-                                className={`w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none transition-all placeholder:text-slate-300 font-medium text-slate-700 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
+                                className={`w-full pl-9 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 outline-none transition-all placeholder:text-text-muted/50 font-medium text-text-main ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                                 placeholder="Enter customer name..."
                             />
                         </div>
@@ -451,28 +472,28 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     {/* Amount & Mode Row */}
                     <div className="flex gap-3">
                         <div className="flex-1">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                 Amount
                             </label>
                             <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                                <span className="absolute left-3 top-2 text-text-muted/70 font-bold">₹</span>
                                 <input
                                     type="number"
                                     value={Math.abs(localData.amount) || ''}
                                     onChange={(e) => handleAmountChange(e.target.value)}
-                                    className={`w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none transition-all font-bold text-slate-800 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
+                                    className={`w-full pl-8 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 outline-none transition-all font-bold text-text-main ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                                     placeholder="0.00"
                                 />
                             </div>
                         </div>
                         <div className="w-1/3">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                                 Mode
                             </label>
                             <select
                                 value={localData.mode || 'Cash'}
                                 onChange={(e) => setLocalData({ ...localData, mode: e.target.value })}
-                                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 outline-none bg-white font-medium text-slate-700 ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
+                                className={`w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 outline-none bg-bg-main/50 font-medium text-text-main ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                             >
                                 <option value="Cash">Cash</option>
                                 <option value="UPI">UPI</option>
@@ -483,10 +504,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 </div>
 
                 {/* Actions */}
-                <div className={`px-4 py-3 border-t flex gap-3 ${isCredit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                <div className={`px-4 py-3 border-t flex gap-3 ${isCredit ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <X size={16} /> Discard
                     </button>
@@ -504,14 +525,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 5. CUSTOMER DRAFT CARD
     if (type === 'customer_draft') {
         return (
-            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-indigo-100/50 overflow-hidden w-full max-w-md mx-auto my-4 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+            <div className="glass-card rounded-[28px] overflow-hidden w-full max-w-md mx-auto my-4 border border-card-border/50 shadow-lg transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
                 {/* Header */}
-                <div className="bg-blue-50 px-4 py-3 flex justify-between items-center border-b border-blue-100">
+                <div className="bg-blue-500/10 px-4 py-3 flex justify-between items-center border-b border-blue-500/20">
                     <div className="flex items-center gap-2">
                         <User size={18} className="text-blue-600" />
-                        <span className="font-bold text-blue-900 text-sm">Add New Customer</span>
+                        <span className="font-bold text-text-main font-bold text-sm">Add New Customer</span>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-white border border-blue-200 text-blue-600 rounded-full uppercase tracking-wider">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-transparent border border-blue-500/30 text-blue-600 rounded-full uppercase tracking-wider">
                         NEW
                     </span>
                 </div>
@@ -519,52 +540,52 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 <div className="p-4 space-y-3">
                     {/* Name */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
                             Customer Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             value={localData.name || ''}
                             onChange={(e) => setLocalData({ ...localData, name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-text-main"
                             placeholder="e.g. Rahul Sharma"
                         />
                     </div>
 
                     {/* Phone */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Phone <span className="text-slate-400">(optional)</span>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                            Phone <span className="text-text-muted/70">(optional)</span>
                         </label>
                         <input
                             type="tel"
                             value={localData.phone || ''}
                             onChange={(e) => setLocalData({ ...localData, phone: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-text-main"
                             placeholder="e.g. 9876543210"
                         />
                     </div>
 
                     {/* Address */}
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                            Address <span className="text-slate-400">(optional)</span>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                            Address <span className="text-text-muted/70">(optional)</span>
                         </label>
                         <input
                             type="text"
                             value={localData.address || ''}
                             onChange={(e) => setLocalData({ ...localData, address: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-slate-700"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-text-main"
                             placeholder="e.g. 12 Gandhi Nagar"
                         />
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <div className="px-4 py-3 bg-card-bg/40 border-t border-card-border/30 flex gap-3">
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <X size={16} /> Discard
                     </button>
@@ -583,9 +604,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 5. RESTOCK DRAFT CARD
     if (type === 'restock_draft') {
         return (
-            <div className="rounded-2xl border border-green-200 shadow-lg overflow-hidden bg-white">
+            <div className="glass-card rounded-[28px] border border-card-border/50 shadow-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-4 py-3 flex items-center gap-3">
-                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                    <div className="w-9 h-9 bg-transparent/20 rounded-xl flex items-center justify-center">
                         <RefreshCw size={18} className="text-white" />
                     </div>
                     <div>
@@ -596,27 +617,27 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                 <div className="p-4 space-y-3">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Product</label>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">Product</label>
                         <input
                             type="text"
                             value={localData.product_name || ''}
                             onChange={e => setLocalData({ ...localData, product_name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-slate-800"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-text-main"
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Quantity to Add</label>
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">Quantity to Add</label>
                         <input
                             type="number"
                             value={localData.quantity_to_add || ''}
                             onChange={e => setLocalData({ ...localData, quantity_to_add: parseInt(e.target.value) || 0 })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-slate-800"
+                            className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-semibold text-text-main"
                         />
                     </div>
                 </div>
 
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
-                    <button onClick={onDiscard} className="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                <div className="px-4 py-3 bg-card-bg/40 border-t border-card-border/30 flex gap-3">
+                    <button onClick={onDiscard} className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2">
                         <X size={16} /> Cancel
                     </button>
                     <button
@@ -653,9 +674,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         };
 
         return (
-            <div className="rounded-2xl border border-indigo-200 shadow-lg overflow-hidden bg-white">
+            <div className="glass-card rounded-[28px] border border-card-border/50 shadow-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-indigo-600 to-violet-500 px-4 py-3 flex items-center gap-3">
-                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                    <div className="w-9 h-9 bg-transparent/20 rounded-xl flex items-center justify-center">
                         <Layers size={18} className="text-white" />
                     </div>
                     <div>
@@ -666,7 +687,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                 {/* Purpose Selector */}
                 <div className="px-4 pt-3 pb-2">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What are these items for?</label>
+                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">What are these items for?</label>
                     <div className="flex gap-2 flex-wrap">
                         {PURPOSES.map(p => (
                             <button
@@ -674,7 +695,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 onClick={() => setPurpose(p.value)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${purpose === p.value
                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                    : 'bg-transparent text-text-main border-card-border/50 hover:border-indigo-300'
                                     }`}
                             >{p.label}</button>
                         ))}
@@ -683,7 +704,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                 {/* Items Table */}
                 <div className="px-4 pb-3 space-y-2">
-                    <div className="grid grid-cols-12 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
+                    <div className="grid grid-cols-12 text-[10px] font-bold text-text-muted/70 uppercase tracking-wider mb-1 px-1">
                         <span className="col-span-5">Item</span>
                         <span className="col-span-3 text-center">Qty</span>
                         <span className="col-span-3 text-center">Price</span>
@@ -692,20 +713,23 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     {batchItems.map((item, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-1 items-center">
                             <input
-                                className="col-span-5 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium"
+                                className="col-span-5 px-2 py-1.5 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium"
                                 value={item.product_name || item.name || ''}
                                 onChange={e => handleItemChange(idx, 'product_name', e.target.value)}
                                 placeholder="Product"
                             />
+                            <div className="col-span-3 flex items-center gap-1">
+                                <input
+                                    className="w-full px-2 py-1.5 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
+                                    type="number" min="0"
+                                    value={item.quantity || ''}
+                                    onChange={e => handleItemChange(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                                    placeholder="Qty"
+                                />
+                                <span className="text-[10px] text-text-muted font-bold w-6">{item.unit || 'pcs'}</span>
+                            </div>
                             <input
-                                className="col-span-3 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
-                                type="number" min="0"
-                                value={item.quantity || ''}
-                                onChange={e => handleItemChange(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                                placeholder="Qty"
-                            />
-                            <input
-                                className="col-span-3 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
+                                className="col-span-3 px-2 py-1.5 text-xs border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none font-medium text-center"
                                 type="number" min="0"
                                 value={item.price || ''}
                                 onChange={e => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
@@ -713,15 +737,15 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             />
                             <button
                                 onClick={() => setBatchItems(prev => prev.filter((_, i) => i !== idx))}
-                                className="col-span-1 flex items-center justify-center text-slate-300 hover:text-red-400 transition-colors"
+                                className="col-span-1 flex items-center justify-center text-text-muted/50 hover:text-red-400 transition-colors"
                             ><X size={14} /></button>
                         </div>
                     ))}
                 </div>
 
                 {/* Footer */}
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex gap-3">
-                    <button onClick={onDiscard} className="py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5">
+                <div className="px-4 py-3 bg-card-bg/40 border-t border-card-border/30 flex gap-3">
+                    <button onClick={onDiscard} className="py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center gap-1.5">
                         <X size={15} /> Discard
                     </button>
                     <button

@@ -29,7 +29,7 @@ const AnimatedRoutes = () => {
 
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location}>
         <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<SystemSetup />} />
@@ -37,14 +37,14 @@ const AnimatedRoutes = () => {
         <Route path="/store/:storeId" element={<StoreFront />} />
 
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<PageTransition><Dashboard /></PageTransition>} />
-          <Route path="chat" element={<PageTransition><Chat /></PageTransition>} />
-          <Route path="inventory" element={<PageTransition><Inventory /></PageTransition>} />
-          <Route path="customers" element={<PageTransition><Customers /></PageTransition>} />
-          <Route path="customers/:id" element={<PageTransition><CustomerDetails /></PageTransition>} />
-          <Route path="sales" element={<PageTransition><Sales /></PageTransition>} />
-          <Route path="settings" element={<PageTransition><Settings /></PageTransition>} />
-          <Route path="connections" element={<PageTransition><Connections /></PageTransition>} />
+          <Route index element={<Dashboard />} />
+          <Route path="chat" element={<Chat />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="customers" element={<Customers />} />
+          <Route path="customers/:id" element={<CustomerDetails />} />
+          <Route path="sales" element={<Sales />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="connections" element={<Connections />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

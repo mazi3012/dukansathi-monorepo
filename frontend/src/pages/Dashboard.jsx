@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Loader, Package, Users } from 'lucide-react';
+import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Package, Users, Activity, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { DashboardSkeleton } from '../components/Skeleton';
 import { supabase } from '../lib/supabase';
 import {
     Chart as ChartJS,
@@ -38,53 +39,60 @@ ChartJS.defaults.color = '#94a3b8'; // slate-400
 
 const StatCard = ({ title, value, change, icon: Icon, colorClass, gradientClass, delay = 0, isLoading }) => (
     <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay, type: "spring", stiffness: 100 }}
-        whileHover={{ y: -4, transition: { duration: 0.2 } }}
-        className="relative overflow-hidden bg-white/40 backdrop-blur-xl p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/50 flex flex-col justify-between group"
+        transition={{ delay, type: "spring", stiffness: 80, damping: 20 }}
+        whileHover={{ y: -8, scale: 1.02 }}
+        className="relative overflow-hidden glass-card p-6 rounded-[32px] flex flex-col justify-between group h-full transition-all duration-500 border border-card-border/50 hover:border-indigo-500/30"
     >
-        {/* Glow effect on hover */}
-        <div className={`absolute -inset-px bg-gradient-to-br ${gradientClass} opacity-0 group-hover:opacity-10 transition-opacity duration-500 rounded-3xl`} />
+        {/* Animated Background Glow */}
+        <div className={`absolute -inset-px bg-gradient-to-br ${gradientClass} opacity-0 group-hover:opacity-[0.08] transition-opacity duration-700 rounded-[32px]`} />
 
         <div className="flex justify-between items-start relative z-10">
-            <div className="text-slate-500 flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-4">
+            <div className="text-text-muted flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] mb-4 transition-colors group-hover:text-text-main">
                 {title}
             </div>
-            <div className={`p-2 rounded-2xl bg-white shadow-sm border border-slate-100 ${colorClass}`}>
-                <Icon size={18} />
+            <div className={`w-12 h-12 rounded-[18px] bg-card-bg/80 backdrop-blur-xl shadow-lg border border-card-border flex items-center justify-center ${colorClass} group-hover:scale-110 transition-transform duration-500`}>
+                <Icon size={22} />
             </div>
         </div>
 
-        <div className="relative z-10">
+        <div className="relative z-10 mt-2">
             {isLoading ? (
-                <div className="h-8 w-24 bg-slate-200/50 rounded-lg animate-pulse" />
+                <div className="h-10 w-32 bg-indigo-500/5 rounded-xl skeleton-shimmer" />
             ) : (
-                <div className="text-3xl font-heading font-extrabold text-slate-900 tracking-tight">{value}</div>
+                <div className="text-4xl font-black font-heading text-text-main tracking-tighter leading-none transition-colors group-hover:text-indigo-500">{value}</div>
             )}
-            {change && (
-                <div className="flex items-center gap-1 mt-2 text-xs font-bold text-emerald-500 bg-emerald-50 w-fit px-2 py-1 rounded-full">
-                    <TrendingUp size={12} /> {change}
-                </div>
-            )}
+
+            <div className="flex items-center gap-3 mt-4">
+                {change && (
+                    <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-wider">
+                        <TrendingUp size={12} strokeWidth={3} /> {change}
+                    </div>
+                )}
+                <div className="h-[2px] flex-1 bg-gradient-to-r from-card-border/50 to-transparent" />
+            </div>
         </div>
     </motion.div>
 );
 
 const ActionButton = ({ icon: Icon, label, color, gradient, onClick, active = false }) => (
     <motion.button
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ y: -5, scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
-        className="flex flex-col items-center gap-3 relative group"
+        className="flex flex-col items-center gap-4 relative group"
     >
-        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg relative overflow-hidden ${active ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}>
-            <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
-            {/* Inner glass reflection */}
-            <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent z-10" />
-            <Icon size={26} className="relative z-20 drop-shadow-md" />
+        <div className={`w-20 h-20 rounded-[28px] flex items-center justify-center text-white shadow-2xl relative overflow-hidden transition-all duration-500 ${active ? 'ring-4 ring-indigo-500/30' : ''}`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} group-hover:rotate-12 transition-transform duration-700`} />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            {/* Glossy Overlay */}
+            <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-white/20 to-transparent z-10" />
+
+            <Icon size={32} className="relative z-20 drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] transition-transform duration-500 group-hover:scale-110" />
         </div>
-        <span className="text-xs font-bold text-slate-600 transition-colors group-hover:text-slate-900">{label}</span>
+        <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors group-hover:text-indigo-500">{label}</span>
     </motion.button>
 );
 
@@ -108,63 +116,6 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const isGuest = sessionStorage.getItem('guest_mode') === 'true';
-            const API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-
-            if (isGuest) {
-                // ── LOCAL MODE: compute all stats from SQLite ──────────────
-                const [salesRes, productsRes, customersRes] = await Promise.all([
-                    fetch(`${API_URL}/api/local/sales`),
-                    fetch(`${API_URL}/api/local/products`),
-                    fetch(`${API_URL}/api/local/customers`),
-                ]);
-                const allSales = salesRes.ok ? await salesRes.json() : [];
-                const allProducts = productsRes.ok ? await productsRes.json() : [];
-                const allCustomers = customersRes.ok ? await customersRes.json() : [];
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                const filteredSales = timeframe === 'today'
-                    ? allSales.filter(s => new Date(s.created_at) >= today)
-                    : allSales;
-
-                const revenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-                const ordersCount = filteredSales.length;
-                const lowStock = allProducts.filter(p => (p.stock_quantity || 0) < 5).length;
-                const totalCusts = allCustomers.length;
-
-                // Recent 4 sales
-                const recent = allSales.slice(0, 4).map(s => ({
-                    id: s.id,
-                    total_amount: s.total_amount,
-                    payment_method: s.payment_method || 'cash',
-                    created_at: s.created_at,
-                    customers: { name: s.customer_name || 'Walk-in' }
-                }));
-
-                // Weekly chart — last 7 days
-                const weeklyAggregated = {};
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    weeklyAggregated[d.toLocaleDateString('en-US', { weekday: 'short' })] = 0;
-                }
-                const lastWeek = new Date();
-                lastWeek.setDate(lastWeek.getDate() - 6);
-                lastWeek.setHours(0, 0, 0, 0);
-                allSales.filter(s => new Date(s.created_at) >= lastWeek).forEach(s => {
-                    const key = new Date(s.created_at).toLocaleDateString('en-US', { weekday: 'short' });
-                    if (weeklyAggregated[key] !== undefined) {
-                        weeklyAggregated[key] += parseFloat(s.total_amount) || 0;
-                    }
-                });
-
-                setSalesData(Object.values(weeklyAggregated));
-                setStats({ revenue, ordersCount, lowStockCount: lowStock, totalCustomers: totalCusts });
-                setRecentSales(recent);
-                return;
-            }
 
             // ── ONLINE MODE: Supabase ─────────────────────────────────────
             const today = new Date();
@@ -179,10 +130,15 @@ const Dashboard = () => {
             }
 
             const { data: salesDataResult, error: salesError } = await salesQuery;
-            if (salesError) throw salesError;
-
-            const revenue = salesDataResult.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
-            const ordersCount = salesDataResult.length;
+            if (salesError) {
+                console.error("Sales fetch error:", salesError);
+                setStats(prev => ({ ...prev, revenue: 0, ordersCount: 0 }));
+            } else {
+                const safeSales = salesDataResult || [];
+                const revenue = safeSales.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
+                const ordersCount = safeSales.length;
+                setStats(prev => ({ ...prev, revenue, ordersCount }));
+            }
 
             // 2. Low Stock Count
             const { count: lowStock, error: stockError } = await supabase
@@ -215,7 +171,8 @@ const Dashboard = () => {
                 .gte('created_at', lastWeek.toISOString())
                 .order('created_at', { ascending: true });
 
-            if (weeklyError) throw weeklyError;
+            const safeWeeklySales = weeklySales || [];
+            if (weeklyError) console.error("Weekly sales fetch error:", weeklyError);
 
             // Aggregate weekly sales by day
             const weeklyAggregated = {};
@@ -227,7 +184,7 @@ const Dashboard = () => {
                 weeklyAggregated[dateStr] = 0;
             }
 
-            weeklySales.forEach(sale => {
+            safeWeeklySales.forEach(sale => {
                 const dateStr = new Date(sale.created_at).toLocaleDateString('en-US', { weekday: 'short' });
                 if (weeklyAggregated[dateStr] !== undefined) {
                     weeklyAggregated[dateStr] += parseFloat(sale.total_amount) || 0;
@@ -236,12 +193,11 @@ const Dashboard = () => {
 
             setSalesData(Object.values(weeklyAggregated));
 
-            setStats({
-                revenue,
-                ordersCount,
+            setStats(prev => ({
+                ...prev,
                 lowStockCount: lowStock || 0,
                 totalCustomers: customersCount || 0
-            });
+            }));
             setRecentSales(recent || []);
 
         } catch (error) {
@@ -317,29 +273,38 @@ const Dashboard = () => {
         interaction: { intersect: false, mode: 'index' },
     };
 
+    if (loading && recentSales.length === 0) {
+        return <div className="p-6"><DashboardSkeleton /></div>;
+    }
+
     return (
-        <div className="pb-24 space-y-8 min-h-screen bg-slate-50 relative selection:bg-indigo-500/30">
+        <div className="pb-24 space-y-8 min-h-screen relative selection:bg-indigo-500/30">
             {/* Ambient Background Blur for main content area */}
             <div className="absolute top-[10%] left-[20%] w-[30%] h-[30%] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
             <div className="absolute top-[40%] right-[10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-8 gap-4 relative z-10">
-                <div>
-                    <h1 className="text-3xl font-heading font-extrabold text-slate-900 tracking-tight">Overview</h1>
-                    <p className="text-slate-500 font-medium">Here's what's happening with your store {timeframe === 'today' ? 'today' : 'overall'}.</p>
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-6 gap-6 relative z-10">
+                <div className="flex items-center gap-5">
+                    <div className="w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                        <Activity size={32} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
+                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Business Insights & Analytics Performance</p>
+                    </div>
                 </div>
                 {/* Timeframe Toggle */}
-                <div className="flex bg-slate-200/50 p-1 rounded-xl backdrop-blur-sm self-start md:self-auto border border-slate-200/50">
+                <div className="flex bg-card-bg/40 backdrop-blur-xl border border-card-border p-1.5 rounded-2xl self-start md:self-auto shadow-sm">
                     <button
                         onClick={() => setTimeframe('today')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${timeframe === 'today' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'today' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         Today
                     </button>
                     <button
                         onClick={() => setTimeframe('all')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${timeframe === 'all' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'all' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         All Time
                     </button>
@@ -396,11 +361,11 @@ const Dashboard = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5, type: "spring", stiffness: 100 }}
-                        className="bg-white/60 backdrop-blur-xl p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/50"
+                        className="glass-card p-6 rounded-3xl"
                     >
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-heading font-bold text-slate-900">Weekly Revenue</h2>
-                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">Last 7 Days</span>
+                            <h2 className="text-lg font-heading font-bold text-text-main transition-colors">Weekly Revenue</h2>
+                            <span className="text-xs font-bold text-text-muted bg-card-bg px-3 py-1 rounded-full border border-card-border transition-colors">Last 7 Days</span>
                         </div>
                         <div className="h-[280px] w-full relative">
                             {loading ? (
@@ -415,7 +380,7 @@ const Dashboard = () => {
 
                     {/* Quick Actions Bento */}
                     <div>
-                        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-4">Command Center</h2>
+                        <h2 className="text-sm font-bold text-text-main uppercase tracking-widest mb-4 transition-colors">Command Center</h2>
                         <div className="flex flex-wrap gap-4 sm:gap-6">
                             <ActionButton icon={Plus} label="New Bill" gradient="from-indigo-500 to-indigo-600" onClick={() => navigate('/sales')} />
                             <ActionButton icon={Package} label="Add Stock" gradient="from-blue-500 to-blue-600" onClick={() => navigate('/inventory')} />
@@ -432,11 +397,11 @@ const Dashboard = () => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6, type: "spring", stiffness: 100 }}
-                    className="bg-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/50 flex flex-col"
+                    className="glass-card rounded-3xl flex flex-col h-full"
                 >
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h2 className="text-lg font-heading font-bold text-slate-900">Recent Sales</h2>
-                        <button onClick={() => navigate('/sales')} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                    <div className="p-6 border-b border-card-border flex items-center justify-between">
+                        <h2 className="text-lg font-heading font-bold text-text-main transition-colors">Recent Sales</h2>
+                        <button onClick={() => navigate('/sales')} className="w-8 h-8 rounded-full bg-card-bg flex items-center justify-center text-text-muted hover:bg-indigo-500/10 hover:text-indigo-500 transition-all border border-card-border">
                             <ChevronRight size={18} />
                         </button>
                     </div>
@@ -447,8 +412,8 @@ const Dashboard = () => {
                                 <Loader className="animate-spin text-indigo-400" size={24} />
                             </div>
                         ) : recentSales.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center p-8 text-slate-400 text-center">
-                                <ShoppingBag className="mb-3 opacity-20" size={48} />
+                            <div className="h-full flex flex-col items-center justify-center p-8 text-text-muted text-center">
+                                <Activity className="mb-3 opacity-20" size={48} />
                                 <p className="font-medium text-sm">No sales yet today</p>
                             </div>
                         ) : (
@@ -460,19 +425,19 @@ const Dashboard = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: 0.7 + (i * 0.1) }}
                                             key={sale.id}
-                                            className="p-4 rounded-2xl hover:bg-slate-50/80 transition-colors flex items-center justify-between group"
+                                            className="p-4 rounded-2xl hover:bg-card-bg/80 transition-all flex items-center justify-between group border border-transparent hover:border-card-border"
                                         >
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm shadow-inner">
+                                                <div className="w-10 h-10 rounded-xl bg-card-bg flex items-center justify-center text-text-muted font-bold text-sm shadow-inner border border-card-border">
                                                     #{sale.id}
                                                 </div>
                                                 <div>
-                                                    <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                                    <div className="text-sm font-bold text-text-main group-hover:text-indigo-500 transition-colors">
                                                         {sale.customers?.name || "Cash Walk-in"}
                                                     </div>
-                                                    <div className="text-xs font-medium text-slate-400 mt-0.5 flex items-center gap-2">
+                                                    <div className="text-xs font-medium text-text-muted mt-0.5 flex items-center gap-2">
                                                         <span>{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                                        <span className="w-1 h-1 rounded-full bg-card-border"></span>
                                                         <span>{sale.payment_method}</span>
                                                     </div>
                                                 </div>
@@ -489,8 +454,8 @@ const Dashboard = () => {
                         )}
                     </div>
                     {/* View All Footer */}
-                    <div className="p-4 bg-slate-50/50 rounded-b-3xl border-t border-slate-100 text-center">
-                        <Link to="/sales" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View Complete Ledger</Link>
+                    <div className="p-4 bg-card-bg/30 rounded-b-3xl border-t border-card-border text-center">
+                        <Link to="/sales" className="text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors">View Complete Ledger</Link>
                     </div>
                 </motion.div>
             </div>

@@ -12,7 +12,8 @@ import {
     User,
     ChevronUp,
     Send,
-    Link as LinkIcon
+    Link as LinkIcon,
+    RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -21,6 +22,25 @@ import { useNavigate } from 'react-router-dom';
 const Sidebar = () => {
     const navigate = useNavigate();
     const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
+    const [isSyncing, setIsSyncing] = React.useState(true);
+
+    React.useEffect(() => {
+        const storedSyncState = localStorage.getItem('auto_sync_enabled');
+        if (storedSyncState !== null) {
+            setIsSyncing(storedSyncState === 'true');
+        } else {
+            // Default to true
+            localStorage.setItem('auto_sync_enabled', 'true');
+        }
+    }, []);
+
+    const handleSyncToggle = () => {
+        const newState = !isSyncing;
+        setIsSyncing(newState);
+        localStorage.setItem('auto_sync_enabled', String(newState));
+        // You can dispatch a custom event here if other components need to react instantly to the toggle change
+        window.dispatchEvent(new CustomEvent('sync-toggle-changed', { detail: { isSyncing: newState } }));
+    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -29,7 +49,7 @@ const Sidebar = () => {
 
     const navItems = [
         { path: '/', icon: Home, label: 'Overview' },
-        { path: '/chat', icon: MessageSquare, label: 'AI Assistant' },
+        { path: '/chat', icon: MessageSquare, label: 'Dukan Sathi AI' },
         { path: '/sales', icon: TrendingUp, label: 'Sales Ledger' },
         { path: '/inventory', icon: Package, label: 'Inventory' },
         { path: '/customers', icon: Users, label: 'Customers' },
@@ -38,16 +58,16 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside className="hidden md:flex flex-col w-64 bg-white/70 backdrop-blur-2xl border-r border-slate-200/50 h-screen fixed left-0 top-0 z-40 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <aside className="hidden md:flex flex-col w-64 glass-card h-screen fixed left-0 top-0 z-40 transition-colors duration-300">
             {/* Logo Area */}
-            <div className="p-6 border-b border-slate-200/50 flex items-center gap-3 relative overflow-hidden group cursor-pointer" onClick={() => navigate('/')}>
+            <div className="p-6 border-b border-card-border flex items-center gap-3 relative overflow-hidden group cursor-pointer" onClick={() => navigate('/')}>
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 relative z-10">
                     <span className="text-white font-bold font-heading text-lg">DS</span>
                 </div>
                 <div className="relative z-10">
-                    <h1 className="font-heading font-extrabold text-xl text-slate-900 tracking-tight">Dukan Sathi</h1>
-                    <span className="text-[10px] uppercase tracking-widest text-indigo-600 font-bold px-2 py-0.5 bg-indigo-50 rounded-full border border-indigo-100">BETA</span>
+                    <h1 className="font-heading font-extrabold text-xl text-text-main tracking-tight transition-colors">Dukan Sathi</h1>
+                    <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/20">BETA</span>
                 </div>
             </div>
 
@@ -61,7 +81,7 @@ const Sidebar = () => {
                             flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden
                             ${isActive
                                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                                : 'text-slate-500 hover:bg-white hover:text-indigo-600 hover:shadow-sm border border-transparent hover:border-slate-100'}
+                                : 'text-text-muted hover:bg-card-bg hover:text-indigo-500 border border-transparent hover:border-card-border'}
                         `}
                     >
                         {({ isActive }) => (
@@ -83,8 +103,24 @@ const Sidebar = () => {
                 ))}
             </nav>
 
+            {/* Sync Toggle */}
+            <div className="px-6 py-4 border-t border-card-border bg-card-bg/50 backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <RefreshCw size={18} className={`transition-colors duration-300 ${isSyncing ? 'text-indigo-500' : 'text-text-muted'}`} />
+                        <span className="text-sm font-semibold text-text-main transition-colors">Auto Sync</span>
+                    </div>
+                    <button
+                        onClick={handleSyncToggle}
+                        className={`w-11 h-6 rounded-full flex items-center transition-colors duration-300 p-1 ${isSyncing ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                    >
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isSyncing ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+            </div>
+
             {/* User Profile / Footer Area */}
-            <div className="p-4 border-t border-slate-200/50 bg-white/30 backdrop-blur-md relative">
+            <div className="p-4 border-t border-card-border bg-card-bg/50 backdrop-blur-md relative">
                 <AnimatePresence>
                     {isProfileMenuOpen && (
                         <>
@@ -127,18 +163,18 @@ const Sidebar = () => {
 
                 <div
                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200/50 transition-all cursor-pointer select-none group"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-card-bg border border-transparent hover:border-card-border transition-all cursor-pointer select-none group"
                 >
                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-heading font-bold text-xs shadow-inner">
                         DS
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">Workspace</p>
-                        <p className="text-[11px] font-medium text-slate-500 truncate">Owner</p>
+                        <p className="text-sm font-bold text-text-main truncate group-hover:text-indigo-500 transition-colors">Workspace</p>
+                        <p className="text-[11px] font-medium text-text-muted truncate">Owner</p>
                     </div>
                     <ChevronUp
                         size={16}
-                        className={`text-slate-400 transition-transform duration-300 ${isProfileMenuOpen ? 'rotate-180 text-indigo-500' : 'group-hover:text-indigo-500'}`}
+                        className={`text-text-muted transition-transform duration-300 ${isProfileMenuOpen ? 'rotate-180 text-indigo-500' : 'group-hover:text-indigo-500'}`}
                     />
                 </div>
             </div>

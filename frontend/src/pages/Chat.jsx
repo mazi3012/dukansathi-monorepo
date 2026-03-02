@@ -545,70 +545,90 @@ const Chat = () => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)]"> {/* Minus BottomNav Height */}
+        <div className="flex flex-col h-full relative overflow-hidden min-h-0 overflow-y-clip"> {/* Force clip to prevent any scrolling gap */}
+            {/* Ambient Background Glows */}
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-            {/* Chat Header */}
-            <div className="flex items-center gap-3 p-4 bg-white shadow-sm border-b border-slate-100 sticky top-0 z-10">
-                <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-slate-500 hover:bg-slate-50 rounded-full">
-                    <ArrowLeft size={20} />
+            {/* Chat Header - Ultra Slim & Sticky */}
+            <div className="flex items-center gap-2 p-1.5 sticky top-0 z-30 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/30 transition-all">
+                <button onClick={() => navigate(-1)} className="w-8 h-8 rounded-lg bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-sm">
+                    <ArrowLeft size={16} />
                 </button>
-                <div className="flex-1">
-                    <h2 className="font-heading font-bold text-lg text-slate-800">Sathi AI</h2>
-                    <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')}`}></span>
-                        <span className="text-xs text-slate-500">
-                            {model === 'phi3:mini' ? 'Local AI (Offline)' : (isOnline ? 'Online' : (localAIReady ? 'Offline (Local AI)' : 'Offline'))}
+                <div className="flex flex-row items-center gap-3 px-1">
+                    <h2 className="font-heading font-black text-lg text-text-main tracking-tight leading-none transition-colors">Dukan Sathi AI</h2>
+                    <div className="flex items-center gap-1.5 h-full pt-0.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500' : (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')} transition-all`}></div>
+                        <span className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] leading-none transition-colors">
+                            {model === 'phi3:mini' ? 'Local' : (isOnline ? 'Cloud' : 'Offline')}
                         </span>
                     </div>
                 </div>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-hide relative z-10">
                 {messages.map((msg, idx) => {
-                    // Check if message has attachment (from backend)
                     const hasAttachment = msg.attachment && Object.keys(msg.attachment).length > 0;
+                    const isUser = msg.type === 'user' || msg.type === 'user-audio';
 
                     return (
-                        <div key={idx} className={`flex flex-col ${msg.type === 'user' || msg.type === 'user-audio' ? 'items-end' : 'items-start'}`}>
+                        <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                             <div className={`
-                                max-w-[80%] rounded-2xl px-4 py-3 shadow-sm text-sm
-                                ${msg.type === 'user' || msg.type === 'user-audio'
-                                    ? 'bg-indigo-600 text-white rounded-br-none'
-                                    : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'}
+                                max-w-[95%] md:max-w-[85%] rounded-[28px] px-5 py-4 shadow-xl text-sm leading-relaxed overflow-hidden relative group
+                                ${isUser
+                                    ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-500/20'
+                                    : 'glass-card text-text-main rounded-tl-none border border-card-border/50 transition-colors'}
                             `}>
+                                {/* Inner Glow for User Messages */}
+                                {isUser && <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />}
+
                                 {msg.image && (
-                                    <img src={msg.image} alt="Attachment" className="max-w-full rounded-lg mb-2 border border-white/20" />
+                                    <div className="rounded-2xl overflow-hidden mb-3 border border-white/10 group-hover:scale-[1.02] transition-transform">
+                                        <img src={msg.image} alt="Attachment" className="w-full object-cover" />
+                                    </div>
                                 )}
+
                                 {msg.text === '🎤 ...' ? (
-                                    <div className="flex items-center gap-1.5 h-5 px-2">
-                                        <div className="w-1 bg-white/80 rounded-full h-2 animate-[pulse_1s_ease-in-out_infinite]" />
-                                        <div className="w-1 bg-white/80 rounded-full h-4 animate-[pulse_1s_ease-in-out_infinite_100ms]" />
-                                        <div className="w-1 bg-white/80 rounded-full h-3 animate-[pulse_1s_ease-in-out_infinite_200ms]" />
-                                        <div className="w-1 bg-white/80 rounded-full h-5 animate-[pulse_1s_ease-in-out_infinite_300ms]" />
-                                        <div className="w-1 bg-white/80 rounded-full h-2 animate-[pulse_1s_ease-in-out_infinite_400ms]" />
+                                    <div className="flex items-center gap-2 h-6 px-2">
+                                        <div className="w-1.5 bg-white/80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite]" />
+                                        <div className="w-1.5 bg-white/80 rounded-full h-5 animate-[voice-wave_1s_ease-in-out_infinite_100ms]" />
+                                        <div className="w-1.5 bg-white/80 rounded-full h-4 animate-[voice-wave_1s_ease-in-out_infinite_200ms]" />
+                                        <div className="w-1.5 bg-white/80 rounded-full h-6 animate-[voice-wave_1s_ease-in-out_infinite_300ms]" />
+                                        <div className="w-1.5 bg-white/80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite_400ms]" />
                                     </div>
                                 ) : (
-                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    <p className={`whitespace-pre-wrap font-bold ${isUser ? 'text-white' : 'text-text-main'}`}>{msg.text}</p>
                                 )}
+
+                                {/* Timestamp/Meta if needed can go here */}
+                                <div className={`text-[9px] mt-2 opacity-40 font-black uppercase tracking-tighter ${isUser ? 'text-white' : 'text-text-muted'}`}>
+                                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
                             </div>
 
                             {/* Render Attachment as ActionCard */}
                             {hasAttachment && (
-                                <ActionCard
-                                    actionData={msg.attachment}
-                                    onDiscard={() => setMessages(prev => prev.map((m, i) =>
-                                        i === idx ? { ...m, attachment: null } : m
-                                    ))}
-                                    onApprove={(editedData) => handleApproveAction(editedData)}
-                                    businessProfile={businessProfile}
-                                />
+                                <div className="mt-4 w-full max-w-[90%] transform hover:scale-[1.01] transition-transform">
+                                    <ActionCard
+                                        actionData={msg.attachment}
+                                        onDiscard={() => setMessages(prev => prev.map((m, i) =>
+                                            i === idx ? { ...m, attachment: null } : m
+                                        ))}
+                                        onApprove={(editedData) => handleApproveAction(editedData)}
+                                        businessProfile={businessProfile}
+                                    />
+                                </div>
                             )}
+
                             {/* Image prompt indicator */}
                             {msg.isImagePrompt && msg.image_url && (
-                                <div className="mt-2 rounded-xl overflow-hidden border border-indigo-200 max-w-[80%]">
-                                    <img src={msg.image_url} alt="Uploaded" className="w-full object-cover max-h-40" />
-                                    <p className="text-[10px] text-center text-indigo-500 py-1 bg-indigo-50">📷 Tap mic or type your intent above</p>
+                                <div className="mt-3 glass-card rounded-2xl overflow-hidden border border-indigo-500/20 max-w-[80%] shadow-lg shadow-indigo-500/5 animate-in zoom-in-95 duration-300">
+                                    <img src={msg.image_url} alt="Uploaded" className="w-full object-cover max-h-48" />
+                                    <div className="p-3 bg-indigo-500/5 flex items-center justify-center gap-2">
+                                        <Mic size={12} className="text-indigo-500 animate-pulse" />
+                                        <p className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">Visual Scan Active • Tap Mic to Describe</p>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -617,78 +637,89 @@ const Chat = () => {
                 <div ref={messagesEndRef} />
 
                 {isThinking && (
-                    <div className="flex justify-start px-4">
-                        <div className="bg-white text-slate-500 border border-slate-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm inline-block">
-                            <div className="flex space-x-1.5 items-center h-5">
-                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
+                    <div className="flex justify-start">
+                        <div className="glass-card rounded-[28px] rounded-tl-none px-6 py-4 border border-card-border/50 shadow-xl">
+                            <div className="flex space-x-2 items-center h-6">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s] shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
                             </div>
                         </div>
                     </div>
                 )}
+                {/* Spacer to prevent messages from hiding behind absolute input */}
+                <div className="h-16 w-full shrink-0"></div>
             </div>
 
-            {/* Status Indicator */}
+            {/* Status Floating Bar */}
             {(isThinking || isPlaying) && (
-                <div className="px-4 py-1 text-xs font-medium text-slate-500 animate-pulse">
-                    {isThinking ? "Thinking..." : "Speaking..."}
+                <div className="absolute top-[68px] left-12 right-12 z-20 flex justify-center">
+                    <div className="px-3 py-1 glass-card rounded-full border border-indigo-500/20 shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4">
+                        <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />
+                        <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">
+                            {isThinking ? "Thinking..." : "Playing..."}
+                        </span>
+                    </div>
                 </div>
             )}
 
-            {/* Input Area */}
-            <div className="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                >
-                    <ImageIcon size={24} />
-                </button>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
-                    className="hidden"
-                    accept="image/*"
-                />
+            {/* Input Area - Absolute Bottom Docked, using absolute positioning to guarantee zero gap */}
+            <div className="absolute bottom-0 left-0 right-0 px-0 pt-1.5 pb-0 bg-bg-main/80 backdrop-blur-xl border-t border-card-border z-20 w-full">
+                <div className="w-full flex items-center gap-0.5 px-0.5 min-h-[44px]">
+                    <div className="flex items-center gap-0.5 glass-card rounded-md p-0 border border-card-border/50">
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-[26px] h-[26px] flex items-center justify-center text-text-muted hover:text-indigo-500 rounded-md transition-all"
+                        >
+                            <ImageIcon size={13} />
+                        </button>
+                        <button
+                            onClick={toggleMute}
+                            className={`w-[26px] h-[26px] flex items-center justify-center rounded-md transition-all ${isMuted ? 'text-red-500' : 'text-text-muted hover:text-indigo-500'}`}
+                        >
+                            {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
+                        </button>
+                    </div>
 
-                <button
-                    onClick={toggleMute}
-                    className={`p-2 transition-colors relative ${isMuted ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-indigo-600'}`}
-                    title={isMuted ? "Unmute AI" : "Mute AI"}
-                >
-                    {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} className={isPlaying ? "animate-pulse text-indigo-500" : ""} />}
-                    {isPlaying && <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full animate-ping" />}
-                </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
+                        className="hidden"
+                        accept="image/*"
+                    />
 
-                <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
-                    placeholder={isOnline ? "Ask anything..." : (localAIReady ? "Ask Local AI..." : "You are offline")}
-                    disabled={!isOnline && !localAIReady}
-                    className={`flex-1 bg-slate-100 text-slate-800 placeholder-slate-400 px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed ${!isOnline && localAIReady ? 'ring-2 ring-amber-500/20 bg-amber-50' : ''}`}
-                />
+                    <div className="flex-1 relative">
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && (isOnline || localAIReady) && handleSend()}
+                            placeholder={isOnline ? "Message Sathi..." : "Offline..."}
+                            disabled={!isOnline && !localAIReady}
+                            className={`w-full bg-card-bg text-text-main placeholder-text-muted/40 font-bold px-3 py-3 rounded-md border border-card-border focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-sm transition-all`}
+                        />
+                    </div>
 
-                {input.trim() ? (
-                    <button onClick={handleSend} className="p-2.5 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition relative overflow-hidden group">
-                        <Send size={20} className="relative z-10 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => {
-                            if (isListening) stopRecording();
-                            else startRecording();
-                        }}
-                        className={`p-2.5 rounded-full shadow-md transition-all select-none ${isListening
-                            ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200 scale-110'
-                            : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
-                            }`}
-                    >
-                        <Mic size={20} className={isListening ? "animate-bounce" : ""} />
-                    </button>
-                )}
+                    {input.trim() ? (
+                        <button onClick={handleSend} className="w-8 h-8 bg-indigo-600 text-white rounded-md shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                            <Send size={14} />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => {
+                                if (isListening) stopRecording();
+                                else startRecording();
+                            }}
+                            className={`w-8 h-8 rounded-md shadow-lg transition-all flex items-center justify-center ${isListening
+                                ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse'
+                                : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
+                                }`}
+                        >
+                            <Mic size={14} className={isListening ? "animate-bounce" : ""} />
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -223,33 +223,7 @@ async def get_local_payments(customer_name: str = None):
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_payments_local(customer_name)
 
-@app.post("/api/local/reset-demo")
-async def reset_demo_data():
-    """Clear all demo/guest session data from local SQLite DB.
-    Called at the start of each new demo session to ensure isolation."""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    try:
-        from dukansathi_ai.agent_graph import clear_user_memory
-        clear_user_memory("demo_session")
-        
-        conn = local_db.get_db_connection()
-        cursor = conn.cursor()
-        # Delete all rows from demo tables (correct table names from local_db schema)
-        cursor.execute("DELETE FROM local_payments")
-        cursor.execute("DELETE FROM local_sales")
-        cursor.execute("DELETE FROM customers")
-        cursor.execute("DELETE FROM products")
-        cursor.execute("DELETE FROM draft_invoices")
-        cursor.execute("DELETE FROM draft_actions")
-        conn.commit()
-        conn.close()
-        logger.info("Demo data reset: all local tables cleared.")
-        return {"status": "ok", "message": "Demo session reset. All local data cleared."}
-    except Exception as e:
-        logger.error(f"Demo reset failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
-# ---------------------------------------------
+
 
 # --- Telegram Bot Link Endpoint ---
 @app.get("/api/telegram/bot-link")
@@ -546,15 +520,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             voice_id = data.get("voice_id", "en-IN-PrabhatNeural") # Default to Prabhat (English India)
             voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
             model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
-            is_demo = data.get("is_demo", False)
-
-            # ── DEMO MODE OVERRIDE ─────────────────────────────────────────────
-            # In demo mode, use a stable session key and let agent_graph know
-            # to use local SQLite only (via is_demo flag). Keep the user's
-            # chosen model for generation quality.
-            if is_demo:
-                user_token = "demo_session"
-                user_id = "demo_session"
 
             # Better User ID Handling
             # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
@@ -783,12 +748,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                 
                 if is_local_mode or data.get("ai_mode") == "local":
                      local_model_name = model_id.replace("local:", "") if model_id.startswith("local:") else model_id
-                     print(f"[AI] Using LOCAL AI Engine ({local_model_name}) demo={is_demo}...")
-                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name, is_demo=is_demo)
+                     print(f"[AI] Using LOCAL AI Engine ({local_model_name})...")
+                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name)
                      
                 else:
                     # Cloud AI
-                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id, is_demo=is_demo)
+                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
 
                 print(f"[AI] AI Raw Response: {ai_response_raw[:100]}...")
                 

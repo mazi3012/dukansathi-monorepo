@@ -108,16 +108,17 @@ def format_draft_for_telegram(draft: dict) -> str:
         name = draft.get("name", "Unknown")
         price = draft.get("selling_price", 0)
         stock = draft.get("stock_quantity", 0)
+        unit = draft.get("unit", "pcs")
         cost = draft.get("cost_price", 0)
         lines = [
             "📦 *Product Draft*",
             f"  Name: {name}",
-            f"  Selling Price: ₹{price}",
+            f"  Selling Price: ₹{price} / {unit}",
         ]
         if cost:
             lines.append(f"  Cost Price: ₹{cost}")
         if stock:
-            lines.append(f"  Stock: {stock}")
+            lines.append(f"  Stock: {stock} {unit}")
         lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
         return "\n".join(lines)
 
@@ -144,8 +145,9 @@ def format_draft_for_telegram(draft: dict) -> str:
         for item in items:
             name = item.get("product_name", "?")
             qty = item.get("quantity", 0)
+            unit = item.get("unit", "pcs")
             price = item.get("price", 0)
-            lines.append(f"    • {name} × {qty}  ₹{price * qty}")
+            lines.append(f"    • {name} × {qty} {unit}  ₹{price * qty}")
         lines.append(f"  *Total: ₹{total}*")
         lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
         return "\n".join(lines)
@@ -202,11 +204,12 @@ def generate_invoice_pdf(customer_name: str, items: list, total: float, invoice_
     for item in items:
         prod_name = item.get("product_name", "Unknown Item")
         qty = float(item.get("quantity", 0))
+        unit = item.get("unit", "pcs")
         price = float(item.get("price", 0))
         item_total = qty * price
         
         c.drawString(50, y, str(prod_name)[:30])
-        c.drawString(300, y, str(qty))
+        c.drawString(300, y, f"{qty} {unit}")
         c.drawString(400, y, f"Rs {price:.2f}")
         c.drawString(500, y, f"Rs {item_total:.2f}")
         y -= 20
@@ -250,6 +253,7 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 "selling_price": float(draft.get("selling_price", 0) or 0),
                 "cost_price": float(draft.get("cost_price", 0) or 0),
                 "stock_quantity": int(draft.get("stock_quantity", 0) or 0),
+                "unit": draft.get("unit", "pcs") or "pcs",
                 "category": draft.get("category", "General") or "General"
             }).execute()
             return f"✅ Product '{name}' saved successfully!", None

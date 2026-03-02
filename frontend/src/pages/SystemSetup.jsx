@@ -153,83 +153,98 @@ const SystemSetup = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-            <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-                {/* Header */}
-                <div className="bg-indigo-600 p-6 text-white">
-                    <h1 className="text-2xl font-bold mb-2">System Setup Wizard</h1>
-                    <p className="opacity-90">Configure your local Dukan Sathi environment</p>
+        <div className="min-h-screen bg-bg-main flex flex-col items-center justify-center p-4 relative overflow-hidden transition-colors">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-indigo-600/10 rounded-full blur-[160px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-purple-600/10 rounded-full blur-[160px] pointer-events-none" />
 
-                    {/* Progress */}
-                    <div className="flex items-center gap-2 mt-6 text-sm font-medium">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-white text-indigo-600' : 'bg-indigo-500 text-indigo-200'}`}>1</div>
-                        <div className={`h-1 flex-1 rounded-full ${step >= 2 ? 'bg-white' : 'bg-indigo-500'}`}></div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-white text-indigo-600' : 'bg-indigo-500 text-indigo-200'}`}>2</div>
-                        <div className={`h-1 flex-1 rounded-full ${step >= 3 ? 'bg-white' : 'bg-indigo-500'}`}></div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? 'bg-white text-indigo-600' : 'bg-indigo-500 text-indigo-200'}`}>3</div>
+            <div className="max-w-2xl w-full glass-card rounded-[48px] border border-card-border shadow-2xl overflow-hidden relative z-10">
+                {/* Header - Streamlined */}
+                <div className="p-10 border-b border-card-border/50 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
+                    <div className="flex items-center gap-6 mb-8">
+                        <div className="w-20 h-20 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-2xl shadow-indigo-500/5 transition-transform hover:rotate-12">
+                            <Server size={40} strokeWidth={2.5} />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Neural Sync</h1>
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.4em] mt-2 transition-colors">System Initialization Protocol v2.6</p>
+                        </div>
                     </div>
-                    <div className="flex justify-between text-xs mt-1 px-1">
-                        <span>Hardware</span>
-                        <span>Config</span>
-                        <span>AI Engine</span>
+
+                    {/* Progress - AI Styled */}
+                    <div className="flex items-center gap-4 mt-10">
+                        {[1, 2, 3].map((s) => (
+                            <React.Fragment key={s}>
+                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm transition-all duration-500 ${step >= s ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30 ring-4 ring-indigo-500/10' : 'bg-card-bg/50 text-text-muted border border-card-border'}`}>
+                                    {step > s ? <Check size={20} strokeWidth={3} /> : s}
+                                </div>
+                                {s < 3 && <div className={`h-1 flex-1 rounded-full transition-all duration-700 ${step > s ? 'bg-indigo-600 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-card-border'}`}></div>}
+                            </React.Fragment>
+                        ))}
+                    </div>
+                    <div className="flex justify-between text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mt-3 px-1">
+                        <span>Hardware Scan</span>
+                        <span>Config Handshake</span>
+                        <span>AI Engine Build</span>
                     </div>
                 </div>
 
                 {/* Body */}
-                <div className="p-8">
+                <div className="p-10">
                     {/* STEP 1: HARDWARE */}
                     {step === 1 && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Cpu className="text-indigo-600" /> System Hardware Check
+                        <div className="space-y-8">
+                            <h2 className="text-2xl font-black font-heading text-text-main flex items-center gap-3 uppercase tracking-tight">
+                                <Cpu className="text-indigo-500" size={24} /> Hardware Diagnostics
                             </h2>
 
-                            {loading && <div className="text-center py-8">Scanning system...</div>}
+                            {loading && <div className="text-center py-12 font-black text-text-muted animate-pulse uppercase tracking-[0.3em]">Scrutinizing System Architecture...</div>}
 
                             {hardware && (
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div className="text-xs text-slate-500 uppercase font-bold mb-1">Processor</div>
-                                            <div className="font-medium text-slate-800 truncate" title={hardware.cpu}>{hardware.cpu || "Detecting..."}</div>
+                                <div className="space-y-8">
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div className="bg-card-bg/40 p-5 rounded-3xl border border-card-border transition-colors hover:border-indigo-500/50">
+                                            <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mb-2">Central Processor</div>
+                                            <div className="font-bold text-text-main truncate" title={hardware.cpu}>{hardware.cpu || "Analyzing..."}</div>
                                         </div>
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div className="text-xs text-slate-500 uppercase font-bold mb-1">Graphics</div>
-                                            <div className="font-medium text-slate-800 truncate">{hardware.gpu || "Integrated"}</div>
+                                        <div className="bg-card-bg/40 p-5 rounded-3xl border border-card-border transition-colors hover:border-indigo-500/50">
+                                            <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mb-2">Graphics Engine</div>
+                                            <div className="font-bold text-text-main truncate">{hardware.gpu || "Unified Graphics"}</div>
                                         </div>
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div className="text-xs text-slate-500 uppercase font-bold mb-1">RAM</div>
-                                            <div className="font-medium text-slate-800">{hardware.ram_total_gb ? `${hardware.ram_total_gb} GB` : 'Detecting...'}</div>
+                                        <div className="bg-card-bg/40 p-5 rounded-3xl border border-card-border transition-colors hover:border-indigo-500/50">
+                                            <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mb-2">System Memory</div>
+                                            <div className="font-bold text-text-main">{hardware.ram_total_gb ? `${hardware.ram_total_gb} GB DDR` : 'Analyzing...'}</div>
                                         </div>
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            <div className="text-xs text-slate-500 uppercase font-bold mb-1">VRAM</div>
-                                            <div className="font-medium text-slate-800">{hardware.vram_gb !== undefined ? `${hardware.vram_gb} GB` : 'Detecting...'}</div>
+                                        <div className="bg-card-bg/40 p-5 rounded-3xl border border-card-border transition-colors hover:border-indigo-500/50">
+                                            <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mb-2">Neural VRAM</div>
+                                            <div className="font-bold text-text-main">{hardware.vram_gb !== undefined ? `${hardware.vram_gb} GB` : 'Analyzing...'}</div>
                                         </div>
                                     </div>
 
                                     {hardware.error && (
-                                        <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-xs font-mono">
-                                            Hardware Error: {hardware.error}
+                                        <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+                                            Diagnostic Fault: {hardware.error}
                                         </div>
                                     )}
 
                                     {/* Ollama Status */}
-                                    <div className={`p-4 rounded-xl border ${ollamaReady ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
-                                        <div className="flex items-start gap-3">
-                                            {ollamaReady ? <Check className="mt-1" /> : <AlertTriangle className="mt-1" />}
+                                    <div className={`p-6 rounded-3xl border transition-all ${ollamaReady ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500' : 'bg-amber-500/5 border-amber-500/20 text-amber-500'}`}>
+                                        <div className="flex items-start gap-4">
+                                            {ollamaReady ? <CheckCircle2 className="mt-1" size={24} /> : <AlertTriangle className="mt-1" size={24} />}
                                             <div className="flex-1">
-                                                <div className="font-bold flex items-center justify-between">
-                                                    <span>Ollama Engine: {ollamaReady ? "Running" : "Not Found"}</span>
-                                                    {!ollamaReady && <button onClick={checkOllama} className="text-xs underline flex items-center gap-1">Check Again</button>}
+                                                <div className="font-black uppercase tracking-tight flex items-center justify-between">
+                                                    <span>Ollama Engine: {ollamaReady ? "Bridged" : "Not Detected"}</span>
+                                                    {!ollamaReady && <button onClick={checkOllama} className="text-[9px] underline uppercase tracking-widest">Re-Scan</button>}
                                                 </div>
-                                                <div className="text-sm opacity-90 mt-1">
+                                                <div className="text-[11px] font-bold opacity-80 mt-2 leading-relaxed">
                                                     {ollamaReady
-                                                        ? `Recommended Model: ${hardware.recommended_model}`
-                                                        : "Ollama is required for local AI. Please install it from ollama.com and keep it running."}
+                                                        ? `Optimal Model for your hardware: ${hardware.recommended_model}`
+                                                        : "Ollama is the core neural runtime for local AI. Please install it from ollama.com and ensure the service is active."}
                                                 </div>
                                                 {!ollamaReady && (
-                                                    <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-block mt-3 px-4 py-1.5 bg-amber-200 text-amber-900 rounded-lg text-sm font-bold hover:bg-amber-300 transition">
-                                                        Download Ollama
+                                                    <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-block mt-4 px-6 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all">
+                                                        Deploy Ollama Runtime
                                                     </a>
                                                 )}
                                             </div>
@@ -239,9 +254,9 @@ const SystemSetup = () => {
                                     <button
                                         onClick={() => setStep(2)}
                                         disabled={!ollamaReady}
-                                        className={`w-full py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 ${ollamaReady ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                        className={`w-full py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-[10px] ${ollamaReady ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98]' : 'bg-card-bg/40 text-text-muted border border-card-border cursor-not-allowed'}`}
                                     >
-                                        Next: Configuration <ArrowRight size={20} />
+                                        Authorize Config <ArrowRight size={18} strokeWidth={3} />
                                     </button>
                                 </div>
                             )}
@@ -250,41 +265,41 @@ const SystemSetup = () => {
 
                     {/* STEP 2: CONFIG */}
                     {step === 2 && (
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Server className="text-indigo-600" /> Environment Config
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-black font-heading text-text-main flex items-center gap-3 uppercase tracking-tight">
+                                <Server className="text-indigo-500" size={24} /> Environment Handshake
                             </h2>
-                            <p className="text-sm text-slate-500">
-                                Enter your API credentials. These will be saved to your local .env file.
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-relaxed">
+                                Link your cloud neural nodes. Credentials will be stored in an encrypted local env layer.
                             </p>
 
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Supabase URL</label>
+                            <div className="space-y-5">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Supabase Endpoint</label>
                                     <input
                                         value={config.SUPABASE_URL}
                                         onChange={e => setConfig({ ...config, SUPABASE_URL: e.target.value })}
-                                        className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full p-4 bg-card-bg/40 border border-card-border rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-text-main transition-all"
                                         placeholder="https://xyz.supabase.co"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Supabase Service Key</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Secure Service Key</label>
                                     <input
                                         type="password"
                                         value={config.SUPABASE_SERVICE_KEY}
                                         onChange={e => setConfig({ ...config, SUPABASE_SERVICE_KEY: e.target.value })}
-                                        className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full p-4 bg-card-bg/40 border border-card-border rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-text-main transition-all"
                                         placeholder="eyJhbGci..."
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Groq API Key (Optional)</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Groq Accelerator Key (Opt.)</label>
                                     <input
                                         type="password"
                                         value={config.GROQ_API_KEY}
                                         onChange={e => setConfig({ ...config, GROQ_API_KEY: e.target.value })}
-                                        className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full p-4 bg-card-bg/40 border border-card-border rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-text-main transition-all"
                                         placeholder="gsk_..."
                                     />
                                 </div>
@@ -293,33 +308,34 @@ const SystemSetup = () => {
                             <button
                                 onClick={handleSaveConfig}
                                 disabled={loading}
-                                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                                className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                             >
-                                {loading ? "Saving..." : <><Save size={20} /> Save & Continue</>}
+                                {loading ? "Committing..." : <><Save size={18} strokeWidth={3} /> Save and Deploy</>}
                             </button>
                         </div>
                     )}
 
                     {/* STEP 3: AI INSTALL */}
                     {step === 3 && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Download className="text-indigo-600" /> Install Local AI Engine
+                        <div className="space-y-8">
+                            <h2 className="text-2xl font-black font-heading text-text-main flex items-center gap-3 uppercase tracking-tight">
+                                <Download className="text-indigo-500" size={24} /> Neural Engine Build
                             </h2>
 
-                            <div className="bg-slate-900 text-slate-200 p-4 rounded-xl font-mono text-sm h-48 overflow-y-auto mb-2 custom-scrollbar shadow-inner">
-                                <div className="text-indigo-400"># System ready. target: {hardware?.recommended_model}</div>
-                                {logs.map((log, i) => <div key={i} className="flex gap-2">
-                                    <span className="text-slate-500">&gt;</span>
-                                    <span>{log}</span>
+                            <div className="bg-slate-950 text-indigo-400 p-6 rounded-3xl font-mono text-[11px] h-56 overflow-y-auto mb-2 custom-scrollbar shadow-2xl border border-indigo-500/20">
+                                <div className="opacity-60 mb-2"># Initializing Local LLM Deployment</div>
+                                <div className="opacity-60 mb-2"># Target Architecture: {hardware?.recommended_model}</div>
+                                {logs.map((log, i) => <div key={i} className="flex gap-2 mb-1">
+                                    <span className="text-indigo-500/40 font-black">&gt;&gt;</span>
+                                    <span className="text-indigo-100">{log}</span>
                                 </div>)}
-                                {aiStatus === 'pulling' && <div className="animate-pulse text-indigo-300">&gt; Downloading... {pullProgress}%</div>}
+                                {aiStatus === 'pulling' && <div className="animate-pulse text-indigo-400 mt-2 font-black">&gt;&gt; DEPLOYING NEURAL WEIGHTS... {pullProgress}%</div>}
                             </div>
 
                             {aiStatus === 'pulling' && (
-                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-4">
+                                <div className="w-full h-2 bg-indigo-500/10 rounded-full overflow-hidden mb-4">
                                     <div
-                                        className="h-full bg-indigo-600 transition-all duration-300 ease-out"
+                                        className="h-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-300 ease-out"
                                         style={{ width: `${pullProgress}%` }}
                                     />
                                 </div>
@@ -328,18 +344,18 @@ const SystemSetup = () => {
                             {(aiStatus === 'idle' || aiStatus === 'error') && (
                                 <button
                                     onClick={handleInstallAI}
-                                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg"
+                                    className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                                 >
-                                    <Download size={20} /> {aiStatus === 'error' ? 'Retry Installation' : `Install ${hardware?.recommended_model}`}
+                                    <Download size={18} strokeWidth={3} /> {aiStatus === 'error' ? 'Re-Initiate Build' : `Deploy ${hardware?.recommended_model}`}
                                 </button>
                             )}
 
                             {aiStatus === 'done' && (
                                 <button
                                     onClick={() => navigate('/')}
-                                    className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-lg"
+                                    className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                                 >
-                                    Launch Dukan Sathi <ArrowRight size={20} />
+                                    Activate Neural Interface <ArrowRight size={18} strokeWidth={3} />
                                 </button>
                             )}
                         </div>

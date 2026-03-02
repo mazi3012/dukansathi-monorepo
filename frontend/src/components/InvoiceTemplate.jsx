@@ -139,7 +139,9 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
                                         )}
                                     </td>
                                     {isGst && <td className="py-2 sm:py-3 px-2 text-center text-slate-500 border-r border-slate-200 font-mono text-xs">{item.hsn_code || '-'}</td>}
-                                    <td className="py-2 sm:py-3 px-2 text-center text-slate-600 border-r border-slate-200">{qty}</td>
+                                    <td className="py-2 sm:py-3 px-2 text-center text-slate-600 border-r border-slate-200">
+                                        {qty} <span className="text-[10px] text-slate-400 font-bold">{item.products?.unit || item.unit || 'pcs'}</span>
+                                    </td>
                                     <td className="py-2 sm:py-3 px-2 text-right text-slate-600 border-r border-slate-200">{formatCurrency(rate)}</td>
                                     {isGst && (
                                         <>

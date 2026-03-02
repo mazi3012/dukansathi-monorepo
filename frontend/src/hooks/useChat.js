@@ -1,15 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const DEMO_CHAT_KEY = 'demo_chat_messages';
-const isDemo = () => sessionStorage.getItem('guest_mode') === 'true';
-
 const getInitialMessages = () => {
-    if (isDemo()) {
-        try {
-            const saved = sessionStorage.getItem(DEMO_CHAT_KEY);
-            if (saved) return JSON.parse(saved);
-        } catch (_) { /* ignore parse errors */ }
-    }
     return [{ type: 'ai', text: 'Namaste Boss! Main aapka Dukan Sathi AI hoon. Store ka saara hisaar-kitaab mere paas hai. Aaj kya check karna hai?' }];
 };
 
@@ -50,16 +41,7 @@ export const useChat = () => {
         };
     }, []);
 
-    // Persist chat messages for demo mode (session-only)
-    useEffect(() => {
-        if (isDemo()) {
-            try {
-                sessionStorage.setItem(DEMO_CHAT_KEY, JSON.stringify(messages));
-            } catch (err) {
-                console.error("Failed to save demo chat:", err);
-            }
-        }
-    }, [messages]);
+    // Demo chat mode logic removed.
 
     // Function to toggle mute
     const toggleMute = () => {
@@ -324,6 +306,9 @@ export const useChat = () => {
         // DEBUG: Log voice settings being sent
         console.log(`📤 Sending message with voice settings: { voice_id: '${voice}', voice_rate: '${voiceSpeed}', model: '${model}' }`);
 
+        const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
+        const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
+
         ws.send(JSON.stringify({
             type: 'text',
             content: text,
@@ -331,9 +316,8 @@ export const useChat = () => {
             access_token: session?.access_token,
             voice_id: voice,
             voice_rate: voiceSpeed,
-            model: navigator.onLine ? model : 'phi3:mini',
-            ai_mode: navigator.onLine ? 'cloud' : 'local',
-            is_demo: sessionStorage.getItem('guest_mode') === 'true'
+            model: activeModel,
+            ai_mode: activeMode
         }));
         setMessages(prev => [...prev, { type: 'user', text }]);
     }, [ws, voice, voiceSpeed, model]);
@@ -390,6 +374,9 @@ export const useChat = () => {
                             // DEBUG: Log voice settings for voice recording
                             console.log(`🎤 Sending voice recording with settings: { voice_id: '${voice}', voice_rate: '${voiceSpeed}', model: '${model}' }`);
 
+                            const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
+                            const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
+
                             wsRef.current.send(JSON.stringify({
                                 type: 'voice',
                                 content: base64,
@@ -397,9 +384,8 @@ export const useChat = () => {
                                 access_token: session?.access_token,
                                 voice_id: voice,
                                 voice_rate: voiceSpeed,
-                                model: navigator.onLine ? model : 'phi3:mini',
-                                ai_mode: navigator.onLine ? 'cloud' : 'local',
-                                is_demo: sessionStorage.getItem('guest_mode') === 'true'
+                                model: activeModel,
+                                ai_mode: activeMode
                             }));
                         });
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
