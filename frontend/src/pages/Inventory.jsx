@@ -63,7 +63,39 @@ const Inventory = () => {
         return () => window.removeEventListener('focus', onFocus);
     }, [fetchData]);
 
-    const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())); // Changed from 'search' to 'searchTerm'
+    const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // Image Compression Utility
+    const compressImage = async (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_SIZE = 800;
+                    if (width > height && width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+                    }, 'image/jpeg', 0.7);
+                };
+            };
+        });
+    };
 
     // Handlers
     const handleAddNew = () => {
@@ -120,8 +152,31 @@ const Inventory = () => {
                 batch_number: formData.batch_number,
                 warranty_months: parseInt(formData.warranty_months) || 0,
                 is_gst_applicable: formData.isGst,
-                // Add other mapped fields
+                image_url: formData.image_url || null
             };
+
+            // Handle Image Upload if new image selected
+            if (formData.image instanceof File) {
+                toast.loading("Uploading optimized photo...", { id: 'img-up' });
+                try {
+                    const compressed = await compressImage(formData.image);
+                    const uploadFormData = new FormData();
+                    uploadFormData.append('file', compressed);
+
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/upload-product-image`, {
+                        method: 'POST',
+                        body: uploadFormData
+                    });
+                    const data = await res.json();
+                    if (data.url) {
+                        payload.image_url = data.url;
+                    }
+                    toast.success("Photo uploaded", { id: 'img-up' });
+                } catch (imgErr) {
+                    console.error("Image upload failed:", imgErr);
+                    toast.error("Photo upload failed, saving without photo", { id: 'img-up' });
+                }
+            }
 
             let error;
             if (editingId) {

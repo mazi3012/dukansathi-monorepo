@@ -796,6 +796,206 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         );
     }
 
+    // 7. BULK PRODUCT DRAFT CARD (Excel/CSV upload or Photo OCR)
+    if (type === 'bulk_product_draft') {
+        const [bulkItems, setBulkItems] = useState(localData.items || []);
+
+        const handleBulkItemChange = (idx, field, val) => {
+            const updated = [...bulkItems];
+            updated[idx] = { ...updated[idx], [field]: val };
+            setBulkItems(updated);
+        };
+
+        const handleApproveAll = () => {
+            onApprove({ ...localData, type: 'bulk_product_draft', items: bulkItems });
+        };
+
+        return (
+            <div className="glass-card rounded-[28px] border border-card-border/50 shadow-lg overflow-hidden w-full my-2">
+                <div className="bg-gradient-to-r from-teal-600 to-emerald-500 px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                        <Layers size={18} className="text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-sm">Bulk Item Review</h3>
+                        <p className="text-emerald-100 text-xs">{bulkItems.length} items found — please review details</p>
+                    </div>
+                </div>
+
+                {/* Desktop/Tablet Table View */}
+                <div className="hidden sm:block overflow-x-auto p-4 custom-scrollbar">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-card-border/50">
+                                <th className="pb-2">Product Name</th>
+                                <th className="pb-2 text-center w-20">Unit</th>
+                                <th className="pb-2 text-center w-24">Cost (₹)</th>
+                                <th className="pb-2 text-center w-24">Sell (₹)</th>
+                                <th className="pb-2 text-center w-20">Stock</th>
+                                <th className="pb-2 text-center w-24">Action</th>
+                                <th className="pb-2 w-8"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-card-border/30">
+                            {bulkItems.map((item, idx) => (
+                                <tr key={idx} className="group hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                                    <td className="py-2 pr-2">
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-medium text-text-main py-1"
+                                            value={item.name || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'name', e.target.value)}
+                                            placeholder="Item Name"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-1">
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                            value={item.unit || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'unit', e.target.value)}
+                                            placeholder="pcs"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-1">
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                            type="number" min="0" step="0.01"
+                                            value={item.cost_price || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'cost_price', parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-1">
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                            type="number" min="0" step="0.01"
+                                            value={item.selling_price || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'selling_price', parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-1">
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                            type="number" min="0"
+                                            value={item.stock_quantity || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'stock_quantity', parseInt(e.target.value) || 0)}
+                                            placeholder="0"
+                                        />
+                                    </td>
+                                    <td className="py-2 px-2 text-center">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.action === 'restock'
+                                            ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+                                            : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                                            }`}>
+                                            {item.action === 'restock' ? 'Restock' : 'New'}
+                                        </span>
+                                    </td>
+                                    <td className="py-2 pl-2 text-right">
+                                        <button
+                                            onClick={() => setBulkItems(prev => prev.filter((_, i) => i !== idx))}
+                                            className="p-1.5 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile List View */}
+                <div className="sm:hidden p-3 flex flex-col gap-3">
+                    {bulkItems.map((item, idx) => (
+                        <div key={idx} className="bg-card-bg/50 border border-card-border/50 rounded-xl p-3 relative shadow-sm">
+                            <button
+                                onClick={() => setBulkItems(prev => prev.filter((_, i) => i !== idx))}
+                                className="absolute top-2 right-2 p-1 text-text-muted hover:text-red-500 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+
+                            <div className="flex items-center gap-2 mb-2 pr-6">
+                                <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.action === 'restock' ? 'bg-blue-500/10 text-blue-600' : 'bg-emerald-500/10 text-emerald-600'
+                                    }`}>
+                                    {item.action === 'restock' ? 'Restock' : 'New'}
+                                </span>
+                                <input
+                                    className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-bold text-text-main py-0.5 text-sm"
+                                    value={item.name || ''}
+                                    onChange={e => handleBulkItemChange(idx, 'name', e.target.value)}
+                                    placeholder="Product Name"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <span className="text-[10px] text-text-muted uppercase font-bold">Cost</span>
+                                    <div className="flex items-center">
+                                        <span className="text-text-muted/70 mr-1">₹</span>
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                            type="number" min="0" step="0.01"
+                                            value={item.cost_price || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'cost_price', parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-text-muted uppercase font-bold">Sell</span>
+                                    <div className="flex items-center">
+                                        <span className="text-text-muted/70 mr-1">₹</span>
+                                        <input
+                                            className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                            type="number" min="0" step="0.01"
+                                            value={item.selling_price || ''}
+                                            onChange={e => handleBulkItemChange(idx, 'selling_price', parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-text-muted uppercase font-bold">Stock Qty</span>
+                                    <input
+                                        className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                        type="number" min="0"
+                                        value={item.stock_quantity || ''}
+                                        onChange={e => handleBulkItemChange(idx, 'stock_quantity', parseInt(e.target.value) || 0)}
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-text-muted uppercase font-bold">Unit</span>
+                                    <input
+                                        className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                        value={item.unit || ''}
+                                        onChange={e => handleBulkItemChange(idx, 'unit', e.target.value)}
+                                        placeholder="pcs, kg, etc."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-3 bg-card-bg/60 border-t border-card-border/30 flex gap-3 backdrop-blur-sm">
+                    <button onClick={onDiscard} className="py-2.5 px-4 bg-bg-main/50 border border-card-border text-text-main rounded-xl text-sm font-semibold hover:bg-card-bg/80 transition-colors flex items-center justify-center gap-2">
+                        <X size={16} /> Cancel
+                    </button>
+                    <button
+                        onClick={handleApproveAll}
+                        disabled={bulkItems.length === 0}
+                        className="flex-1 py-2.5 px-4 bg-teal-600 text-white rounded-xl text-sm font-bold hover:bg-teal-700 shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        <Check size={18} /> Finalize & Add All ({bulkItems.length})
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return null;
 };
 

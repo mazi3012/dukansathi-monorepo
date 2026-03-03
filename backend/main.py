@@ -343,51 +343,49 @@ async def telegram_webhook(request: Request):
         return JSONResponse(status_code=500, content={"status": "error"})
 
 async def cleanup_scheduler():
-    """Run chat history cleanup every hour (delete items > 12 hours old)"""
+    """Run chat history and storage cleanup every few hours (delete > 24 hours old)"""
     # Yield immediately to let Uvicorn bind to the port on startup
     await asyncio.sleep(60)
     while True:
         try:
-            print("INFO: Running scheduled chat history cleanup...")
-            
-            # 1. Delete old chat history from DB
-            # We use a direct SQL via RPC if available, or just standard delete via Supabase client if possible
-            # Standard delete: delete from chat_history where created_at < now - 12h
+            print("INFO: Running scheduled chat and storage cleanup...")
             
             if supabase:
+                # 1. Database Cleanup
                 try:
-                    # Calculate threshold time (12 hours ago)
-                    time_threshold = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
-                    
-                    # First, we need to find files to delete (if we tracked them)
-                    # For now, we'll try to delete from DB. 
-                    # Ideally, we should list files in storage > 12h old and delete them, 
-                    # but Supabase Storage API doesn't easily support "list by age".
-                    # Instead, we rely on the implementation that we name files with timestamps or track them.
-                    # Or simpler: Just keep storage clean by specific periodic manual purge or improved logic later.
-                    # Implementing a simple DB cleanup for now.
-                    
-                    # Call the PostgreSQL function directly via RPC
-                    try:
-                        from dukansathi_ai.agent_graph import perform_history_cleanup
-                        await perform_history_cleanup()
-                    except ImportError:
-                        print("WARN: perform_history_cleanup not available")
-                    
-                    # Also try to clean up storage if possible (Listing all files is expensive)
-                    # For a robust solution, we would need a table tracking file uploads.
-                    # Given the constraints, we will rely on DB cleanup and consider storage cleanup 
-                    # as a future improvement or best-effort if we can identify files.
-                    
-                    print("INFO: Chat history cleanup executed.")
+                    from dukansathi_ai.agent_graph import perform_history_cleanup
+                    await perform_history_cleanup()
                 except Exception as e:
-                    print(f"ERROR during cleanup operation: {e}")
+                    print(f"WARN: DB Cleanup failed: {e}")
+
+                # 2. Storage Cleanup (chat-images)
+                try:
+                    print("INFO: Cleaning up old chat images from storage...")
+                    files = supabase.storage.from_("chat-images").list()
+                    if files:
+                        now = datetime.now(timezone.utc)
+                        to_remove = []
+                        for f in files:
+                            try:
+                                # Parse Supabase timestamp
+                                created_at = datetime.fromisoformat(f['created_at'].replace('Z', '+00:00'))
+                                if (now - created_at) > timedelta(hours=24):
+                                    to_remove.append(f['name'])
+                            except Exception:
+                                continue
+                        
+                        if to_remove:
+                            print(f"INFO: Removing {len(to_remove)} expired images...")
+                            supabase.storage.from_("chat-images").remove(to_remove)
+                except Exception as e:
+                    print(f"WARN: Storage Cleanup failed: {e}")
             
+            print("INFO: Cleanup cycle finished.")
         except Exception as e:
             print(f"ERROR: Cleanup task failed: {e}")
         
-        # Wait for 1 hour (3600 seconds)
-        await asyncio.sleep(3600)
+        # Run every 6 hours
+        await asyncio.sleep(6 * 3600)
 
 # Helper: Optimize Image
 def optimize_image(image_bytes: bytes, max_size: int = 1024, quality: int = 80) -> bytes:
@@ -534,6 +532,34 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             print(f"[WS] WS Received: Type={message_type}, Length={len(content)}, Model={model_id}")
             print(f"[WS] Voice Params: ID={voice_id}, Rate={voice_rate}") # DEBUG LOG
 
+            # Optional Inline Attachment Processing for text/voice
+            attachment_context = ""
+            if message_type in ["text", "voice"]:
+                att_type = data.get("attachment_type")
+                att_data = data.get("attachment_data")
+                att_filename = data.get("filename", "")
+                
+                if att_type and att_data:
+                    try:
+                        att_bytes = base64.b64decode(att_data)
+                        if att_type == "image":
+                            file_path = f"{safe_user_id}/{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.jpg"
+                            public_url = await upload_to_storage("chat-images", file_path, optimize_image(att_bytes))
+                            attachment_context = f"[IMAGE CONTEXT: {public_url}]\n"
+                        elif att_type == "excel":
+                            import pandas as pd
+                            import io
+                            if att_filename and att_filename.endswith('.csv'):
+                                df = pd.read_csv(io.BytesIO(att_bytes))
+                            else:
+                                df = pd.read_excel(io.BytesIO(att_bytes))
+                            csv_text = df.to_csv(index=False)
+                            attachment_context = f"[EXCEL BULK DATA:\n{csv_text}\n]\n"
+                    except Exception as e:
+                        print(f"[ERR] Attachment processing failed: {e}")
+                        await websocket.send_json({"type": "error", "content": f"Attachment failed: {e}"})
+                        continue
+
             # 1. Handle Voice Input (STT)
             if message_type == "voice" and content:
                 try:
@@ -541,7 +567,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     user_text = await transcribe_audio(audio_bytes)
                     print(f"[STT] Transcribed: {user_text}")
                     
-                    # Inject pending image context if available
+                    if attachment_context:
+                        user_text = f"{attachment_context}{user_text}"
+                    
+                    # Inject pending image context if available (Legacy fallback)
                     pending_img = pending_image_context.pop(safe_user_id, None)
                     if pending_img:
                         user_text = f"[IMAGE CONTEXT: {pending_img['url']}] {user_text}"
@@ -576,14 +605,72 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                      await websocket.send_json({"type": "error", "content": f"Image error: {e}"})
                 continue  # Don't process AI yet — wait for intent from user
 
-            # 3. Handle Text Input
+            # 3. Handle Excel/CSV Input (Bulk Import)
+            elif message_type == "excel" and content:
+                try:
+                    import pandas as pd
+                    import io
+                    
+                    file_bytes = base64.b64decode(content)
+                    filename = data.get("filename", "upload.csv")
+                    
+                    try:
+                        if filename.endswith('.csv'):
+                            df = pd.read_csv(io.BytesIO(file_bytes))
+                        else:
+                            df = pd.read_excel(io.BytesIO(file_bytes))
+                            
+                        # Convert to markdown/text for the LLM context
+                        csv_text = df.to_csv(index=False)
+                        
+                        # Generate a prompt telling the LLM to process this as a bulk draft
+                        bulk_prompt = f"I am uploading a list of products. Please extract them into a bulk_product_draft. Here is the data:\n\n{csv_text}"
+                        
+                        # We inject this text directly into the AI pipeline
+                        user_text = bulk_prompt
+                        print(f"[EXCEL] Parsed {len(df)} rows from {filename}")
+                        
+                        # Send immediate feedback
+                        await websocket.send_json({
+                            "type": "transcription",
+                            "content": f"Processing {len(df)} products from {filename}..."
+                        })
+                        
+                    except Exception as parse_err:
+                        # Fallback if pandas fails
+                        print(f"[ERR] Pandas parse error: {parse_err}")
+                        await websocket.send_json({"type": "error", "content": f"Could not read file {filename}."})
+                        continue
+                        
+                except Exception as e:
+                    await websocket.send_json({"type": "error", "content": f"Excel processing failed: {str(e)}"})
+                    continue
+
+            # 4. Handle Text Input
             elif message_type == "text":
-                user_text = content
-                # Inject pending image context if available
+                raw_text = content.strip()
+                att_type = data.get("attachment_type", "")
+                
+                # Determine intent text — add smart default if text is empty but attachment exists
+                if not raw_text and attachment_context:
+                    if att_type == "excel":
+                        intent_text = "Please extract this list of products and add them to inventory as a bulk_product_draft."
+                    else:
+                        intent_text = "Please read this image carefully. Extract all products with their name, category, cost price (CP), selling price (SP), and available stock quantity. Return them as a bulk_product_draft."
+                else:
+                    intent_text = raw_text
+                
+                user_text = intent_text
+                
+                if attachment_context:
+                    user_text = f"{attachment_context}{intent_text}"
+                    
+                # Inject pending image context if available (Legacy fallback)
                 pending_img = pending_image_context.pop(safe_user_id, None)
                 if pending_img:
                     user_text = f"[IMAGE CONTEXT: {pending_img['url']}] {user_text}"
-                print(f"[CHAT] Text message: {user_text}")
+                        
+                print(f"[CHAT] Text message (len={len(user_text)}): {user_text[:120]}...")
             
             # 4. Handle Draft Approvals
             elif message_type == "action":
@@ -714,6 +801,63 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                                 "type": "error",
                                 "content": "Failed to update payment."
                             })
+
+                    elif action == "approve_bulk_products" and draft_data:
+                        # Frontend sends the array of items directly as 'data'
+                        items = draft_data if isinstance(draft_data, list) else draft_data.get("items", [])
+                        if not items:
+                            await websocket.send_json({"type": "error", "content": "No items to import."})
+                            continue
+                            
+                        # Process each item based on its assigned action (add vs restock)
+                        success_count = 0
+                        errors = []
+                        
+                        for item in items:
+                            try:
+                                item_action = item.get("action", "add")
+                                
+                                if item_action == "restock" and item.get("existing_id"):
+                                    # Call RPC to safely increment stock
+                                    res = supabase.rpc("increment_stock", {
+                                        "p_product_id": item["existing_id"],
+                                        "p_quantity": float(item.get("stock_quantity", 0)),
+                                        "p_user_id": safe_user_id
+                                    }).execute()
+                                    if res and res.data:
+                                        success_count += 1
+                                    else:
+                                        errors.append(f"Failed to restock {item.get('name')}")
+                                
+                                elif item_action == "add":
+                                    # Insert new product
+                                    res = supabase.table("products").insert({
+                                        "user_id": safe_user_id,
+                                        "name": item.get("name"),
+                                        "category": item.get("category", "General"),
+                                        "cost_price": float(item.get("cost_price")) if item.get("cost_price") else 0,
+                                        "selling_price": float(item.get("selling_price")) if item.get("selling_price") else 0,
+                                        "stock_quantity": float(item.get("stock_quantity", 0)),
+                                        "unit": item.get("unit", "pcs")
+                                    }).execute()
+                                    # Check data for success, as Supabase Python Client relies on it
+                                    if hasattr(res, 'data') and res.data:
+                                        success_count += 1
+                                    else:
+                                        errors.append(f"Failed to add {item.get('name')}")
+                                        
+                            except Exception as item_err:
+                                errors.append(f"Error on {item.get('name', 'unknown')}: {item_err}")
+                                
+                        reply_msg = f"Processed {success_count} / {len(items)} items successfully."
+                        if errors:
+                            reply_msg += f" Had {len(errors)} errors."
+                            print(f"[ERR] Bulk Insert Errors: {errors}")
+                            
+                        await websocket.send_json({
+                            "type": "text",
+                            "content": reply_msg
+                        })
                     
                     else:
                         # Unknown or missing action
@@ -946,14 +1090,14 @@ async def upload_product_image(file: UploadFile = File(...)):
             
         content = await file.read()
         
-        # Optimize
+        # Optimize (Convert to JPG and resize if needed)
         optimized_bytes = optimize_image(content)
         
-        # Upload to 'product-images'
-        file_ext = "jpg" # Always converting to JPG in optimize_image
+        # Upload to 'product-photos' bucket
+        file_ext = "jpg"
         file_name = f"product_{uuid.uuid4().hex}.{file_ext}"
         
-        public_url = await upload_to_storage("product-images", file_name, optimized_bytes)
+        public_url = await upload_to_storage("product-photos", file_name, optimized_bytes)
         
         return {"url": public_url}
         

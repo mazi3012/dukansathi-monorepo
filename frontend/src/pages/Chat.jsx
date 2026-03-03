@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
@@ -12,6 +12,7 @@ const Chat = () => {
         setMessages,
         sendMessage,
         sendImage,
+        sendExcel,
         startRecording,
         stopRecording,
         isListening,
@@ -20,15 +21,23 @@ const Chat = () => {
         toggleMute,
         unlockAudio,
         isPlaying,
-        model
+        model,
+        pendingAttachment,
+        setPendingAttachment
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
+    const excelInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
     const timerRef = useRef(null);
     const navigate = useNavigate();
     const location = useLocation();
+
+    // UI State for Attachment Menu
+    const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+    const menuRef = useRef(null);
     const isOnline = useOnlineStatus();
     const [localAIReady, setLocalAIReady] = useState(false);
     const autoRecordRef = useRef(false);
@@ -125,8 +134,8 @@ const Chat = () => {
     }, [unlockAudio]);
 
     const handleSend = () => {
-        if (!input.trim()) return;
-        sendMessage(input);
+        if (!input.trim() && !pendingAttachment) return;
+        sendMessage(input, pendingAttachment);
         setInput('');
     };
 
@@ -575,6 +584,77 @@ const Chat = () => {
                 }
             }
 
+            // 6. BULK PRODUCT DRAFT (Image/Excel OCR result)
+            if (actionData.type === 'bulk_product_draft') {
+                try {
+                    const items = actionData.items || [];
+                    if (items.length === 0) {
+                        alert('No items to process!');
+                        return;
+                    }
+
+                    let added = 0, restocked = 0, failed = 0;
+
+                    // Process each item — check if exists then insert or restock
+                    for (const item of items) {
+                        try {
+                            const name = (item.name || '').trim();
+                            if (!name) { failed++; continue; }
+
+                            // Check if product already exists (case-insensitive)
+                            const { data: existing } = await supabase
+                                .from('products')
+                                .select('id, stock_quantity')
+                                .ilike('name', name)
+                                .eq('user_id', user.id)
+                                .limit(1)
+                                .maybeSingle();
+
+                            if (existing) {
+                                // Restock existing product
+                                const newStock = parseInt(existing.stock_quantity || 0) + parseInt(item.stock_quantity || 0);
+                                await supabase.from('products').update({
+                                    selling_price: item.selling_price || 0,
+                                    cost_price: item.cost_price || 0,
+                                    stock_quantity: newStock,
+                                    category: item.category || 'General',
+                                    unit: item.unit || 'pcs'
+                                }).eq('id', existing.id);
+                                restocked++;
+                            } else {
+                                // Add new product
+                                const { error } = await supabase.from('products').insert({
+                                    user_id: user.id,
+                                    name,
+                                    selling_price: item.selling_price || 0,
+                                    cost_price: item.cost_price || 0,
+                                    stock_quantity: item.stock_quantity || 0,
+                                    category: item.category || 'General',
+                                    unit: item.unit || 'pcs'
+                                });
+                                if (error) throw error;
+                                added++;
+                            }
+                        } catch (itemErr) {
+                            console.warn('Failed to process item:', item.name, itemErr);
+                            failed++;
+                        }
+                    }
+
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        {
+                            type: 'bot',
+                            text: `✅ Bulk Import Done!\n\n📦 ${added} new products added\n🔄 ${restocked} products restocked${failed > 0 ? `\n⚠️ ${failed} items skipped` : ''}\n\nCheck your Inventory to verify!`
+                        }
+                    ]);
+                } catch (err) {
+                    console.error('Bulk approval error:', err);
+                    alert('Failed to process bulk items: ' + err.message);
+                }
+                return;
+            }
+
         } catch (error) {
             console.error("Action Error:", error);
             alert("Failed to execute action: " + error.message);
@@ -648,7 +728,10 @@ const Chat = () => {
 
                             {/* Attachments (e.g., Invoices, Approvals) */}
                             {hasAttachment && (
-                                <div className="mt-3 w-full max-w-[95%] sm:max-w-md md:max-w-xl lg:max-w-2xl animate-in slide-in-from-bottom-2">
+                                <div className={`mt-3 w-full animate-in slide-in-from-bottom-2 ${msg.attachment?.draft_type === 'bulk_product' || msg.attachment?.type === 'bulk_product_draft'
+                                    ? 'max-w-full'
+                                    : 'max-w-[95%] sm:max-w-md md:max-w-xl lg:max-w-2xl'
+                                    }`}>
                                     <ActionCard
                                         actionData={msg.attachment}
                                         onDiscard={() => setMessages(prev => prev.map((m, i) => i === idx ? { ...m, attachment: null } : m))}
@@ -704,12 +787,61 @@ const Chat = () => {
                 <div className="p-2 px-3 md:p-3 md:px-4 w-full flex items-end gap-2 max-w-5xl mx-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]">
 
                     {/* Prefix Icons */}
-                    <div className="flex items-center gap-1 shrink-0 pb-1">
+                    <div className="flex items-center gap-1 shrink-0 pb-1 relative">
+                        {/* Attachment Menu Popover */}
+                        {showAttachmentMenu && (
+                            <div
+                                ref={menuRef}
+                                className="absolute bottom-[110%] left-0 mb-2 w-48 bg-card-bg rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-card-border overflow-hidden transform transition-all origin-bottom-left z-50 py-1"
+                            >
+                                <button
+                                    onClick={() => {
+                                        cameraInputRef.current?.click();
+                                        setShowAttachmentMenu(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-main hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
+                                        <Camera className="w-4 h-4" />
+                                    </div>
+                                    <span>Take Photo</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        fileInputRef.current?.click();
+                                        setShowAttachmentMenu(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-main hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+                                        <ImageIcon className="w-4 h-4" />
+                                    </div>
+                                    <span>Upload Image</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        excelInputRef.current?.click();
+                                        setShowAttachmentMenu(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-main hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                    </div>
+                                    <span>Upload Excel/CSV</span>
+                                </button>
+                            </div>
+                        )}
+
                         <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors"
+                            onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showAttachmentMenu
+                                ? 'bg-indigo-500/10 text-indigo-500'
+                                : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'
+                                }`}
+                            title="Attach File"
                         >
-                            <ImageIcon size={20} strokeWidth={1.5} />
+                            <Plus size={20} strokeWidth={1.5} className={`transition-transform duration-200 ${showAttachmentMenu ? 'rotate-45' : ''}`} />
                         </button>
                         <button
                             onClick={toggleMute}
@@ -719,16 +851,61 @@ const Chat = () => {
                         </button>
                     </div>
 
+                    {/* Hidden Inputs */}
                     <input
                         type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        ref={cameraInputRef}
+                        onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
+                    />
+                    <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
                         ref={fileInputRef}
                         onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
+                    />
+                    <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
                         className="hidden"
-                        accept="image/*"
+                        ref={excelInputRef}
+                        onChange={(e) => e.target.files[0] && sendExcel(e.target.files[0])}
                     />
 
-                    {/* Text Field */}
-                    <div className="flex-1 bg-card-bg/50 border border-card-border rounded-3xl pb-0 flex items-center shadow-sm min-h-[44px]">
+                    {/* Text Field & Preview Container */}
+                    <div className="flex-1 flex flex-col justify-end bg-card-bg/50 border border-card-border rounded-3xl pb-0 shadow-sm overflow-hidden transition-all duration-300">
+                        {/* Attachment Preview Area */}
+                        {pendingAttachment && (
+                            <div className="px-3 pt-3 pb-1 flex items-center gap-2 max-w-full">
+                                <div className="relative group bg-black/10 dark:bg-white/10 rounded-xl p-1.5 flex items-center gap-3 pr-4 border border-card-border">
+                                    {pendingAttachment.type === 'image' ? (
+                                        <img src={pendingAttachment.previewUrl} alt="Preview" className="w-10 h-10 object-cover rounded-lg" />
+                                    ) : (
+                                        <div className="w-10 h-10 bg-amber-500/20 text-amber-500 rounded-lg flex items-center justify-center">
+                                            <FileSpreadsheet size={20} />
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-text-main truncate max-w-[120px] md:max-w-[200px]">
+                                            {pendingAttachment.file.name}
+                                        </p>
+                                        <p className="text-[10px] text-text-muted mt-0.5">
+                                            {(pendingAttachment.file.size / 1024).toFixed(1)} KB
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPendingAttachment(null)}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600"
+                                    >
+                                        <Plus size={14} className="rotate-45" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -748,7 +925,7 @@ const Chat = () => {
 
                     {/* Submit / Mic Button */}
                     <div className="shrink-0 pb-0.5">
-                        {input.trim() ? (
+                        {input.trim() || pendingAttachment ? (
                             <button
                                 onClick={handleSend}
                                 className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95"

@@ -18,12 +18,24 @@ CRITICAL: EVERY JSON MUST START WITH "type"!
    Notes: "payment" = user received money from customer. "due" = user gave credit/udhar to customer. CRITICAL: If the query is just "add 500 due to kartik", it is a payment_draft, NOT an invoice.
 5. type: restock_draft
    Keys: product_name, quantity_to_add
+6. type: bulk_product_draft
+   Keys: type="bulk_product_draft", items[{name(str), selling_price(num, nullable), cost_price(num, nullable), stock_quantity(num), category(str), unit(str)}]
+   Notes: Use this when:
+   (a) The user uploads an IMAGE containing a product list or inventory table — extract all rows using OCR.
+   (b) User provides a long text/Excel list of products.
+   CRITICAL PRICE LOGIC:
+   - If only ONE price column / price value exists, treat it as COST PRICE (`cost_price`). Set `selling_price` to `null`.
+   - If TWO prices exist (CP + SP, or Cost Price + Selling Price), extract both into `cost_price` and `selling_price`.
+   - If an "Available Stock" or "Units" column exists, map it to `stock_quantity`.
+   - If a "Category" column exists, map it to `category`.
+   ALWAYS return bulk_product_draft when image contains a table of products.
 
 [EXAMPLES - EXTREMELY IMPORTANT]
 "Make a bill for Amit 2kg Rice" -> {"type": "invoice_draft", "customer_name": "Amit", "items": [{"product_name": "Rice", "quantity": 2, "price": 0, "tax_percent": 0, "hsn_code": ""}]}
 "Amit paid 500 rupees" -> {"type": "payment_draft", "customer_name": "Amit", "amount": 500, "payment_type": "payment"}
 "Add 500 due to Amit" -> {"type": "payment_draft", "customer_name": "Amit", "amount": 500, "payment_type": "due"}
 "Restock 50 rice" -> {"type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50}
+IMAGE with product table rows like "Basmati Rice | Rice | 420 | 480 | 75" -> {"type": "bulk_product_draft", "items": [{"name": "Basmati Rice (Daawat, 5kg)", "category": "Rice", "cost_price": 420, "selling_price": 480, "stock_quantity": 75, "unit": "pcs"}]}
 
 [SQL RULES]
 - Postgres: filter by `user_id = '{user_id}'`. LIMIT 50. Use ILIKE.

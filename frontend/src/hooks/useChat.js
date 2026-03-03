@@ -288,7 +288,9 @@ export const useChat = () => {
     useEffect(() => { onMessageHandlerRef.current = onMessageHandler; }, [onMessageHandler]);
 
 
-    const sendMessage = useCallback(async (text) => {
+    const [pendingAttachment, setPendingAttachment] = useState(null); // { file, type, base64, previewUrl }
+
+    const sendMessage = useCallback(async (text, attachment = null) => {
         // Unlock audio context immediately on user action
         unlockAudio();
 
@@ -313,7 +315,7 @@ export const useChat = () => {
         const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
         const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
 
-        ws.send(JSON.stringify({
+        const payload = {
             type: 'text',
             content: text,
             user_id: userId,
@@ -322,36 +324,47 @@ export const useChat = () => {
             voice_rate: voiceSpeed,
             model: activeModel,
             ai_mode: activeMode
-        }));
-        setMessages(prev => [...prev, { type: 'user', text }]);
+        };
+
+        if (attachment) {
+            payload.attachment_type = attachment.type;
+            payload.attachment_data = attachment.base64;
+            payload.filename = attachment.file.name;
+            setMessages(prev => [...prev, { type: 'user', text, image: attachment.type === 'image' ? attachment.previewUrl : null, attachmentName: attachment.file.name }]);
+        } else {
+            setMessages(prev => [...prev, { type: 'user', text }]);
+        }
+
+        ws.send(JSON.stringify(payload));
+        setPendingAttachment(null); // Clear pending attachment
     }, [ws, voice, voiceSpeed, model]);
 
-    const sendImage = useCallback(async (file) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            alert("Connection lost. Please wait while I reconnect.");
-            setIsThinking(false);
-            return;
-        }
-        setIsThinking(true);
-
-        // Get current user ID
-        const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession());
-        const userId = session?.user?.id || 'anon';
-
+    const sendImage = useCallback((file) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onloadend = () => {
             const base64 = reader.result.split(',')[1];
-            ws.send(JSON.stringify({
+            setPendingAttachment({
+                file,
                 type: 'image',
-                content: base64,
-                filename: file.name,
-                user_id: userId,
-                access_token: session?.access_token
-            }));
-            setMessages(prev => [...prev, { type: 'user', text: '📷 Image Sent', image: reader.result }]);
+                base64,
+                previewUrl: reader.result
+            });
         };
-    }, [ws]);
+    }, []);
+
+    const sendExcel = useCallback((file) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            setPendingAttachment({
+                file,
+                type: 'excel',
+                base64
+            });
+        };
+    }, []);
 
     // Simplified Audio Recording Logic
     const startRecording = async () => {
@@ -381,7 +394,7 @@ export const useChat = () => {
                             const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
                             const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
 
-                            wsRef.current.send(JSON.stringify({
+                            const payload = {
                                 type: 'voice',
                                 content: base64,
                                 user_id: userId,
@@ -390,9 +403,21 @@ export const useChat = () => {
                                 voice_rate: voiceSpeed,
                                 model: activeModel,
                                 ai_mode: activeMode
-                            }));
+                            };
+
+                            setPendingAttachment(prevAttachment => {
+                                if (prevAttachment) {
+                                    payload.attachment_type = prevAttachment.type;
+                                    payload.attachment_data = prevAttachment.base64;
+                                    payload.filename = prevAttachment.file.name;
+                                    setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...', image: prevAttachment.type === 'image' ? prevAttachment.previewUrl : null, attachmentName: prevAttachment.file.name }]);
+                                } else {
+                                    setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
+                                }
+                                wsRef.current.send(JSON.stringify(payload));
+                                return null; // Clear pending attachment
+                            });
                         });
-                        setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
                     }
                 };
             };
@@ -416,6 +441,7 @@ export const useChat = () => {
         messages,
         sendMessage,
         sendImage,
+        sendExcel,
         startRecording,
         stopRecording,
         isListening,
@@ -427,6 +453,8 @@ export const useChat = () => {
         toggleMute,
         unlockAudio,
         isPlaying,
-        model
+        model,
+        pendingAttachment,
+        setPendingAttachment
     };
 };

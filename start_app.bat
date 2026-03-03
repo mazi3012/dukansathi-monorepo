@@ -24,7 +24,7 @@ start "Ollama Local AI" cmd /c "ollama serve"
 
 :: 2. Start Backend with Hot Reload
 echo [2/3] Starting Python Backend Server...
-start "Dukan Backend" cmd /k "cd /d e:\dukanv22\backend && venv\Scripts\activate.bat && uvicorn main:app --reload --port 8000"
+start "Dukan Backend" cmd /k "cd /d e:\dukanv22\backend && venv\Scripts\activate.bat && uvicorn main:app --reload --reload-dir e:\dukanv22\backend --reload-dir e:\dukanv22\ai-bot --port 8000"
 
 :: 3. Start Frontend
 echo [3/3] Starting React/Vite Frontend Server...
