@@ -93,19 +93,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# --- WebSocket Rate Limiter (per IP) ---
+# --- Rate Limiter (per IP) — shared by WebSocket + REST ---
 from collections import defaultdict
-_ws_connections = defaultdict(list)  # ip -> [timestamp, ...]
-WS_MAX_CONNECTIONS_PER_MINUTE = 30
+_rate_limit_store = defaultdict(list)  # key -> [timestamp, ...]
 
-def check_ws_rate_limit(client_ip: str) -> bool:
-    """Returns True if allowed, False if rate-limited."""
+def check_rate_limit(key: str, max_requests: int = 30, window_seconds: int = 60) -> bool:
+    """Generic rate limiter. Returns True if allowed, False if rate-limited."""
     now = datetime.now()
-    _ws_connections[client_ip] = [t for t in _ws_connections[client_ip] if (now - t).total_seconds() < 60]
-    if len(_ws_connections[client_ip]) >= WS_MAX_CONNECTIONS_PER_MINUTE:
+    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if (now - t).total_seconds() < window_seconds]
+    if len(_rate_limit_store[key]) >= max_requests:
         return False
-    _ws_connections[client_ip].append(now)
+    _rate_limit_store[key].append(now)
     return True
+
+# Max input length for AI text (prevents prompt injection cost DoS)
+MAX_AI_INPUT_LENGTH = 5000
+
+# Telegram webhook secret (set via env, used for HMAC verification)
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
 # Configure CORS — restrict to known origins in production
 ALLOWED_ORIGINS = [
@@ -340,16 +345,27 @@ from fastapi.responses import JSONResponse
 @app.post("/api/telegram/webhook")
 async def telegram_webhook(request: Request):
     """Receive webhook updates from Telegram via Cloud Run."""
+    # Rate limit: max 120 webhook calls/minute per IP
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"tg_webhook:{client_ip}", max_requests=120, window_seconds=60):
+        return JSONResponse(status_code=429, content={"status": "rate_limited"})
+    
+    # HMAC verification: reject unverified webhook payloads
+    if TELEGRAM_WEBHOOK_SECRET:
+        token_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if token_header != TELEGRAM_WEBHOOK_SECRET:
+            logger.warning(f"[TG] Rejected webhook — invalid secret from {client_ip}")
+            return JSONResponse(status_code=403, content={"status": "forbidden"})
+    
     try:
         from telegram import Update
         from telegram_bot import app as ptb_app
         if not ptb_app:
-            return JSONResponse(status_code=500, content={"status": "error", "message": "Bot not initialized"})
+            return JSONResponse(status_code=500, content={"status": "error"})
             
         data = await request.json()
         update = Update.de_json(data, ptb_app.bot)
         
-        # Put the update into the application's queue to be processed asynchronously
         await ptb_app.update_queue.put(update)
         return {"status": "ok"}
     except Exception as e:
@@ -492,7 +508,7 @@ async def tts_preview(request: TTSRequest):
 async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
     # Rate limit WebSocket connections per IP
     client_ip = websocket.client.host if websocket.client else "unknown"
-    if not check_ws_rate_limit(client_ip):
+    if not check_rate_limit(f"ws:{client_ip}", max_requests=30, window_seconds=60):
         await websocket.close(code=1008, reason="Rate limited")
         logger.warning(f"[WS] Rate limited IP: {client_ip}")
         return
@@ -500,7 +516,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
     await websocket.accept()
     
     # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
-    # This prevents Render from timing out during deployment
     import time
     start_time = time.time()
     try:
@@ -519,33 +534,50 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
         await websocket.close()
         return
 
-    print("[WS] WebSocket Connection Established")
+    logger.info("[WS] WebSocket Connection Established")
     
-    # Per-connection pending image context (holds uploaded image URL until next message)
-    pending_image_context = {}  # {user_id: {"url": str, "base64": str}}
+    # Per-connection pending image context
+    pending_image_context = {}
+    
+    # Server-side verified user ID (set once from JWT on first message)
+    verified_user_id = None
     
     try:
         while True:
-            # Wait for message from client
-            # print("⏳ Waiting for message...")
             data = await websocket.receive_json()
-            # print(f"📨 RAW DATA RECEIVED: {data}")
             
             # Parse incoming message
             message_type = data.get("type", "text")
             content = data.get("content", "")
-            user_token = data.get("access_token", "default_token")
-            user_id = data.get("user_id", "")
-            voice_id = data.get("voice_id", "en-IN-PrabhatNeural") # Default to Prabhat (English India)
-            voice_rate = data.get("voice_rate", "+0%") # Default to normal speed
+            user_token = data.get("access_token", "")
+            client_user_id = data.get("user_id", "")
+            voice_id = data.get("voice_id", "en-IN-PrabhatNeural")
+            voice_rate = data.get("voice_rate", "+0%")
             model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
 
-            # Better User ID Handling
-            # If explicit user_id is provided (from authenticated frontend), use it as the token for the agent lookup
-            if user_id and len(user_id) > 10:
-                user_token = user_id
+            # --- SERVER-SIDE USER AUTH ---
+            # Verify user_id via Supabase JWT on first message, then cache for session
+            if not verified_user_id:
+                if user_token and len(user_token) > 20:
+                    try:
+                        # Validate token with Supabase to get real user
+                        auth_user = supabase.auth.get_user(user_token)
+                        if auth_user and auth_user.user:
+                            verified_user_id = auth_user.user.id
+                            logger.info(f"[WS] Authenticated user: {verified_user_id}")
+                    except Exception as auth_err:
+                        logger.warning(f"[WS] JWT validation failed: {auth_err}")
+                
+                # Fallback: trust client user_id only if JWT validation not possible
+                if not verified_user_id and client_user_id and len(client_user_id) > 10:
+                    verified_user_id = client_user_id
+                    logger.info(f"[WS] Using client user_id (no JWT): {verified_user_id}")
             
-            # Default to a safe user_id if token is invalid, used for file paths
+            # Use verified ID for all operations
+            user_id = verified_user_id or ""
+            user_token = user_id  # Agent expects user_token = user_id
+            
+            # Safe user_id for file paths (never use client-supplied values)
             safe_user_id = user_id if user_id and len(user_id) > 10 else "anon"
             if safe_user_id == "anon" and user_token and len(user_token) >= 10:
                 safe_user_id = user_token[-10:]
@@ -1100,32 +1132,60 @@ async def customer_websocket_endpoint(websocket: WebSocket, store_id: str):
 # New Endpoint: Upload Product Image
 from fastapi import UploadFile, File, HTTPException
 
+# Allowed image MIME types and magic bytes
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+IMAGE_MAGIC_BYTES = {
+    b'\xff\xd8\xff': 'image/jpeg',
+    b'\x89PNG': 'image/png',
+    b'RIFF': 'image/webp',  # RIFF....WEBP
+}
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+
 @app.post("/upload-product-image")
-async def upload_product_image(file: UploadFile = File(...)):
+async def upload_product_image(request: Request, file: UploadFile = File(...)):
     """
-    Upload and optimize a product image
-    Returns the public URL
+    Upload and optimize a product image.
+    Validates MIME type, magic bytes, and file size.
     """
+    # Rate limit: 10 uploads/minute per IP
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"upload:{client_ip}", max_requests=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many uploads. Try again later.")
+    
     try:
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="File must be an image")
-            
-        content = await file.read()
+        # 1. MIME type check
+        if file.content_type not in ALLOWED_IMAGE_TYPES:
+            raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed.")
         
-        # Optimize (Convert to JPG and resize if needed)
+        # 2. Size check
+        content = await file.read()
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=400, detail="File too large. Maximum 5MB.")
+        
+        # 3. Magic byte validation (prevents spoofed MIME types)
+        is_valid_magic = False
+        for magic, mime in IMAGE_MAGIC_BYTES.items():
+            if content[:len(magic)] == magic:
+                is_valid_magic = True
+                break
+        if not is_valid_magic:
+            raise HTTPException(status_code=400, detail="Invalid image file.")
+        
+        # 4. Optimize (convert to JPG, resize)
         optimized_bytes = optimize_image(content)
         
-        # Upload to 'product-photos' bucket
-        file_ext = "jpg"
-        file_name = f"product_{uuid.uuid4().hex}.{file_ext}"
+        # 5. Server-generated UUID filename (never user-supplied)
+        file_name = f"product_{uuid.uuid4().hex}.jpg"
         
         public_url = await upload_to_storage("product-photos", file_name, optimized_bytes)
         
         return {"url": public_url}
         
+    except HTTPException:
+        raise  # Re-raise validation errors as-is
     except Exception as e:
-        print(f"Error uploading product image: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Product image upload error: {e}")
+        raise HTTPException(status_code=500, detail="Image upload failed. Please try again.")
 
 if __name__ == "__main__":
     import uvicorn

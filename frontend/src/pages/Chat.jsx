@@ -506,7 +506,7 @@ const Chat = () => {
                     // Get Signed URL (private bucket — 24h expiry)
                     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
                         .from('invoices')
-                        .createSignedUrl(fileName, 86400); // 24 hours
+                        .createSignedUrl(fileName, 3600); // 1 hour expiry
 
                     const pdfUrl = signedUrlData?.signedUrl || '';
                     if (signedUrlError) console.warn('Signed URL warning:', signedUrlError);
