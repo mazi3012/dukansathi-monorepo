@@ -649,15 +649,15 @@ const Chat = () => {
 
             {/* Header (Top) */}
             <header className="flex-none flex items-center gap-2 p-2 px-3 md:px-4 md:py-3 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/30 z-20 sticky top-0 shrink-0">
-                <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0">
+                <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0 md:hidden">
                     <ArrowLeft size={20} />
                 </button>
 
                 {/* Slim Pill Header */}
                 <div className="flex items-center gap-2 md:gap-2.5 bg-card-bg/60 border border-card-border/50 py-1.5 md:py-2 px-3 md:px-4 rounded-full shadow-sm max-w-fit backdrop-blur-md">
-                    <img src="/src/assets/logo.svg" alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain" />
-                    <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap">Dukan Sathi AI</h2>
-                    <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1"></div>
+                    <img src="/src/assets/logo.svg" alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain md:hidden" />
+                    <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap md:hidden">Dukan Sathi AI</h2>
+                    <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1 md:hidden"></div>
                     <div className="flex items-center gap-1.5 md:gap-2">
                         <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500')} transition-all duration-300`}></div>
                         <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-text-muted mt-[1px]">
