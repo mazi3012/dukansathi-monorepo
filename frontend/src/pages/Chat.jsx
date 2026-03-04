@@ -503,15 +503,18 @@ const Chat = () => {
                         throw uploadError;
                     }
 
-                    // Get Public URL
-                    const { data: { publicUrl } } = supabase.storage
+                    // Get Signed URL (private bucket — 24h expiry)
+                    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
                         .from('invoices')
-                        .getPublicUrl(fileName);
+                        .createSignedUrl(fileName, 86400); // 24 hours
+
+                    const pdfUrl = signedUrlData?.signedUrl || '';
+                    if (signedUrlError) console.warn('Signed URL warning:', signedUrlError);
 
                     const successMessage = {
                         type: 'bot',
                         text: `✅ Invoice #${sale.id} Created! Total: ₹${grandTotal.toFixed(2)}`,
-                        pdf_url: publicUrl,
+                        pdf_url: pdfUrl,
                         customer_phone: customerPhone,
                         customer_name: actionData.customer_name || 'Customer',
                         invoice_id: sale.id,

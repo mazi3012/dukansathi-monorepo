@@ -93,6 +93,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# --- WebSocket Rate Limiter (per IP) ---
+from collections import defaultdict
+_ws_connections = defaultdict(list)  # ip -> [timestamp, ...]
+WS_MAX_CONNECTIONS_PER_MINUTE = 30
+
+def check_ws_rate_limit(client_ip: str) -> bool:
+    """Returns True if allowed, False if rate-limited."""
+    now = datetime.now()
+    _ws_connections[client_ip] = [t for t in _ws_connections[client_ip] if (now - t).total_seconds() < 60]
+    if len(_ws_connections[client_ip]) >= WS_MAX_CONNECTIONS_PER_MINUTE:
+        return False
+    _ws_connections[client_ip].append(now)
+    return True
+
 # Configure CORS — restrict to known origins in production
 ALLOWED_ORIGINS = [
     "https://dukansathi.vercel.app",
@@ -476,6 +490,13 @@ async def tts_preview(request: TTSRequest):
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
+    # Rate limit WebSocket connections per IP
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not check_ws_rate_limit(client_ip):
+        await websocket.close(code=1008, reason="Rate limited")
+        logger.warning(f"[WS] Rate limited IP: {client_ip}")
+        return
+    
     await websocket.accept()
     
     # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
@@ -556,8 +577,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                             csv_text = df.to_csv(index=False)
                             attachment_context = f"[EXCEL BULK DATA:\n{csv_text}\n]\n"
                     except Exception as e:
-                        print(f"[ERR] Attachment processing failed: {e}")
-                        await websocket.send_json({"type": "error", "content": f"Attachment failed: {e}"})
+                        logger.error(f"Attachment processing failed: {e}")
+                        await websocket.send_json({"type": "error", "content": "Attachment processing failed. Please try again."})
                         continue
 
             # 1. Handle Voice Input (STT)
@@ -581,8 +602,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                         "content": user_text
                     })
                 except Exception as e:
-                    print(f"[ERR] STT Error: {e}")
-                    await websocket.send_json({"type": "error", "content": f"Voice processing failed: {str(e)}"})
+                    logger.error(f"STT Error: {e}")
+                    await websocket.send_json({"type": "error", "content": "Voice processing failed. Please try again."})
                     continue
                     
             # 2. Handle Image Input (Vision with Deferred Context)
@@ -602,7 +623,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                         "image_url": public_url
                     })
                 except Exception as e:
-                     await websocket.send_json({"type": "error", "content": f"Image error: {e}"})
+                     logger.error(f"Image processing error: {e}")
+                     await websocket.send_json({"type": "error", "content": "Image processing failed. Please try again."})
                 continue  # Don't process AI yet — wait for intent from user
 
             # 3. Handle Excel/CSV Input (Bulk Import)
@@ -868,12 +890,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                         })
                         
                 except Exception as e:
-                    print(f"[ERR] Draft approval error: {e}")
+                    logger.error(f"Draft approval error: {e}")
                     import traceback
                     traceback.print_exc()
                     await websocket.send_json({
                         "type": "error",
-                        "content": f"Failed to process draft: {str(e)}"
+                        "content": "Failed to process the action. Please try again."
                     })
                 
                 continue  # Skip AI processing for action messages

@@ -1117,9 +1117,19 @@ async def safety_guard_node(state: AgentState):
         return {"category": state.get("category")}
 
     # Fast heuristic: block obvious destructive SQL only
-    dangerous_keywords = ["drop table", "delete from", "truncate", "alter table", "update pg_", "copy from"]
-    if any(kw in last_msg.lower() for kw in dangerous_keywords):
-        print("DEBUG: Safety Guard caught malicious SQL keyword.")
+    # Comprehensive regex-based SQL injection detection (case-insensitive)
+    dangerous_patterns = [
+        r'\bdrop\b', r'\btruncate\b', r'\balter\s+table\b',
+        r'\bdelete\s+from\b', r'\bupdate\s+pg_', r'\bcopy\s+from\b',
+        r'\bgrant\b', r'\brevoke\b',
+        r'\bcreate\s+(?:table|index|function|role|schema)\b',
+        r'\bexec(?:ute)?\b', r';\s*(?:select|insert|update|delete|drop)',
+        r'--\s', r'/\*', r'\bunion\s+select\b', r'\binto\s+outfile\b',
+        r'\bload_file\b', r'\binformation_schema\b',
+    ]
+    msg_lower = last_msg.lower()
+    if any(re.search(pat, msg_lower) for pat in dangerous_patterns):
+        print("DEBUG: Safety Guard caught malicious SQL pattern.")
         return {
             "messages": [AIMessage(content="I cannot perform that action for security reasons.")],
             "category": "BLOCKED"
@@ -1155,10 +1165,10 @@ async def action_node(state: AgentState):
     user_token = state.get('user_token', '')
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     
-    # User ID Resolution
-    user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
-    if not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "unknown_user":
-        user_id = "00000000-0000-0000-0000-000000000000"
+    # User ID Resolution — reject unauthenticated requests
+    user_id = user_token if user_token and len(user_token) < 50 else None
+    if not user_id or "default" in user_id.lower() or "test" in user_id.lower():
+        return {"messages": [AIMessage(content="⚠️ Authentication required. Please log in to continue.")]}
     
     # History for context
     chat_history = await get_chat_history(user_id, limit=5)
@@ -1534,10 +1544,10 @@ async def chat_node(state: AgentState):
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     role = state.get("role", "owner")
     
-    # User ID Resolution
-    user_id = user_token if user_token and len(user_token) < 50 else "unknown_user"
-    if not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "unknown_user":
-        user_id = "00000000-0000-0000-0000-000000000000"
+    # User ID Resolution — reject unauthenticated requests
+    user_id = user_token if user_token and len(user_token) < 50 else None
+    if not user_id or "default" in user_id.lower() or "test" in user_id.lower():
+        return {"messages": [AIMessage(content="⚠️ Authentication required. Please log in to continue.")]}
         
     business_name = await get_user_profile(user_id)
     
