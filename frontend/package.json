@@ -16,6 +16,8 @@
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.33.0",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
@@ -28,6 +28,7 @@ const Chat = () => {
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
     const excelInputRef = useRef(null);
@@ -372,10 +373,149 @@ const Chat = () => {
                     }
                 }
 
-                setMessages(prev => [
-                    ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                    { type: 'bot', text: `✅ Invoice Created! Total: ₹${grandTotal.toFixed(2)}` }
-                ]);
+                // --- PDF GENERATION & UPLOAD ---
+                setIsGeneratingPDF(true);
+                try {
+                    const { jsPDF } = await import('jspdf');
+                    const autoTable = (await import('jspdf-autotable')).default;
+                    const doc = new jsPDF();
+
+                    const isGst = sale.invoice_type === 'gst' || (businessProfile?.is_gst_registered && sale.invoice_type !== 'regular');
+
+                    // Header
+                    doc.setFontSize(22);
+                    doc.setTextColor(40, 40, 40);
+                    doc.text(businessProfile?.business_name || "My Shop", 14, 22);
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 100);
+                    let yPos = 30;
+                    if (businessProfile?.address) { doc.text(businessProfile.address, 14, yPos); yPos += 5; }
+                    if (businessProfile?.phone) { doc.text(`Phone: ${businessProfile.phone}`, 14, yPos); yPos += 5; }
+                    if (isGst && businessProfile?.gstin) { doc.text(`GSTIN: ${businessProfile.gstin}`, 14, yPos); yPos += 5; }
+
+                    // Invoice Meta
+                    doc.setFontSize(16);
+                    doc.setTextColor(40, 40, 40);
+                    doc.text(isGst ? "TAX INVOICE" : "RECEIPT", 140, 22);
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(`Invoice #: ${sale.id}`, 140, 30);
+                    doc.text(`Date: ${new Date(sale.created_at).toLocaleDateString()}`, 140, 35);
+
+                    // Bill To
+                    yPos += 5;
+                    doc.setFontSize(12);
+                    doc.setTextColor(40, 40, 40);
+                    doc.text("Bill To:", 14, yPos);
+                    yPos += 5;
+                    doc.setFontSize(11);
+                    doc.text(actionData.customer_name || "Walk-in Customer", 14, yPos);
+                    yPos += 8;
+
+                    // Table
+                    const tableHead = isGst
+                        ? [['#', 'Item', 'Qty', 'Rate', 'Taxable', 'CGST', 'SGST', 'Total']]
+                        : [['#', 'Item', 'Qty', 'Rate', 'Total']];
+
+                    const tableBody = enrichedItems.map((item, idx) => {
+                        const qty = parseFloat(item.quantity) || 0;
+                        const rate = parseFloat(item.price) || 0;
+                        const taxable = qty * rate;
+                        const taxPercent = parseFloat(item.tax_percent) || 0;
+                        const totalTaxAmt = (taxable * taxPercent) / 100;
+                        const total = taxable + totalTaxAmt;
+
+                        if (isGst) {
+                            return [
+                                idx + 1,
+                                item.product_name || item.name || "Item",
+                                qty,
+                                rate.toFixed(2),
+                                taxable.toFixed(2),
+                                (totalTaxAmt / 2).toFixed(2),
+                                (totalTaxAmt / 2).toFixed(2),
+                                total.toFixed(2)
+                            ];
+                        } else {
+                            return [
+                                idx + 1,
+                                item.product_name || item.name || "Item",
+                                qty,
+                                rate.toFixed(2),
+                                total.toFixed(2)
+                            ];
+                        }
+                    });
+
+                    autoTable(doc, {
+                        startY: yPos,
+                        head: tableHead,
+                        body: tableBody,
+                        theme: 'grid',
+                        headStyles: { fillColor: [79, 70, 229] } // Indigo 600
+                    });
+
+                    // Totals
+                    const finalY = doc.lastAutoTable.finalY + 10;
+                    doc.setFontSize(11);
+                    doc.setTextColor(40, 40, 40);
+
+                    if (isGst) {
+                        doc.text(`Taxable Amount: Rs. ${totalSubtotal.toFixed(2)}`, 140, finalY);
+                        doc.text(`Total Tax: Rs. ${totalTax.toFixed(2)}`, 140, finalY + 6);
+                        doc.setFontSize(14);
+                        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY + 14);
+                    } else {
+                        doc.setFontSize(14);
+                        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY);
+                    }
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(150, 150, 150);
+                    doc.text("Thank you for your business!", 105, 280, { align: "center" });
+
+                    // Output to blob
+                    const pdfBlob = doc.output('blob');
+
+                    // Upload to Supabase Storage
+                    const fileName = `${user.id}/invoice_${sale.id}_${Date.now()}.pdf`;
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('invoices')
+                        .upload(fileName, pdfBlob, {
+                            contentType: 'application/pdf',
+                            cacheControl: '3600',
+                            upsert: false
+                        });
+
+                    if (uploadError) {
+                        console.error('PDF Upload Error:', uploadError);
+                        throw uploadError;
+                    }
+
+                    // Get Public URL
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('invoices')
+                        .getPublicUrl(fileName);
+
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        {
+                            type: 'bot',
+                            text: `✅ Invoice #${sale.id} Created! Total: ₹${grandTotal.toFixed(2)}`,
+                            pdf_url: publicUrl
+                        }
+                    ]);
+                } catch (pdfErr) {
+                    console.error("PDF Generation/Upload Failed:", pdfErr);
+                    // Fallback to basic text success if PDF fails
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        { type: 'bot', text: `✅ Invoice Created! Total: ₹${grandTotal.toFixed(2)}\n⚠️ Could not generate PDF document.` }
+                    ]);
+                } finally {
+                    setIsGeneratingPDF(false);
+                }
             }
 
             // 2. PRODUCT CREATION
@@ -700,6 +840,45 @@ const Chat = () => {
                                         <img src={msg.image} alt="Attachment" className="w-full object-cover max-h-60" />
                                     </div>
                                 )}
+
+                                {msg.pdf_url && (
+                                    <div className="mt-3 flex flex-col gap-3 w-full">
+                                        <div className="w-full h-64 sm:h-80 rounded-xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
+                                            {/* Google Docs viewer works more consistently across mobile devices for PDF previews */}
+                                            <iframe
+                                                src={`${msg.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
+                                                title="Invoice Preview"
+                                                className="w-full h-full border-0"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <a href={msg.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-1 shadow-sm">
+                                                <Download size={14} /> View / Download
+                                            </a>
+                                            <button
+                                                onClick={async () => {
+                                                    if (navigator.share) {
+                                                        try {
+                                                            await navigator.share({
+                                                                title: 'Invoice from Dukan Sathi',
+                                                                text: 'Here is your invoice.',
+                                                                url: msg.pdf_url
+                                                            });
+                                                        } catch (err) {
+                                                            console.log('Error sharing:', err);
+                                                        }
+                                                    } else {
+                                                        navigator.clipboard.writeText(msg.pdf_url);
+                                                        alert("Invoice link copied to clipboard!");
+                                                    }
+                                                }}
+                                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-600 rounded-lg text-xs font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-1"
+                                            >
+                                                <Share2 size={14} /> Share
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Timestamp */}
@@ -758,6 +937,18 @@ const Chat = () => {
                         </div>
                     </div>
                 )}
+
+                {/* PDF Generation Indicator */}
+                {isGeneratingPDF && (
+                    <div className="flex justify-start animate-in fade-in zoom-in duration-300">
+                        <div className="glass-card rounded-3xl rounded-bl-sm px-5 py-4 border border-indigo-500/30 text-indigo-600 text-sm flex items-center gap-3 bg-indigo-50/50 shadow-sm">
+                            <FileSpreadsheet size={16} className="animate-pulse" />
+                            <span className="font-medium">Generating & Saving Invoice PDF...</span>
+                            <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin ml-2"></div>
+                        </div>
+                    </div>
+                )}
+
                 <div ref={messagesEndRef} className="h-6" />
                 {/* Spacer for fixed footer */}
                 <div className="h-20 shrink-0" />
