@@ -1,3 +1,13 @@
-slowapi
-python-dotenv
-# Add security headers middleware here, e.g., flask-talisman or similar
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart==0.0.12
+python-telegram-bot>=21.0
+python-dotenv==1.0.0
+reportlab>=4.0.0
+supabase>=2.9.1
+pydantic>=2.9.2
+requests>=2.30.0
+psutil>=5.9.0
+pillow>=10.0.0
+pandas>=2.0.0
+# AI requirements imported via ai-bot/requirements.txt
