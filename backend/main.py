@@ -148,23 +148,43 @@ async def log_request_origins(request, call_next):
 if setup_router:
     app.include_router(setup_router)
 
+# --- Authentication Dependency ---
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
+
+security = HTTPBearer()
+
+async def verify_local_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Validates the JWT token against Supabase for local API endpoints."""
+    token = credentials.credentials
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+    try:
+        auth_user = supabase.auth.get_user(token)
+        if not auth_user or not auth_user.user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return auth_user.user.id
+    except Exception as e:
+        logger.warning(f"Failed local auth: {e}")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
 # --- Local Data Endpoints (for Offline Mode) ---
 @app.get("/api/local/customers")
-async def get_local_customers(user_id: str = "local_guest"):
+async def get_local_customers(user_id: str = Depends(verify_local_auth)):
     """Get customers from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_customers_local(user_id)
 
 @app.get("/api/local/products")
-async def get_local_products(user_id: str = "local_guest"):
+async def get_local_products(user_id: str = Depends(verify_local_auth)):
     """Get products from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_products_local(user_id)
 
 @app.post("/api/local/products")
-async def save_local_product(request: Request, user_id: str = "local_guest"):
+async def save_local_product(request: Request, user_id: str = Depends(verify_local_auth)):
     """Save a product to local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
@@ -175,7 +195,7 @@ async def save_local_product(request: Request, user_id: str = "local_guest"):
     return {"status": "success", "id": product_id}
 
 @app.post("/api/local/customers")
-async def save_local_customer(request: Request, user_id: str = "local_guest"):
+async def save_local_customer(request: Request, user_id: str = Depends(verify_local_auth)):
     """Save a customer to local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
@@ -186,18 +206,19 @@ async def save_local_customer(request: Request, user_id: str = "local_guest"):
     return {"status": "success", "id": customer_id}
 
 @app.post("/api/local/restock")
-async def restock_local_product(request: Request):
+async def restock_local_product(request: Request, user_id: str = Depends(verify_local_auth)):
     """Restock a product in local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     data = await request.json()
+    # Assume user validation happens inside local_db if this feature is used
     product = local_db.restock_product_local(data)
     if product is None:
         raise HTTPException(status_code=500, detail="Failed to restock product locally")
     return {"status": "success", "product": product}
 
 @app.get("/api/local/customers/{customer_id}")
-async def get_local_customer_detail(customer_id: int):
+async def get_local_customer_detail(customer_id: int, user_id: str = Depends(verify_local_auth)):
     """Get customer details by rowid locally."""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
@@ -207,7 +228,7 @@ async def get_local_customer_detail(customer_id: int):
     return customer
 
 @app.post("/api/local/sales")
-async def save_local_sale(request: Request):
+async def save_local_sale(request: Request, user_id: str = Depends(verify_local_auth)):
     """Save an offline invoice/sale to local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
@@ -218,14 +239,14 @@ async def save_local_sale(request: Request):
     return {"status": "success", "id": sale_id}
 
 @app.get("/api/local/sales")
-async def get_local_sales(customer_name: str = None):
+async def get_local_sales(customer_name: str = None, user_id: str = Depends(verify_local_auth)):
     """Get all offline invoices from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
     return local_db.get_invoices_local(customer_name)
 
 @app.post("/api/local/payments")
-async def save_local_payment(request: Request):
+async def save_local_payment(request: Request, user_id: str = Depends(verify_local_auth)):
     """Save an offline payment or due record to local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")
@@ -236,7 +257,7 @@ async def save_local_payment(request: Request):
     return {"status": "success", "id": payment_id}
 
 @app.get("/api/local/payments")
-async def get_local_payments(customer_name: str = None):
+async def get_local_payments(customer_name: str = None, user_id: str = Depends(verify_local_auth)):
     """Get all offline payment/due records from local SQLite DB"""
     if not local_db:
         raise HTTPException(status_code=503, detail="Local DB not available")

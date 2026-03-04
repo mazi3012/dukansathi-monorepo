@@ -1,20 +1,36 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel
-import os
-import dotenv
-import logging
-from local_ai import LocalLLMService
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
+security = HTTPBearer()
+
+import os
+from dotenv import load_dotenv
+
+# Try importing supabase to verify admin access
+from supabase_client import supabase
+
+async def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verifies that the request comes from an authenticated user."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+    token = credentials.credentials
+    try:
+        auth_user = supabase.auth.get_user(token)
+        if not auth_user or not auth_user.user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return auth_user.user.id
+    except Exception as e:
+        logger.warning(f"Failed setup auth: {e}")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 class EnvConfig(BaseModel):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     GROQ_API_KEY: str = ""
-    GOOGLE_APPLICATION_CREDENTIALS: str = "" # Path or JSON content? Usually path or we handle JSON write separately.
-    # For now, simplistic key updates.
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
 
 class InstallRequest(BaseModel):
     model_name: str
