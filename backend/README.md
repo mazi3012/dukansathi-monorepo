@@ -56,7 +56,7 @@ nano .env
 Required variables in `.env`:
 
 ```
-SUPABASE_URL=https://xfnoquphbeaqslownzxw.supabase.co
+SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
 SUPABASE_SERVICE_KEY=your_key_here
 GROQ_API_KEY=your_groq_key_here
 GOOGLE_APPLICATION_CREDENTIALS=service_account.json

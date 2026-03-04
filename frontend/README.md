@@ -43,7 +43,7 @@ cp .env.example .env.local
 Create `.env.local` with:
 
 ```
-VITE_SUPABASE_URL=https://xfnoquphbeaqslownzxw.supabase.co
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key_here
 VITE_BACKEND_WS_URL=ws://localhost:8000/ws/chat
 ```
