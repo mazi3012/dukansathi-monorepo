@@ -817,10 +817,11 @@ const Chat = () => {
                     return (
                         <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                             <div className={`
-                                max-w-[90%] md:max-w-[75%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed relative group shadow-sm
+                                w-auto max-w-[90%] md:max-w-[75%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed relative group shadow-sm
                                 ${isUser
                                     ? 'bg-indigo-600 text-white rounded-br-sm'
                                     : 'glass-card border border-card-border/50 text-text-main rounded-bl-sm'}
+                                ${msg.pdf_url ? '!max-w-[100%] !w-[100%] sm:!w-[90%] md:!max-w-[85%] !p-2 sm:!p-4' : ''}
                             `}>
                                 {/* Waveform animation for talking */}
                                 {msg.text === '🎤 ...' ? (
@@ -832,7 +833,7 @@ const Chat = () => {
                                         <div className="w-1.5 bg-current opacity-80 rounded-full h-3 animate-[voice-wave_1s_ease-in-out_infinite_400ms]" />
                                     </div>
                                 ) : (
-                                    <p className={`whitespace-pre-wrap font-medium ${isUser ? 'text-white' : 'text-text-main'}`}>{msg.text}</p>
+                                    <p className={`whitespace-pre-wrap font-medium ${isUser ? 'text-white' : 'text-text-main'} ${msg.pdf_url ? 'px-2 pt-1' : ''}`}>{msg.text}</p>
                                 )}
 
                                 {msg.image && (
@@ -842,18 +843,18 @@ const Chat = () => {
                                 )}
 
                                 {msg.pdf_url && (
-                                    <div className="mt-3 flex flex-col gap-3 w-full">
-                                        <div className="w-full h-64 sm:h-80 rounded-xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
-                                            {/* Google Docs viewer works more consistently across mobile devices for PDF previews */}
+                                    <div className="mt-2 flex flex-col gap-2 w-full">
+                                        <div className="w-full h-[70vh] sm:h-[600px] rounded-xl sm:rounded-2xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
+                                            {/* Direct PDF url is fast, Google Docs iframe was slow for new files */}
                                             <iframe
-                                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(msg.pdf_url)}&embedded=true`}
+                                                src={`${msg.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
                                                 title="Invoice Preview"
-                                                className="w-full h-full border-0"
+                                                className="w-full h-full border-0 bg-white"
                                             />
                                         </div>
-                                        <div className="flex gap-2">
-                                            <a href={msg.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-1 shadow-sm">
-                                                <Download size={14} /> View / Download
+                                        <div className="flex gap-2 px-1">
+                                            <a download href={`${msg.pdf_url}?download=Invoice.pdf`} className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-1 shadow-sm">
+                                                <Download size={16} /> 1-Click Download
                                             </a>
                                             <button
                                                 onClick={async () => {
