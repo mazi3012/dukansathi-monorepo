@@ -1,21 +1,26 @@
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Depends
+from pydantic import BaseModel
+import os
+import logging
+from dotenv import load_dotenv
+from local_ai import LocalLLMService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 security = HTTPBearer()
 
-import os
-from dotenv import load_dotenv
-
-# Try importing supabase to verify admin access
-from supabase_client import supabase
+from supabase import create_client, Client
 
 async def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verifies that the request comes from an authenticated user."""
-    if not supabase:
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not url or not key:
         raise HTTPException(status_code=503, detail="Database not connected")
+    
+    supabase: Client = create_client(url, key)
     token = credentials.credentials
     try:
         auth_user = supabase.auth.get_user(token)
