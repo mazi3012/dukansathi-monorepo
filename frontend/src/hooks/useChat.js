@@ -74,6 +74,7 @@ export const useChat = () => {
     const audioChunksRef = useRef([]);
     const lastAudioRef = useRef(null);
     const audioContextRef = useRef(null); // Ref for AudioContext to manage unlocking
+    const isRecordingRef = useRef(false); // Guard to prevent double-start
 
     // Helper: Unlock Audio Context (Fix for Mobile Autoplay)
     const unlockAudio = useCallback(() => {
@@ -289,6 +290,11 @@ export const useChat = () => {
 
 
     const [pendingAttachment, setPendingAttachment] = useState(null); // { file, type, base64, previewUrl }
+    const pendingAttachmentRef = useRef(null); // Mirrors pendingAttachment for use in callbacks
+
+    // Keep ref in sync with state
+    useEffect(() => { pendingAttachmentRef.current = pendingAttachment; }, [pendingAttachment]);
+
 
     const sendMessage = useCallback(async (text, attachment = null) => {
         // Unlock audio context immediately on user action
@@ -368,6 +374,13 @@ export const useChat = () => {
 
     // Simplified Audio Recording Logic
     const startRecording = async () => {
+        // Guard: prevent double-start if already recording
+        if (isRecordingRef.current) {
+            console.warn('⚠️ startRecording called while already recording — ignoring.');
+            return;
+        }
+        isRecordingRef.current = true;
+
         // Unlock audio context immediately
         unlockAudio();
 
@@ -405,18 +418,19 @@ export const useChat = () => {
                                 ai_mode: activeMode
                             };
 
-                            setPendingAttachment(prevAttachment => {
-                                if (prevAttachment) {
-                                    payload.attachment_type = prevAttachment.type;
-                                    payload.attachment_data = prevAttachment.base64;
-                                    payload.filename = prevAttachment.file.name;
-                                    setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...', image: prevAttachment.type === 'image' ? prevAttachment.previewUrl : null, attachmentName: prevAttachment.file.name }]);
-                                } else {
-                                    setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
-                                }
-                                wsRef.current.send(JSON.stringify(payload));
-                                return null; // Clear pending attachment
-                            });
+                            // Read the current pending attachment via ref (NOT inside a state updater)
+                            // so that side-effects (WS send, setMessages) are never called twice.
+                            const attachment = pendingAttachmentRef.current;
+                            if (attachment) {
+                                payload.attachment_type = attachment.type;
+                                payload.attachment_data = attachment.base64;
+                                payload.filename = attachment.file.name;
+                                setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...', image: attachment.type === 'image' ? attachment.previewUrl : null, attachmentName: attachment.file.name }]);
+                            } else {
+                                setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 ...' }]);
+                            }
+                            wsRef.current.send(JSON.stringify(payload));
+                            setPendingAttachment(null); // Clear pending attachment
                         });
                     }
                 };
@@ -426,13 +440,15 @@ export const useChat = () => {
             setIsListening(true);
         } catch (e) {
             console.error("Mic Error", e);
+            isRecordingRef.current = false; // Reset guard on failure
             alert("Mic Access Denied");
         }
     };
 
     const stopRecording = () => {
-        if (mediaRecorderRef.current && isListening) {
+        if (mediaRecorderRef.current && isRecordingRef.current) {
             mediaRecorderRef.current.stop();
+            isRecordingRef.current = false;
             setIsListening(false);
         }
     };

@@ -56,28 +56,8 @@ const Chat = () => {
         }
     }, [location.state, startRecording]);
 
-    // Global event listeners for Push-to-Talk from BottomNav
-    useEffect(() => {
-        const handleMicPress = () => {
-            if (!isListening) {
-                startRecording();
-            }
-        };
-
-        const handleMicRelease = () => {
-            if (isListening) {
-                stopRecording();
-            }
-        };
-
-        window.addEventListener('nav-mic-press', handleMicPress);
-        window.addEventListener('nav-mic-release', handleMicRelease);
-
-        return () => {
-            window.removeEventListener('nav-mic-press', handleMicPress);
-            window.removeEventListener('nav-mic-release', handleMicRelease);
-        };
-    }, [isListening, startRecording, stopRecording]);
+    // Note: BottomNav is hidden on /chat page (see MainLayout.jsx), so no nav-mic
+    // global events are needed here. The in-page mic button handles everything.
 
     // Check Local AI availability
     useEffect(() => {
