@@ -163,9 +163,15 @@ const Inventory = () => {
                     const uploadFormData = new FormData();
                     uploadFormData.append('file', compressed);
 
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
                     const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/upload-product-image`, {
                         method: 'POST',
-                        body: uploadFormData
+                        body: uploadFormData,
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
                     });
                     const data = await res.json();
                     if (data.url) {

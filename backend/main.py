@@ -512,7 +512,7 @@ class TTSRequest(BaseModel):
     rate: str = "+0%"
 
 @app.post("/api/tts-preview")
-async def tts_preview(request: TTSRequest):
+async def tts_preview(request: TTSRequest, user_id: str = Depends(verify_local_auth)):
     """
     Generate a one-off TTS preview for the settings page.
     """
@@ -1166,7 +1166,7 @@ IMAGE_MAGIC_BYTES = {
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 @app.post("/upload-product-image")
-async def upload_product_image(request: Request, file: UploadFile = File(...)):
+async def upload_product_image(request: Request, file: UploadFile = File(...), user_id: str = Depends(verify_local_auth)):
     """
     Upload and optimize a product image.
     Validates MIME type, magic bytes, and file size.

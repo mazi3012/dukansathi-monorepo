@@ -113,9 +113,19 @@ const Settings = () => {
     }, []);
 
 
+    const getAuthHeaders = async (additionalHeaders = {}) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = { ...additionalHeaders };
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        return headers;
+    };
+
     const fetchHardware = async () => {
         try {
-            const res = await fetch(`${API_BASE}/api/setup/hardware`);
+            const headers = await getAuthHeaders();
+            const res = await fetch(`${API_BASE}/api/setup/hardware`, { headers });
             if (res.ok) {
                 const data = await res.json();
                 setHardware(data);
@@ -127,13 +137,14 @@ const Settings = () => {
 
     const fetchLocalModels = async () => {
         try {
+            const headers = await getAuthHeaders();
             // First check if Ollama is even alive
-            const checkRes = await fetch(`${API_BASE}/api/setup/ollama-check`);
+            const checkRes = await fetch(`${API_BASE}/api/setup/ollama-check`, { headers });
             const checkData = await checkRes.json();
 
             if (checkData.is_running) {
                 setOllamaStatus('connected');
-                const res = await fetch(`${API_BASE}/api/setup/local-models`);
+                const res = await fetch(`${API_BASE}/api/setup/local-models`, { headers });
                 if (res.ok) {
                     const data = await res.json();
                     setLocalModels(data.models || []);
@@ -151,9 +162,10 @@ const Settings = () => {
     const installModel = async (modelName) => {
         setIsInstalling(modelName);
         try {
+            const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
             const res = await fetch(`${API_BASE}/api/setup/install-ai`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ model_name: modelName })
             });
 
@@ -161,7 +173,8 @@ const Settings = () => {
                 alert(`Started installing ${modelName}. This will take a few minutes in the background.`);
                 // Poll for completion every 10 seconds
                 const interval = setInterval(async () => {
-                    const checkRes = await fetch(`${API_BASE}/api/setup/local-models`);
+                    const checkHeaders = await getAuthHeaders();
+                    const checkRes = await fetch(`${API_BASE}/api/setup/local-models`, { headers: checkHeaders });
                     const checkData = await checkRes.json();
                     const isDone = checkData.models?.some(m => m.name.includes(modelName));
                     if (isDone) {
@@ -226,9 +239,10 @@ const Settings = () => {
         setPlayingVoice(voiceId);
         const text = voiceId.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
         try {
+            const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
             const response = await fetch(`${API_BASE}/api/tts-preview`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     text: text,
                     voice_id: voiceId,
