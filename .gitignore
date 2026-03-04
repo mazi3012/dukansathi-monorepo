@@ -100,3 +100,17 @@ temp/
 # ── Test Output ───────────────────────────
 test-results/
 coverage/
+
+# ── Test / Debug / Verify Scripts ─────────
+test_*.py
+verify_*.py
+check_*.py
+agent_snapshot_check.py
+run_migrations.py
+run_invoices_setup.py
+backend/test_*.py
+backend/check_*.py
+backend/migrate_*.py
+backend/seed_data.py
+ai-bot/test_*.py
+ai-bot/verify_*.py
