@@ -846,7 +846,7 @@ const Chat = () => {
                                         <div className="w-full h-64 sm:h-80 rounded-xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
                                             {/* Google Docs viewer works more consistently across mobile devices for PDF previews */}
                                             <iframe
-                                                src={`${msg.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
+                                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(msg.pdf_url)}&embedded=true`}
                                                 title="Invoice Preview"
                                                 className="w-full h-full border-0"
                                             />
