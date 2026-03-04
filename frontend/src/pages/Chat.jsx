@@ -5,6 +5,7 @@ import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import logo from '../assets/logo.svg';
 
 const Chat = () => {
     const {
@@ -655,7 +656,7 @@ const Chat = () => {
 
                 {/* Slim Pill Header */}
                 <div className="flex items-center gap-2 md:gap-2.5 bg-card-bg/60 border border-card-border/50 py-1.5 md:py-2 px-3 md:px-4 rounded-full shadow-sm max-w-fit backdrop-blur-md">
-                    <img src="/src/assets/logo.svg" alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain md:hidden" />
+                    <img src={logo} alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain md:hidden" />
                     <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap md:hidden">Dukan Sathi AI</h2>
                     <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1 md:hidden"></div>
                     <div className="flex items-center gap-1.5 md:gap-2">

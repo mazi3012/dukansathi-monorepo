@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/logo.svg';
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -62,7 +63,7 @@ const Sidebar = () => {
             {/* Logo Area */}
             <div className="p-6 border-b border-card-border flex items-center gap-3 relative overflow-hidden group cursor-pointer" onClick={() => navigate('/')}>
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <img src="/src/assets/logo.svg" alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
+                <img src={logo} alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                 <div className="relative z-10">
                     <h1 className="font-heading font-extrabold text-xl text-text-main tracking-tight transition-colors">Dukan Sathi</h1>
                     <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/20">BETA</span>

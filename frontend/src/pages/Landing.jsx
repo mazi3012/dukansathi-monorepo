@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle, Smartphone, Shield, Zap, Mic, BarChart3, Users, Wifi, WifiOff, Database, Cpu, LayoutDashboard, TrendingDown } from 'lucide-react';
+import logo from '../assets/logo.svg';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -32,7 +33,7 @@ const Landing = () => {
             >
                 <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <img src="/src/assets/logo.svg" alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
+                        <img src={logo} alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                         <span className="font-bold text-white font-heading text-xl tracking-tight">Dukan Sathi</span>
                         <div className="ml-2 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-bold text-indigo-400 tracking-wider">RYZEN AI ENHANCED</div>
                     </div>

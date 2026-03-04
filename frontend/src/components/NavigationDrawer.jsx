@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, RefreshCw } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import logo from '../assets/logo.svg';
 
 const NavItem = ({ to, icon: Icon, label, onClick }) => (
     <NavLink
@@ -74,7 +75,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
                                 <img
-                                    src="/src/assets/logo.svg"
+                                    src={logo}
                                     alt="DukanSathi Logo"
                                     className="w-12 h-12 object-contain drop-shadow shadow-indigo-500/20"
                                 />
@@ -84,6 +85,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                     </h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{user?.email || 'App Mode'}</p>
                                 </div>
+
                             </div>
                             <button
                                 onClick={onClose}
