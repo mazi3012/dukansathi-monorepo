@@ -305,7 +305,10 @@ async def startup_event():
                     
                     # Ensure the URL is clean without trailing slashes
                     clean_webhook = webhook_url.rstrip('/')
-                    await ptb_app.bot.set_webhook(f"{clean_webhook}/api/telegram/webhook")
+                    await ptb_app.bot.set_webhook(
+                        f"{clean_webhook}/api/telegram/webhook",
+                        secret_token=TELEGRAM_WEBHOOK_SECRET or None
+                    )
                     print("INFO: Telegram Webhook configured successfully on Cloud Run.")
             except Exception as e:
                 logger.error(f"Failed to initialize Telegram Webhook: {e}")
