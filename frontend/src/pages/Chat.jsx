@@ -1,11 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import logo from '../assets/logo.svg';
+
+const formatWhatsAppNumber = (phone) => {
+    if (!phone) return '';
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 10) return '91' + cleaned;
+    if (cleaned.length === 12 && cleaned.startsWith('91')) return cleaned;
+    return cleaned;
+};
 
 const Chat = () => {
     const {
@@ -281,6 +289,7 @@ const Chat = () => {
             if (actionData.type === 'invoice_draft') {
                 // Find or Create Customer
                 let customerId = null;
+                let customerPhone = null;
                 if (actionData.customer_name) {
                     // Try fuzzy match first, then exact ilike
                     let cust = null;
@@ -289,16 +298,17 @@ const Chat = () => {
                             query: actionData.customer_name.trim(),
                             uid: user.id
                         });
-                        if (fuzzyCust && fuzzyCust.length > 0) cust = { id: fuzzyCust[0].id };
+                        if (fuzzyCust && fuzzyCust.length > 0) cust = { id: fuzzyCust[0].id, phone: fuzzyCust[0].phone };
                     } catch (_) {
                         // RPC not yet available — fall back to ilike
                         const { data: ilikeCust } = await supabase.from('customers')
-                            .select('id').ilike('name', actionData.customer_name.trim()).eq('user_id', user.id).maybeSingle();
+                            .select('id, phone').ilike('name', actionData.customer_name.trim()).eq('user_id', user.id).maybeSingle();
                         cust = ilikeCust;
                     }
 
                     if (cust) {
                         customerId = cust.id;
+                        customerPhone = cust.phone;
                     } else {
                         // AUTO-CREATE CUSTOMER
                         const { data: newCust, error: createError } = await supabase.from('customers').insert({
@@ -498,14 +508,33 @@ const Chat = () => {
                         .from('invoices')
                         .getPublicUrl(fileName);
 
+                    const successMessage = {
+                        type: 'bot',
+                        text: `✅ Invoice #${sale.id} Created! Total: ₹${grandTotal.toFixed(2)}`,
+                        pdf_url: publicUrl,
+                        customer_phone: customerPhone,
+                        customer_name: actionData.customer_name || 'Customer',
+                        invoice_id: sale.id,
+                        grand_total: grandTotal.toFixed(2),
+                        items_summary: enrichedItems.map((item, idx) => `${idx + 1}. ${(item.product_name || item.name || 'Item').substring(0, 15)} x ${item.quantity || 0}`).join('\n')
+                    };
+
                     setMessages(prev => [
                         ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        {
-                            type: 'bot',
-                            text: `✅ Invoice #${sale.id} Created! Total: ₹${grandTotal.toFixed(2)}`,
-                            pdf_url: publicUrl
-                        }
+                        successMessage
                     ]);
+
+                    // Save the formatted invoice message to chat history so it persists across reloads
+                    try {
+                        await supabase.from('chat_history').insert({
+                            user_id: user.id,
+                            role: 'assistant',
+                            message: JSON.stringify(successMessage),
+                            created_at: new Date()
+                        });
+                    } catch (historyErr) {
+                        console.warn("Could not save invoice to chat history:", historyErr);
+                    }
                 } catch (pdfErr) {
                     console.error("PDF Generation/Upload Failed:", pdfErr);
                     // Fallback to basic text success if PDF fails
@@ -852,30 +881,60 @@ const Chat = () => {
                                                 className="w-full h-full border-0 bg-white"
                                             />
                                         </div>
-                                        <div className="flex gap-2 px-1">
-                                            <a download href={`${msg.pdf_url}?download=Invoice.pdf`} className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-1 shadow-sm">
-                                                <Download size={16} /> 1-Click Download
+                                        <div className="flex gap-2 px-1 flex-wrap sm:flex-nowrap">
+                                            <a download href={`${msg.pdf_url}?download=Invoice.pdf`} className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-1 sm:order-none">
+                                                <Download size={16} /> <span className="whitespace-nowrap">Download</span>
                                             </a>
                                             <button
+                                                onClick={() => {
+                                                    const waMsg = `*Invoice #${msg.invoice_id}*\n*From:* ${businessProfile?.business_name || 'Our Shop'}\n*To:* ${msg.customer_name}\n\n*Items:*\n${msg.items_summary}\n\n*Total Amount: ₹${msg.grand_total}*\n\nView PDF Invoice:\n${msg.pdf_url}`;
+                                                    const waLink = msg.customer_phone
+                                                        ? `https://wa.me/${formatWhatsAppNumber(msg.customer_phone)}?text=${encodeURIComponent(waMsg)}`
+                                                        : `https://wa.me/?text=${encodeURIComponent(waMsg)}`;
+                                                    window.open(waLink, '_blank');
+                                                }}
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-[#25D366]/10 text-[#25D366] rounded-lg text-sm font-bold hover:bg-[#25D366]/20 transition-colors border border-[#25D366]/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-2 sm:order-none"
+                                            >
+                                                <MessageCircle size={16} /> <span className="whitespace-nowrap">WhatsApp</span>
+                                            </button>
+                                            <button
                                                 onClick={async () => {
-                                                    if (navigator.share) {
+                                                    try {
+                                                        // Attempt to share the actual file if supported (mobile devices usually)
                                                         try {
+                                                            const response = await fetch(msg.pdf_url);
+                                                            const blob = await response.blob();
+                                                            const file = new File([blob], `Invoice_${Date.now()}.pdf`, { type: 'application/pdf' });
+
+                                                            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                                                await navigator.share({
+                                                                    files: [file],
+                                                                    title: 'Invoice from Dukan Sathi',
+                                                                });
+                                                                return; // Stop here if file share was successful
+                                                            }
+                                                        } catch (fetchErr) {
+                                                            console.warn("Could not fetch PDF for sharing as file, falling back to link:", fetchErr);
+                                                        }
+
+                                                        // Fallback to sharing URL
+                                                        if (navigator.share) {
                                                             await navigator.share({
                                                                 title: 'Invoice from Dukan Sathi',
                                                                 text: 'Here is your invoice.',
                                                                 url: msg.pdf_url
                                                             });
-                                                        } catch (err) {
-                                                            console.log('Error sharing:', err);
+                                                        } else {
+                                                            navigator.clipboard.writeText(msg.pdf_url);
+                                                            alert("Invoice link copied to clipboard!");
                                                         }
-                                                    } else {
-                                                        navigator.clipboard.writeText(msg.pdf_url);
-                                                        alert("Invoice link copied to clipboard!");
+                                                    } catch (err) {
+                                                        console.log('Error sharing:', err);
                                                     }
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-600 rounded-lg text-xs font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-1"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
                                             >
-                                                <Share2 size={14} /> Share
+                                                <Share2 size={16} /> <span className="whitespace-nowrap">Share</span>
                                             </button>
                                         </div>
                                     </div>

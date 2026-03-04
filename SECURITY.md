@@ -1,50 +1,76 @@
-# Security Guidelines
+# Security Policy — DukanSathi
 
-## Credential Management  
-- Use a password manager for storing secrets securely.  
-- Rotate credentials regularly and avoid hard-coded credentials in the codebase.  
+## Reporting a Vulnerability
 
-## Authentication  
-- Implement strong authentication mechanisms (e.g., multi-factor authentication).  
-- Use OAuth 2.0 for API authentication where applicable.
+If you discover a security vulnerability, please do **not** create a public GitHub issue.  
+Email us privately or open a **private security advisory** on GitHub instead.
 
-## API Security  
-- Ensure APIs only expose necessary data and methods.  
-- Validate all input and outputs to avoid injection attacks.
-- Use HTTPS for secure data transmission.
+---
 
-## Database Security  
-- Enforce principle of least privilege for database users.  
-- Regularly update database systems to patch vulnerabilities.  
+## Secrets & Credentials
 
-## Secrets Rotation Procedures  
-- Rotate keys and secrets on a regular schedule.  
-- Automate the rotation process where possible.
+| What | Where it goes | NEVER commit |
+|------|--------------|-------------|
+| Supabase URL & Service Key | `backend/.env` | ✅ |
+| Supabase Anon Key | `frontend/.env.local` | ✅ |
+| Groq API Key | `backend/.env` | ✅ |
+| Google service account | `backend/service_account.json` | ✅ |
+| Telegram Bot Token | `backend/.env` | ✅ |
 
-## Incident Response  
-- Develop and maintain an incident response plan.  
-- Conduct regular training for team members on security protocols.
+All of the above are gitignored. **Never hardcode them in source files.**
 
-## Development Practices  
-- Conduct security reviews during the software development lifecycle.  
-- Implement static and dynamic code analysis tools.
+---
 
-## Deployment Security  
-- Ensure environments are configured securely (e.g., firewall rules, security groups).  
-- Monitor and audit deployment processes for vulnerabilities.
+## Supabase Row Level Security (RLS)
 
-## Monitoring  
-- Implement logging and monitoring for systems and applications.  
-- Use alerting mechanisms for suspicious activities.
+All tables must have RLS enabled. The rule of thumb:
 
-## Third-Party Services  
-- Assess third-party services for compliance with security standards.  
-- Ensure contracts with third-party services include security requirements.
+- Users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`
+- Service role key (backend only) bypasses RLS — **never expose it to the frontend**
+- Anon key (frontend) must only access data through strict RLS policies
 
-## Security Checklist  
-- Regularly perform security audits and vulnerability assessments.  
-- Keep dependencies updated to mitigate vulnerabilities.  
+After any schema migration, run:
+```sql
+ALTER TABLE <new_table> ENABLE ROW LEVEL SECURITY;
+```
 
-### Compliance and Standards  
-- Comply with relevant regulations and standards (e.g., GDPR, ISO 27001).
-- Document compliance efforts and results for audits.
+---
+
+## Environment Variables
+
+- Copy `backend/.env.example` to `backend/.env` and fill in real values
+- Copy the pattern from `README.md → Environment Variables` for frontend
+- Never commit `.env` or `.env.local` files — they are gitignored
+
+---
+
+## API Security
+
+- All API endpoints require a valid Supabase JWT (`Authorization: Bearer <token>`)  
+- Backend uses rate limiting (slowapi) and security headers  
+- CORS is restricted to the configured `FRONTEND_URL`  
+- All user inputs are validated before being passed to the DB or AI model  
+
+---
+
+## Emergency — If Keys Are Leaked
+
+1. **Rotate immediately** at https://app.supabase.com → Project Settings → API → Roll keys
+2. Regenerate Groq API key at https://console.groq.com/keys
+3. Revoke and recreate Google service account at Google Cloud Console
+4. Update `.env` files locally and in your deployment platform (Render/Vercel)
+5. Force-push or use `git filter-repo` to wipe the key from git history
+
+---
+
+## Third-Party Dependencies
+
+- Keep `requirements.txt` and `package.json` dependencies updated
+- Run `pip audit` and `npm audit` periodically
+- `genkit-ide-models/node_modules/` should NOT be committed to git
+
+---
+
+## Compliance
+
+This project follows good practices aligned with OWASP Top 10 and best practices for SaaS applications handling Indian merchant data (GST/payment records).

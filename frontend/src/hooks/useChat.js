@@ -144,10 +144,31 @@ export const useChat = () => {
                     .order('created_at', { ascending: true });
 
                 if (!error && history?.length > 0) {
-                    const formattedHistory = history.map(msg => ({
-                        type: msg.role === 'assistant' ? 'ai' : 'user',
-                        text: msg.message
-                    }));
+                    const formattedHistory = history.map(msg => {
+                        try {
+                            // Try parsing message as JSON (for invoices)
+                            const parsedData = JSON.parse(msg.message);
+                            if (parsedData && parsedData.pdf_url) {
+                                return {
+                                    type: msg.role === 'assistant' ? 'ai' : 'user',
+                                    text: parsedData.text || '',
+                                    pdf_url: parsedData.pdf_url,
+                                    customer_name: parsedData.customer_name,
+                                    customer_phone: parsedData.customer_phone,
+                                    grand_total: parsedData.grand_total,
+                                    invoice_id: parsedData.invoice_id,
+                                    items_summary: parsedData.items_summary
+                                };
+                            }
+                        } catch (e) {
+                            // Normal text message
+                        }
+
+                        return {
+                            type: msg.role === 'assistant' ? 'ai' : 'user',
+                            text: msg.message
+                        };
+                    });
                     setMessages(formattedHistory);
                 } else {
                     setMessages([

@@ -52,7 +52,7 @@ App will run at: **http://localhost:5173**
 
 You need 2 keys from your Supabase project:
 
-**Go to:** https://supabase.com/dashboard/project/xfnoquphbeaqslownzxw/settings/api
+**Go to:** https://supabase.com/dashboard/project/YOUR_PROJECT_ID/settings/api
 
 Copy:
 - **Service Role Key** (secret) → Backend `.env`
@@ -80,7 +80,7 @@ pip install -r requirements.txt
 Create: `e:/dukan sathi openclawd/frontend/.env.local`
 
 ```bash
-VITE_SUPABASE_URL=https://xfnoquphbeaqslownzxw.supabase.co
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key_here
 VITE_BACKEND_WS_URL=ws://localhost:8000/ws/chat
 ```
