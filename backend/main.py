@@ -598,7 +598,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     logger.info(f"[WS] Using client user_id (no JWT): {verified_user_id}")
             
             # Use verified ID for all operations
-            user_id = verified_user_id or ""
+            user_id = verified_user_id or "anon"
             user_token = user_id  # Agent expects user_token = user_id
             
             # Safe user_id for file paths (never use client-supplied values)

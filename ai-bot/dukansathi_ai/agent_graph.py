@@ -1165,10 +1165,13 @@ async def action_node(state: AgentState):
     user_token = state.get('user_token', '')
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     
-    # User ID Resolution — reject unauthenticated requests
+    # User ID Resolution — allow anonymous chat but restrict actions
     user_id = user_token if user_token and len(user_token) < 50 else None
-    if not user_id or "default" in user_id.lower() or "test" in user_id.lower():
-        return {"messages": [AIMessage(content="⚠️ Authentication required. Please log in to continue.")]}
+    is_anon = not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "anon"
+    
+    if is_anon:
+        # Action Agent is more strict: can't create drafts without a real user ID
+        return {"messages": [AIMessage(content="⚠️ Authentication required. Please log in to create invoices or add products.")]}
     
     # History for context
     chat_history = await get_chat_history(user_id, limit=5)
@@ -1544,16 +1547,18 @@ async def chat_node(state: AgentState):
     selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
     role = state.get("role", "owner")
     
-    # User ID Resolution — reject unauthenticated requests
+    # User ID Resolution — allow anonymous fallback for chat
     user_id = user_token if user_token and len(user_token) < 50 else None
-    if not user_id or "default" in user_id.lower() or "test" in user_id.lower():
-        return {"messages": [AIMessage(content="⚠️ Authentication required. Please log in to continue.")]}
-        
-    business_name = await get_user_profile(user_id)
+    is_anon = not user_id or "default" in user_id.lower() or "test" in user_id.lower() or user_id == "anon"
     
-    # History for context
-    chat_history = await get_chat_history(user_id, limit=10)
-    history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
+    if is_anon:
+        business_name = "Guest Store"
+        history_text = "" # No history for anon
+    else:
+        business_name = await get_user_profile(user_id)
+        # History for context
+        chat_history = await get_chat_history(user_id, limit=10)
+        history_text = "\n".join([f"{msg['role'].capitalize()}: {msg['message']}" for msg in chat_history])
     
     msg_lower = last_msg.lower().strip()
     category = categorize_query(msg_lower)
