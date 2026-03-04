@@ -3,20 +3,26 @@
 > **Voice-first shop management platform for Indian small businesses**  
 > Say it in Hindi, Hinglish, or English — the AI understands.
 
+[![Deploy Status](https://img.shields.io/badge/Frontend-Vercel-black?logo=vercel)](https://dukansathi.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-Cloud_Run-blue?logo=google-cloud)](https://dukansathi.com)
+[![License](https://img.shields.io/badge/License-Proprietary-red)]()
+
 ---
 
 ## 📑 Table of Contents
 
-- [Architecture](#architecture)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Quick Start (Local)](#quick-start-local)
-- [Environment Variables](#environment-variables)
-- [Deployment](#deployment)
-- [Database Migrations](#database-migrations)
-- [AI Command Reference](#ai-command-reference)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
+- [Architecture](#-architecture-hybrid-openclaw-engine)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Quick Start (Local)](#-quick-start-local)
+- [Environment Variables](#-environment-variables)
+- [Deployment](#-deployment)
+- [Database Migrations](#-database-migrations)
+- [AI Command Reference](#-ai-command-reference)
+- [API Reference](#-api-reference)
+- [Security](#-security)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
@@ -24,160 +30,173 @@
 
 DukanSathi is built on a **Hybrid-Edge** architecture that intelligently balances cloud power with local privacy and performance.
 
-### 1. Hybrid Process Flow
-How the app switches between Cloud (Llama 4.1 Scout) and Local (Phi-3 Mini) based on connectivity and hardware availability.
+### System Architecture
 
 ```mermaid
 graph TD
-    A["User Voice Command"] --> B{"Connectivity?"}
+    A["👤 User (Voice/Text/Image)"] --> B["📱 React PWA Frontend"]
     
-    B -- "Online" --> C["Llama 4.1 Scout / Cloud RAG"]
-    C --> D["Supabase Global Sync"]
-    D --> E["Edge TTS Output"]
+    B <-->|WebSocket| C["⚡ FastAPI Backend"]
     
-    B -- "Offline/Edge" --> F["Hardware Capability Check"]
-    F --> G{"AMD NPU Detected?"}
+    C --> D{"🌐 Online?"}
     
-    G -- "Yes" --> H["Phi-3 Mini + NPU Offload"]
-    G -- "No" --> I["Phi-3 Mini + CPU/GPU"]
+    D -->|Yes| E["🤖 Llama 4 Scout<br/>Vertex AI MaaS"]
+    D -->|Offline| F["🤖 Phi-3 Mini<br/>Local Ollama"]
     
-    H --> J["SQLite Local Update"]
-    I --> J
-    J --> K["Browser Native TTS Output"]
+    E --> G["📊 Supabase<br/>PostgreSQL + Storage"]
+    F --> H["💾 SQLite<br/>Local Database"]
     
-    K --> L["Voice Confirmation: 'Done Boss!'"]
-    E --> L
+    C --> I["🎙️ Groq Whisper<br/>Speech-to-Text"]
+    C --> J["🔊 Edge TTS<br/>Text-to-Speech"]
     
-    style H fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    style G fill:#fff9c4,stroke:#fbc02d
+    C --> K["🤖 Telegram Bot<br/>Cloud Run Webhook"]
+    
+    G -->|"RLS Protected"| B
+    H -->|"Sync when online"| G
+    
+    style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style F fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style G fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
 ```
 
-### 2. System Layers (Hardware Aware)
-The application stack is optimized for **AMD Ryzen™ AI** hardware, offloading inference to the NPU for maximum efficiency.
+### AI Agent Pipeline (LangGraph)
 
 ```mermaid
-graph BT
-    subgraph Cloud["Cloud Layer (Massive RAG)"]
-        S[(Supabase DB)]
-        L[Llama 4.1 Scout]
-    end
-
-    subgraph Backend["Hybrid Backend Layer (FastAPI)"]
-        Orch[Orchestrator]
-        SQL[(SQLite Local)]
-        AI[Phi-3 Mini Engine]
-        STT[Whisper Small STT]
-    end
-
-    subgraph Hardware["Hardware Acceleration Layer"]
-        CPU[Core CPU]
-        GPU[Radeon Graphics]
-        NPU[AMD Ryzen AI NPU]
-    end
-
-    subgraph Frontend["Frontend Layer (React SPA)"]
-        UI[Voice Dashboard]
-        WS[WebSocket Client]
-    end
-
-    UI <--> WS
-    WS <--> Orch
-    Orch <--> SQL
-    Orch <--> AI
-    Orch <--> STT
+graph LR
+    A["User Input"] --> B["🛡️ Safety Guard<br/>SQL Injection Filter"]
+    B --> C["🔀 Router Node<br/>Categorize Intent"]
     
-    AI -- Offload --> NPU
-    AI -- Fallback --> GPU
+    C -->|"ACTION"| D["⚡ Action Node<br/>Fast Regex → LLM Fallback"]
+    C -->|"CHAT/Q&A"| E["💬 Chat Node<br/>SQL Data Retrieval + AI"]
+    C -->|"BLOCKED"| F["🚫 Reject"]
     
-    Orch -- Sync --> S
-    Orch -- Proxy --> L
-
-    style NPU fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    D --> G["📝 Draft Card<br/>Product / Invoice / Payment"]
+    E --> H["💬 AI Response<br/>Voice + Text"]
+    
+    G -->|"User Approves"| I["✅ Execute via RPC"]
+    G -->|"User Rejects"| J["❌ Discard"]
+    
+    style B fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style D fill:#e8f5e9,stroke:#2e7d32
+    style E fill:#e3f2fd,stroke:#1565c0
 ```
 
 ---
 
-## 🚀 AMD Ryzen™ AI Optimization
-
-DukanSathi is specifically engineered to take advantage of the **AMD Ryzen™ AI NPU**:
-
-- **NPU-First Inference**: When running offline, the **Phi-3 Mini** LLM and **Whisper STT** are offloaded to the NPU via ONNX Runtime, drastically reducing CPU load and improving battery life.
-- **Latency Reduction**: On-device processing eliminates round-trip latency, making the "Voice Dashboard" experience feel instantaneous.
-- **Privacy by Design**: Sensitive business data (customer dues, profit margins) is processed locally on-device, ensuring it never leaves the shopkeeper's hardware unless explicitly synced.
-
----
-
-## Features
+## 🚀 Features
 
 | Feature | Status |
 |---------|--------|
-| 🎤 Voice input (Hindi/Hinglish/English) | ✅ |
-| 📦 Product management (add, edit, stock) | ✅ |
-| 👤 Customer management (add, track dues) | ✅ |
-| 🧾 Invoice/bill creation via AI | ✅ |
-| 💸 Payment recording & dues tracking | ✅ |
-| 📊 Profit margin display | ✅ |
+| 🎤 Voice input (Hindi / Hinglish / English) | ✅ |
+| 📦 Product management (add, edit, restock, image upload) | ✅ |
+| 👤 Customer management (add, track dues, GST fields) | ✅ |
+| 🧾 Invoice / bill creation via AI (PDF generation) | ✅ |
+| 💸 Payment recording & dues tracking (udhar/jama) | ✅ |
+| 📊 Sales dashboard with profit margins | ✅ |
 | 🔴 Low-stock alerts | ✅ |
-| 🔄 Offline mode (local SQLite + Ollama) | ✅ |
-| 🔊 AI voice responses (Edge TTS) | ✅ |
-| 📷 Product image upload | ✅ |
+| 📷 Excel/CSV bulk product import (image & file) | ✅ |
+| 🔊 AI voice responses (10+ Indian voices) | ✅ |
+| 📲 WhatsApp invoice sharing (PDF + text summary) | ✅ |
+| 🤖 Telegram bot integration | ✅ |
+| 🌐 Storefront — customer-facing order bot | ✅ |
+| 🔒 Private invoice storage (signed URLs) | ✅ |
+| 🛡️ SQL injection protection (regex guard) | ✅ |
+| ⚡ WebSocket rate limiting | ✅ |
+| 🔄 Offline mode (SQLite + Ollama local AI) | ✅ |
+| 📱 PWA — installable on mobile | ✅ |
 
 ---
 
-## Project Structure
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18 + Vite 6 (Vanilla CSS, Mobile-first) |
+| **Backend** | FastAPI 0.115 (Python 3.11+) |
+| **AI (Cloud)** | Llama 4 Scout 17B via Vertex AI MaaS |
+| **AI (Local)** | Phi-3 Mini via Ollama + ONNX Runtime |
+| **Agent Framework** | LangGraph (multi-node state machine) |
+| **Speech-to-Text** | Groq Whisper (free tier) |
+| **Text-to-Speech** | Microsoft Edge TTS (free, 10+ voices) |
+| **Database** | Supabase (PostgreSQL + RLS + Storage) |
+| **Offline DB** | SQLite (local-first) |
+| **Auth** | Supabase Auth (Google OAuth + OTP) |
+| **Bot** | Telegram Bot API (Webhook on Cloud Run) |
+| **Frontend Deploy** | Vercel |
+| **Backend Deploy** | Google Cloud Run / Render |
+
+---
+
+## 📁 Project Structure
 
 ```
 dukanv22/
-├── backend/                  # FastAPI server
-│   ├── main.py               # Entry point: WebSocket, REST API, CORS
-│   ├── voice_service.py      # STT (Groq Whisper) + TTS (Edge-TTS)
-│   ├── local_ai.py           # Ollama local LLM integration
-│   ├── local_db.py           # SQLite offline database
-│   ├── setup_routes.py       # System setup endpoints
+├── backend/                    # FastAPI server
+│   ├── main.py                 # Entry point: WebSocket, REST, CORS, Rate Limiting
+│   ├── voice_service.py        # STT (Groq Whisper) + TTS (Edge-TTS)
+│   ├── local_ai.py             # Ollama local LLM integration
+│   ├── local_db.py             # SQLite offline database
+│   ├── security.py             # Rate limiting & security headers middleware
+│   ├── telegram_bot.py         # Telegram bot handler (webhook + polling)
+│   ├── setup_routes.py         # System setup endpoints
 │   └── requirements.txt
 │
 ├── ai-bot/
 │   └── dukansathi_ai/
-│       └── agent_graph.py    # NLP engine: fast regex + LLM fallback
+│       ├── agent_graph.py      # LangGraph AI agent (router → action/chat nodes)
+│       └── language_detector.py # Hindi/English detection
 │
 ├── frontend/
 │   └── src/
 │       ├── pages/
-│       │   ├── Chat.jsx       # AI chat interface
-│       │   ├── Inventory.jsx  # Product management
-│       │   ├── Customers.jsx  # Customer management
-│       │   ├── Dashboard.jsx  # Sales overview
-│       │   └── Settings.jsx   # Voice settings, profile
+│       │   ├── Chat.jsx        # AI chat (voice, image, PDF invoices)
+│       │   ├── Dashboard.jsx   # Sales overview & analytics
+│       │   ├── Inventory.jsx   # Product management + image upload
+│       │   ├── Customers.jsx   # Customer list & dues tracking
+│       │   ├── Sales.jsx       # Invoice history & management
+│       │   ├── Settings.jsx    # Voice, profile, AI model selection
+│       │   ├── Connections.jsx # Telegram bot linking
+│       │   ├── StoreFront.jsx  # Customer-facing order bot
+│       │   └── Landing.jsx     # Marketing landing page
 │       ├── components/
-│       │   ├── ActionCard.jsx # Draft approval UI (product/customer/payment)
-│       │   └── BottomNav.jsx  # Mobile navigation
-│       └── hooks/
-│           └── useChat.js     # WebSocket + TTS + chat state
+│       │   ├── ActionCard.jsx  # Draft approval UI (product/invoice/payment)
+│       │   ├── BottomNav.jsx   # Mobile bottom navigation
+│       │   ├── NavigationDrawer.jsx # Sidebar navigation
+│       │   └── VoiceAssist.jsx # Voice recording component
+│       ├── hooks/
+│       │   ├── useChat.js      # WebSocket + TTS + chat state
+│       │   └── useOnlineStatus.js # Network connectivity detection
+│       └── contexts/
+│           └── AuthContext.jsx # Supabase auth provider
 │
-├── migrations/               # Supabase SQL migrations (run in order)
-│   ├── 001_*.sql ... 014_*.sql
-│
-├── vercel.json               # Frontend deployment config
-├── render.yaml               # Backend deployment config
-└── package.json              # Monorepo scripts
+├── migrations/                 # Supabase SQL migrations (001–016 + telegram)
+├── setup_invoices_bucket.sql   # Private invoice storage setup
+├── Dockerfile                  # Backend Docker image
+├── vercel.json                 # Frontend deploy config
+├── render.yaml                 # Backend deploy config (Render fallback)
+└── SECURITY.md                 # Security policy & practices
 ```
 
 ---
 
-## Quick Start (Local)
+## 🚀 Quick Start (Local)
 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- A Supabase project
+- A [Supabase](https://supabase.com) project
 
-### 1. Clone & install
+### 1. Clone & Install
 
-```powershell
+```bash
+git clone https://github.com/mazi3012/dukansathi-monorepo.git
+cd dukansathi-monorepo
+
 # Backend
 cd backend
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+# Windows: .\venv\Scripts\Activate.ps1
+# Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
 
 # Frontend
@@ -185,35 +204,37 @@ cd ../frontend
 npm install
 ```
 
-### 2. Set environment variables
+### 2. Environment Variables
 
-**`backend/.env`**
+**`backend/.env`** — create from `backend/.env.example`:
 ```env
-SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
 SUPABASE_SERVICE_KEY=your_service_role_key
-GEMINI_API_KEY=your_gemini_key
 GROQ_API_KEY=your_groq_key
+GOOGLE_APPLICATION_CREDENTIALS=service_account.json
 FRONTEND_URL=http://localhost:5173
+PORT=8000
 ```
 
-**`frontend/.env.local`**
+**`frontend/.env.local`**:
 ```env
-VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key
 VITE_BACKEND_WS_URL=ws://localhost:8000/ws/chat
 VITE_BACKEND_URL=http://localhost:8000
 ```
 
-### 3. Run migrations (Supabase SQL Editor)
+> ⚠️ **Production** must use `https://` and `wss://` — never use `http://` or `ws://` in production.
 
-Run files in `migrations/` from `001_*.sql` to `014_*.sql` in order.
+### 3. Run Migrations
 
-### 4. Start servers
+Run SQL files in `migrations/` from `001` to `016` in order via Supabase SQL Editor.
 
-```powershell
+### 4. Start Servers
+
+```bash
 # Terminal 1 — Backend
 cd backend
-.\venv\Scripts\Activate.ps1
 python main.py
 # → http://localhost:8000
 
@@ -223,24 +244,22 @@ npm run dev
 # → http://localhost:5173
 ```
 
-Or use the convenience script:
-```powershell
-.\start_app.bat
-```
-
 ---
 
-## Environment Variables
+## 🔐 Environment Variables
 
 ### Backend (`backend/.env`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SUPABASE_URL` | ✅ | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | ✅ | Service role key (never expose to frontend) |
-| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
+| `SUPABASE_SERVICE_KEY` | ✅ | Service role key (**never expose to frontend**) |
 | `GROQ_API_KEY` | ✅ | Groq Whisper STT key |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅ | Path to service account JSON for Vertex AI |
 | `FRONTEND_URL` | ✅ | Allowed frontend origin for CORS |
+| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot token |
+| `TELEGRAM_BOT_USERNAME` | Optional | Telegram bot username |
+| `WEBHOOK_URL` | Optional | Cloud Run URL for Telegram webhooks |
 | `PORT` | Optional | Server port (default: 8000) |
 
 ### Frontend (`frontend/.env.local`)
@@ -249,45 +268,57 @@ Or use the convenience script:
 |----------|----------|-------------|
 | `VITE_SUPABASE_URL` | ✅ | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anon/public key |
-| `VITE_BACKEND_WS_URL` | ✅ | WebSocket URL for AI chat |
+| `VITE_BACKEND_WS_URL` | ✅ | WebSocket URL (`ws://` local, `wss://` production) |
 | `VITE_BACKEND_URL` | ✅ | REST API base URL |
 
 ---
 
-## Deployment
+## 🚢 Deployment
 
 ### Frontend → Vercel
 
 - Auto-deploys on push to `main`
-- Build command: `cd frontend && npm run build`
-- Output directory: `frontend/dist`
+- Build: `cd frontend && npm run build`
+- Output: `frontend/dist`
 - Config: [`vercel.json`](vercel.json)
 
-### Backend → Render
+### Backend → Google Cloud Run (Primary)
+
+- Docker-based deployment via `Dockerfile`
+- Set all environment variables in Cloud Run console
+- Telegram webhook auto-configures on startup
+
+### Backend → Render (Fallback)
 
 - Auto-deploys on push to `main`
-- Start command: `cd backend && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port $PORT`
 - Config: [`render.yaml`](render.yaml)
 
-> **After deploy:** Set all environment variables in Render dashboard and `FRONTEND_URL` to your Vercel URL.
+> **Post-deploy:** Set `FRONTEND_URL` to your Vercel URL in the backend environment.
 
 ---
 
-## Database Migrations
+## 📊 Database Migrations
 
 Run SQL files in `migrations/` in order via Supabase SQL Editor:
 
 | File | Description |
 |------|-------------|
-| `001_*.sql` | Initial schema |
-| `002-011_*.sql` | Core features (auth, products, customers, invoices) |
-| `012_auto_update_customer_balance.sql` | Auto-trigger for customer credit on sale |
-| `013_ai_helper_functions.sql` | AI helper RPCs |
-| `014_receive_payment_rpc.sql` | Payment & credit RPCs |
+| `001` | User profiles schema |
+| `002` | AI helper functions + suppliers |
+| `003–005` | Products, customers, sales tables |
+| `006–008` | Purchase orders, chat history, drafts, inventory logs |
+| `009` | Product images support |
+| `010` | Customer GST fields |
+| `011` | Product schema fixes |
+| `012` | Auto-update customer balance trigger |
+| `013` | AI helper RPCs + profile settings |
+| `014–015` | Payment & credit RPCs |
+| `016` | Product image URL column |
+| `telegram_*` | Telegram bot connection tokens |
 
 ---
 
-## AI Command Reference
+## 🗣️ AI Command Reference
 
 The AI understands natural Hindi/Hinglish/English commands:
 
@@ -295,7 +326,7 @@ The AI understands natural Hindi/Hinglish/English commands:
 ```
 "Add Maggi price 20 stock 100"
 "New product milk 50 rupees, cost 35"
-"Add soap category FMCG price 40"
+"Restock 50 rice"
 ```
 
 ### Customers
@@ -318,69 +349,103 @@ The AI understands natural Hindi/Hinglish/English commands:
 "Create invoice for Raj 3 Maggi"
 ```
 
+### Bulk Import
+```
+Upload an Excel/CSV file → AI extracts all products
+Upload a photo of a price list → AI reads via OCR
+```
+
 ---
 
-## API Reference
+## 📡 API Reference
 
 ### REST Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Health check |
-| `GET` | `/health` | Detailed health (DB status) |
-| `POST` | `/api/tts-preview` | TTS audio preview |
-| `POST` | `/upload-product-image` | Upload product image |
-| `GET` | `/api/local/customers` | Offline customer list |
-| `GET` | `/api/local/products` | Offline product list |
+| `GET` | `/health` | Detailed health (DB, AI, Telegram status) |
+| `POST` | `/api/tts-preview` | Generate TTS audio preview |
+| `POST` | `/upload-product-image` | Upload product photo |
+| `GET` | `/api/telegram/bot-link` | Get Telegram bot URL |
+| `POST` | `/api/telegram/webhook` | Telegram webhook receiver |
+| `GET` | `/api/local/*` | Offline data endpoints |
 | `GET` | `/api/setup/*` | System setup routes |
 
 ### WebSocket `/ws/chat`
 
-Messages are JSON objects:
+Rate limited to **30 connections/minute per IP**.
 
 **Client → Server:**
 ```json
-{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "llama-4-scout-17b-16e-instruct-maas", "voice_id": "en-IN-PrabhatNeural" }
-{ "type": "voice", "content": "<base64_audio>" }
+{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "llama-4-scout-17b-16e-instruct-maas" }
+{ "type": "voice", "content": "<base64_audio>", "voice_id": "en-IN-PrabhatNeural" }
 { "type": "image", "content": "<base64_image>" }
+{ "type": "excel", "content": "<base64_file>", "filename": "products.xlsx" }
+{ "type": "action", "action": "approve_customer", "draft_data": { ... } }
 ```
 
 **Server → Client:**
 ```json
-{ "type": "text", "content": "Review and confirm below!", "audio": "<base64_mp3>", "attachment": { "type": "customer_draft", ... } }
+{ "type": "text", "content": "Done!", "audio": "<base64_mp3>", "attachment": { "draft_type": "customer", ... } }
 { "type": "transcription", "content": "Add customer Rahul" }
-{ "type": "error", "content": "Something went wrong" }
+{ "type": "image_pending", "content": "Image received! Tell me what to do." }
+{ "type": "error", "content": "Something went wrong." }
 ```
 
 ---
 
-## Troubleshooting
+## 🔒 Security
+
+- **No hardcoded secrets** — all credentials via environment variables
+- **Private invoice storage** — PDFs stored in private Supabase bucket, accessed via time-limited signed URLs
+- **SQL injection protection** — regex-based pattern matching blocks destructive queries
+- **WebSocket rate limiting** — 30 connections/minute per IP
+- **Sanitized error messages** — no stack traces or internal details leaked to clients
+- **Row-Level Security** — Supabase RLS policies enforce user-scoped data access
+- **CORS restriction** — only whitelisted origins are allowed
+- **Authentication required** — AI agent rejects unauthenticated requests
+
+See [`SECURITY.md`](SECURITY.md) for full security policy and incident response procedures.
+
+---
+
+## 🐛 Troubleshooting
 
 ### WebSocket not connecting
 1. Check backend is running: `curl http://localhost:8000/health`
-2. Verify `VITE_BACKEND_WS_URL` in frontend `.env.local`
-3. Check for CORS errors in browser console — add your origin to `ALLOWED_ORIGINS` in `backend/main.py`
+2. Verify `VITE_BACKEND_WS_URL` in `frontend/.env.local`
+3. Check CORS errors — add your origin to `ALLOWED_ORIGINS` in `backend/main.py`
 
 ### AI draft not showing
-- Backend must return `{ "type": "text", ..., "attachment": { "type": "customer_draft", ... } }`
-- Check `backend.log` for `[AI] AI Raw Response` log line
+- Check `backend.log` for AI response logs
+- Ensure the AI model is accessible (Vertex AI / Ollama running)
 
-### Payment direction wrong
-- All NLP patterns now include `payment_type: "payment"` (deduct) or `"credit"` (add)
-- ActionCard sends this to Chat.jsx which uses it to determine add/subtract direction
+### Voice not working
+- Ensure `GROQ_API_KEY` is set (for STT)
+- Check browser microphone permissions
+- Try a different voice in Settings
 
 ### Supabase RLS blocking requests
-- Ensure service role key is in backend `.env` (not anon key)
+- Backend must use **service role key** (not anon key)
 - Frontend uses anon key with user-scoped RLS policies
 
 ---
 
-## Contributing
+## 👥 Contributing
 
 1. Fork the repo
 2. Create feature branch: `git checkout -b feature/my-feature`
 3. Commit: `git commit -m "feat: add my feature"`
 4. Push and open a PR
+
+See [`SECURITY.md`](SECURITY.md) for responsible disclosure of vulnerabilities.
+
+---
+
+## 📄 License
+
+Proprietary — Dukan Sathi Team 2026
 
 ---
 

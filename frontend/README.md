@@ -8,8 +8,12 @@
 - 💬 **AI Chat Interface** with real-time WebSocket
 - 📱 **Mobile-First Design** optimized for smartphones
 - 🌐 **Offline PWA** with service worker caching
-- 🇮🇳 **Hindi/Regional Languages** support
-- 🎨 **Light Theme** for bright shop environments
+- 🇮🇳 **Hindi/Hinglish/English** support
+- 🧾 **PDF Invoice Generation** with WhatsApp sharing
+- 📷 **Image & Excel Bulk Import** for products
+- 🤖 **Telegram Bot Integration**
+- 🏪 **Customer Storefront** for order placement
+- 🎨 **Dark theme** with glassmorphism UI
 
 ## Tech Stack
 

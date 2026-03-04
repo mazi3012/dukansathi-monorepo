@@ -14,11 +14,13 @@
 ## Tech Stack
 
 - **Framework:** FastAPI 0.115
-- **AI:** Google Gemini 2.0 Flash (via Vertex AI)
-- **Database:** Supabase (PostgreSQL)
-- **Voice:** Groq Whisper (free STT) + Microsoft Edge TTS (free)
-- **Agent:** LangGraph for orchestration
-- **Deployment:** Railway/Render with Docker
+- **AI:** Llama 4 Scout 17B (via Vertex AI MaaS)
+- **Database:** Supabase (PostgreSQL + RLS + Storage)
+- **Voice:** Groq Whisper (STT) + Microsoft Edge TTS
+- **Agent:** LangGraph (multi-node state machine)
+- **Bot:** Telegram Bot API (Webhook / Polling)
+- **Security:** WebSocket rate limiting, SQL injection guard, sanitized errors
+- **Deployment:** Google Cloud Run / Render with Docker
 
 ## Local Development Setup
 
