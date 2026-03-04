@@ -114,3 +114,10 @@ backend/migrate_*.py
 backend/seed_data.py
 ai-bot/test_*.py
 ai-bot/verify_*.py
+
+# ── Custom / Accidental Files ─────────────
+genkit-ide-models/
+*.jsx.txt
+frontend/theme_*.py
+migrations_part*.sql
+setup_invoices_bucket.sql
