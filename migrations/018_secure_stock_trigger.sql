@@ -9,7 +9,7 @@
  */
 
 -- Drop the old insecure trigger and function
-DROP IF EXISTS TRIGGER update_stock_after_sale ON sale_items;
+DROP TRIGGER IF EXISTS update_stock_after_sale ON sale_items;
 DROP FUNCTION IF EXISTS update_stock_on_sale();
 
 -- Create the secured function
