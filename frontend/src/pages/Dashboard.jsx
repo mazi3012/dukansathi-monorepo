@@ -284,27 +284,30 @@ const Dashboard = () => {
             <div className="absolute top-[40%] right-[10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-4 md:px-6 pt-6 gap-4 relative z-10">
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-4 md:px-6 pt-4 md:pt-6 gap-3 md:gap-4 relative z-10">
                 <div className="flex items-center gap-4 md:gap-5">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-[16px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                        <Activity className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
+                    <div className="hidden md:flex w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                        <Activity className="w-8 h-8" strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
-                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-1 transition-colors">Business Insights & Analytics Performance</p>
+                        <h1 className="text-2xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
+                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors">
+                            <span className="md:hidden">Business Insights</span>
+                            <span className="hidden md:inline">Business Insights & Analytics Performance</span>
+                        </p>
                     </div>
                 </div>
                 {/* Timeframe Toggle */}
-                <div className="flex w-full md:w-auto bg-card-bg/40 backdrop-blur-xl border border-card-border p-1.5 rounded-2xl md:self-auto shadow-sm">
+                <div className="flex w-full md:w-auto bg-card-bg/40 backdrop-blur-xl border border-card-border p-1 md:p-1.5 rounded-2xl md:self-auto shadow-sm">
                     <button
                         onClick={() => setTimeframe('today')}
-                        className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'today' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
+                        className={`flex-1 md:flex-none px-4 md:px-6 py-1.5 md:py-2.5 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'today' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         Today
                     </button>
                     <button
                         onClick={() => setTimeframe('all')}
-                        className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'all' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
+                        className={`flex-1 md:flex-none px-4 md:px-6 py-1.5 md:py-2.5 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'all' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         All Time
                     </button>
