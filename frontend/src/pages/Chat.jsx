@@ -884,9 +884,28 @@ const Chat = () => {
 
                                         {/* Action Buttons — shared for both mobile and desktop */}
                                         <div className="flex gap-2 px-1 flex-wrap sm:flex-nowrap">
-                                            <a download href={`${msg.pdf_url}?download=Invoice.pdf`} className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-1 sm:order-none">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const response = await fetch(msg.pdf_url);
+                                                        const blob = await response.blob();
+                                                        const url = window.URL.createObjectURL(blob);
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.download = `Invoice_${msg.invoice_id || Date.now()}.pdf`;
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        document.body.removeChild(link);
+                                                        window.URL.revokeObjectURL(url);
+                                                    } catch (error) {
+                                                        console.error("Download failed:", error);
+                                                        alert("Failed to download PDF. Please try opening via the link.");
+                                                    }
+                                                }}
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-1 sm:order-none"
+                                            >
                                                 <Download size={16} /> <span className="whitespace-nowrap">Download</span>
-                                            </a>
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     const waMsg = `*Invoice #${msg.invoice_id}*\n*From:* ${businessProfile?.business_name || 'Our Shop'}\n*To:* ${msg.customer_name}\n\n*Items:*\n${msg.items_summary}\n\n*Total Amount: ₹${msg.grand_total}*\n\nView PDF Invoice:\n${msg.pdf_url}`;
