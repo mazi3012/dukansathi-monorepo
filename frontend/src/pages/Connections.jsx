@@ -37,7 +37,17 @@ const Connections = () => {
     // Polling connection status when waiting for bot
     useEffect(() => {
         if (!waitingForBot || telegramConnected) return;
+        let retryCount = 0;
+        const MAX_RETRIES = 100; // 5 minutes max (100 * 3s)
+
         timerRef.current = setInterval(() => {
+            retryCount++;
+            if (retryCount > MAX_RETRIES) {
+                clearInterval(timerRef.current);
+                setWaitingForBot(false);
+                alert("Connection request timed out. Please try again.");
+                return;
+            }
             checkTelegramConnection();
         }, 3000);
         return () => clearInterval(timerRef.current);
