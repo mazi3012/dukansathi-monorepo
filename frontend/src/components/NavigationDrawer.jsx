@@ -83,7 +83,15 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                     <h2 className="text-xl font-black font-heading text-text-main tracking-tight transition-colors">
                                         {user?.user_metadata?.full_name || 'Dukan Sathi'}
                                     </h2>
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{user?.email || 'App Mode'}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none truncate max-w-[120px]">{user?.email || 'App Mode'}</p>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="text-[9px] font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
+                                        >
+                                            <LogOut size={10} strokeWidth={2.5} /> Logout
+                                        </button>
+                                    </div>
                                 </div>
 
                             </div>
@@ -98,12 +106,12 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         {/* Navigation Links */}
                         <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-hide py-2 px-1">
                             <NavItem to="/" icon={Home} label="Overview" onClick={onClose} />
-                            <NavItem to="/inventory" icon={Package} label="Inventory" onClick={onClose} />
-                            <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
-                            <NavItem to="/customers" icon={Users} label="Customers" onClick={onClose} />
                             <NavItem to="/chat" icon={MessageSquare} label="Dukan Sathi AI" onClick={onClose} />
-                            <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
+                            <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
+                            <NavItem to="/inventory" icon={Package} label="Inventory" onClick={onClose} />
+                            <NavItem to="/customers" icon={Users} label="Customers" onClick={onClose} />
                             <NavItem to="/connections" icon={LinkIcon} label="Connections" onClick={onClose} />
+                            <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
                         </div>
 
                         {/* Footer */}
@@ -123,16 +131,6 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                     <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isSyncing ? 'translate-x-6' : 'translate-x-0'}`} />
                                 </button>
                             </div>
-
-                            <button
-                                onClick={handleLogout}
-                                className="flex items-center gap-3 p-3 w-full text-left text-red-500 hover:bg-red-500/10 rounded-2xl transition-all group border border-transparent hover:border-red-500/20"
-                            >
-                                <div className="p-1.5 bg-red-500/10 rounded-lg text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
-                                    <LogOut size={16} strokeWidth={2.5} />
-                                </div>
-                                <span className="font-black text-[10px] uppercase tracking-widest">Terminate Session</span>
-                            </button>
                         </div>
                     </motion.div>
                 </div>
