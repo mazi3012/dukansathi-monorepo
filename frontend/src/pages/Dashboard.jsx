@@ -43,28 +43,28 @@ const StatCard = ({ title, value, change, icon: Icon, colorClass, gradientClass,
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, type: "spring", stiffness: 80, damping: 20 }}
         whileHover={{ y: -8, scale: 1.02 }}
-        className="relative overflow-hidden glass-card p-6 rounded-[32px] flex flex-col justify-between group h-full transition-all duration-500 border border-card-border/50 hover:border-indigo-500/30"
+        className="relative overflow-hidden glass-card p-4 md:p-6 rounded-[24px] md:rounded-[32px] flex flex-col justify-between group h-full transition-all duration-500 border border-card-border/50 hover:border-indigo-500/30"
     >
         {/* Animated Background Glow */}
-        <div className={`absolute -inset-px bg-gradient-to-br ${gradientClass} opacity-0 group-hover:opacity-[0.08] transition-opacity duration-700 rounded-[32px]`} />
+        <div className={`absolute -inset-px bg-gradient-to-br ${gradientClass} opacity-0 group-hover:opacity-[0.08] transition-opacity duration-700 rounded-[24px] md:rounded-[32px]`} />
 
         <div className="flex justify-between items-start relative z-10">
-            <div className="text-text-muted flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] mb-4 transition-colors group-hover:text-text-main">
+            <div className="text-text-muted flex items-center gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-[0.15em] md:tracking-[0.2em] mb-2 md:mb-4 transition-colors group-hover:text-text-main">
                 {title}
             </div>
-            <div className={`w-12 h-12 rounded-[18px] bg-card-bg/80 backdrop-blur-xl shadow-lg border border-card-border flex items-center justify-center ${colorClass} group-hover:scale-110 transition-transform duration-500`}>
-                <Icon size={22} />
+            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-[14px] md:rounded-[18px] bg-card-bg/80 backdrop-blur-xl shadow-lg border border-card-border flex items-center justify-center ${colorClass} group-hover:scale-110 transition-transform duration-500`}>
+                <Icon className="w-5 h-5 md:w-[22px] md:h-[22px]" />
             </div>
         </div>
 
         <div className="relative z-10 mt-2">
             {isLoading ? (
-                <div className="h-10 w-32 bg-indigo-500/5 rounded-xl skeleton-shimmer" />
+                <div className="h-8 md:h-10 w-24 md:w-32 bg-indigo-500/5 rounded-xl skeleton-shimmer" />
             ) : (
-                <div className="text-4xl font-black font-heading text-text-main tracking-tighter leading-none transition-colors group-hover:text-indigo-500">{value}</div>
+                <div className="text-2xl md:text-3xl lg:text-4xl font-black font-heading text-text-main tracking-tighter leading-none transition-colors group-hover:text-indigo-500 truncate">{value}</div>
             )}
 
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex items-center gap-3 mt-2 md:mt-4">
                 {change && (
                     <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-wider">
                         <TrendingUp size={12} strokeWidth={3} /> {change}
@@ -81,18 +81,18 @@ const ActionButton = ({ icon: Icon, label, color, gradient, onClick, active = fa
         whileHover={{ y: -5, scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
-        className="flex flex-col items-center gap-4 relative group"
+        className="flex flex-col items-center gap-2 md:gap-4 relative group"
     >
-        <div className={`w-20 h-20 rounded-[28px] flex items-center justify-center text-white shadow-2xl relative overflow-hidden transition-all duration-500 ${active ? 'ring-4 ring-indigo-500/30' : ''}`}>
+        <div className={`w-14 h-14 md:w-20 md:h-20 rounded-[20px] md:rounded-[28px] flex items-center justify-center text-white shadow-2xl relative overflow-hidden transition-all duration-500 ${active ? 'ring-4 ring-indigo-500/30' : ''}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} group-hover:rotate-12 transition-transform duration-700`} />
             <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
             {/* Glossy Overlay */}
             <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-white/20 to-transparent z-10" />
 
-            <Icon size={32} className="relative z-20 drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] transition-transform duration-500 group-hover:scale-110" />
+            <Icon className="w-6 h-6 md:w-8 md:h-8 relative z-20 drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] transition-transform duration-500 group-hover:scale-110" />
         </div>
-        <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors group-hover:text-indigo-500">{label}</span>
+        <span className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.1em] md:tracking-[0.2em] transition-colors group-hover:text-indigo-500 text-center leading-tight max-w-[64px] md:max-w-none">{label}</span>
     </motion.button>
 );
 
@@ -284,27 +284,27 @@ const Dashboard = () => {
             <div className="absolute top-[40%] right-[10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-6 gap-6 relative z-10">
-                <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                        <Activity size={32} strokeWidth={2.5} />
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-4 md:px-6 pt-6 gap-4 relative z-10">
+                <div className="flex items-center gap-4 md:gap-5">
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-[16px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                        <Activity className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
-                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Business Insights & Analytics Performance</p>
+                        <h1 className="text-3xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
+                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-1 transition-colors">Business Insights & Analytics Performance</p>
                     </div>
                 </div>
                 {/* Timeframe Toggle */}
-                <div className="flex bg-card-bg/40 backdrop-blur-xl border border-card-border p-1.5 rounded-2xl self-start md:self-auto shadow-sm">
+                <div className="flex w-full md:w-auto bg-card-bg/40 backdrop-blur-xl border border-card-border p-1.5 rounded-2xl md:self-auto shadow-sm">
                     <button
                         onClick={() => setTimeframe('today')}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'today' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
+                        className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'today' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         Today
                     </button>
                     <button
                         onClick={() => setTimeframe('all')}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'all' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
+                        className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'all' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'}`}
                     >
                         All Time
                     </button>
@@ -312,7 +312,7 @@ const Dashboard = () => {
             </header>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-6 relative z-10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 px-4 md:px-6 relative z-10">
                 <StatCard
                     title={timeframe === 'today' ? "Today's Revenue" : "Total Revenue"}
                     value={`₹${stats.revenue.toLocaleString('en-IN')}`}
@@ -352,7 +352,7 @@ const Dashboard = () => {
             </div>
 
             {/* Main Content Split */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-6 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 px-4 md:px-6 relative z-10">
 
                 {/* Left Column (Charts & Quick Actions) */}
                 <div className="lg:col-span-2 space-y-6">
@@ -380,8 +380,8 @@ const Dashboard = () => {
 
                     {/* Quick Actions Bento */}
                     <div>
-                        <h2 className="text-sm font-bold text-text-main uppercase tracking-widest mb-4 transition-colors">Command Center</h2>
-                        <div className="flex flex-wrap gap-4 sm:gap-6">
+                        <h2 className="text-xs md:text-sm font-bold text-text-main uppercase tracking-widest mb-3 md:mb-4 transition-colors">Command Center</h2>
+                        <div className="flex flex-row justify-between sm:justify-start gap-2 sm:gap-6">
                             <ActionButton icon={Plus} label="New Bill" gradient="from-indigo-500 to-indigo-600" onClick={() => navigate('/sales')} />
                             <ActionButton icon={Package} label="Add Stock" gradient="from-blue-500 to-blue-600" onClick={() => navigate('/inventory')} />
                             <ActionButton icon={Users} label="Customers" gradient="from-purple-500 to-purple-600" onClick={() => navigate('/customers')} />
