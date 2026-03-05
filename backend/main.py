@@ -292,24 +292,19 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check with actual service status"""
-    db_status = "disconnected"
-    if supabase:
-        try:
-            supabase.table("profiles").select("id").limit(1).execute()
-            db_status = "connected"
-        except Exception:
-            db_status = "error"
-    return {
-        "status": "ok" if db_status == "connected" else "degraded",
-        "database": db_status,
-        "ai_service": "ready",
-        "telegram_configured": bool(os.getenv("TELEGRAM_BOT_TOKEN"))
-    }
+    """Lightweight health check for Cloud Run"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 @app.on_event("startup")
 async def startup_event():
-    """Start background tasks"""
+    """Start background tasks after binding to port"""
+    print(f"INFO: Dukan Sathi Backend starting (Port: {os.getenv('PORT', '8080')})")
+    # We yield to the event loop to ensure port binding happens ASAP
+    asyncio.create_task(deferred_startup())
+
+async def deferred_startup():
+    """Heavy startup tasks run in background after port binding"""
+    await asyncio.sleep(2) # Brief delay to let uvicorn settle
     print("INFO: Starting background tasks...")
     asyncio.create_task(cleanup_scheduler())
     
@@ -337,14 +332,14 @@ async def startup_event():
             try:
                 # Local Development / Render legacy fallback (Polling)
                 lock_file = os.path.join(tempfile.gettempdir(), "dukansathi_telegram.lock")
-                fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.close(fd)
-                from telegram_bot import start_telegram_bot
-                print("INFO: Starting Telegram Bot polling thread (Local Mode)...")
-                bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
-                bot_thread.start()
-            except FileExistsError:
-                print("INFO: Telegram Bot polling already running in another worker.")
+                if not os.path.exists(lock_file):
+                    with open(lock_file, "w") as f: f.write("locked")
+                    from telegram_bot import start_telegram_bot
+                    print("INFO: Starting Telegram Bot polling thread (Local Mode)...")
+                    bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
+                    bot_thread.start()
+                else:
+                    print("INFO: Telegram Bot polling already running in another worker.")
             except Exception as e:
                 logger.error(f"Failed to initialize Telegram Polling: {e}")
 

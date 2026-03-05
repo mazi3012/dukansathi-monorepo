@@ -40,15 +40,13 @@ RUN rm -f backend/.env backend/service_account.json \
 
 # --- Environment ---
 # PYTHONPATH so 'from dukansathi_ai...' imports work
-ENV PYTHONPATH=/app/ai-bot:/app
+ENV PYTHONPATH=/app/ai-bot:/app/backend:/app
 # Cloud Run injects PORT automatically (default 8080)
 ENV PORT=8080
+# Disable heavy model loading by default in production to save RAM/Time
+ENV ENABLE_OFFLINE_STT=false
 
 WORKDIR /app/backend
-
-# --- Healthcheck ---
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", 8080)}/health')" || exit 1
 
 # --- Start Server ---
 # Cloud Run requires listening on 0.0.0.0:$PORT

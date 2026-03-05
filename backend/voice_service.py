@@ -72,15 +72,26 @@ def _get_whisper_model(timeout: float = 90.0):
     _whisper_ready.wait(timeout=timeout)
     return _whisper_model
 
-# Start background loading
-_threading.Thread(target=_load_whisper_in_background, daemon=True).start()
+# Start background loading ONLY if enabled (Saves 1GB+ RAM in production Cloud Run)
+if os.getenv("ENABLE_OFFLINE_STT", "false").lower() == "true":
+    print("[INFO] ENABLE_OFFLINE_STT is true. Starting Whisper background loader...")
+    _threading.Thread(target=_load_whisper_in_background, daemon=True).start()
+else:
+    print("[INFO] ENABLE_OFFLINE_STT is false. Skipping Whisper loading to save memory.")
+    _whisper_ready.set() # Unblock any accidental callers
 
 # Initialize Google Cloud TTS Client
-# Automatically uses GOOGLE_APPLICATION_CREDENTIALS from .env
+# Automatically uses GOOGLE_APPLICATION_CREDENTIALS from .env or Metadata Server
 try:
-    tts_client = texttospeech.TextToSpeechClient()
-    print("[OK] Google Cloud TTS Client initialized successfully")
+    # If explicitly set to empty, don't even try (prevents some log noise)
+    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("K_SERVICE"):
+        tts_client = texttospeech.TextToSpeechClient()
+        print("[OK] Google Cloud TTS Client initialized successfully")
+    else:
+        print("[WARN] Google Cloud credentials not found. TTS will be disabled.")
+        tts_client = None
 except Exception as e:
+    # Do not raise - allow app to start even if TTS is broken
     print(f"[ERR] Failed to initialize Google Cloud TTS: {e}")
     tts_client = None
 
