@@ -940,11 +940,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                         })
                     
                     else:
-                        # Unknown or missing action
-                        print(f"[WARN] Unknown or invalid action: {action}")
+                        # Unknown or missing action — log the details internally only
+                        logger.warning(f"[WARN] Unknown or invalid action: {action}")
                         await websocket.send_json({
                             "type": "error",
-                            "content": f"Unknown action '{action}' or missing draft data."
+                            "content": "That action could not be processed. Please try again."
                         })
                         
                 except Exception as e:
@@ -997,8 +997,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     pass
                 
             except Exception as e:
-                print(f"[ERR] AI Processing Error: {e}")
-                await websocket.send_json({"type": "error", "content": f"AI Error: {str(e)}"})
+                logger.error(f"[ERR] AI Processing Error: {e}")
+                await websocket.send_json({"type": "error", "content": "AI processing failed. Please try again."})
                 continue
 
             # 5. Generate TTS (On Display Text ONLY)

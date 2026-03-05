@@ -429,42 +429,78 @@ async def generate_sql_local(user_query: str, model: str = "phi3:mini") -> str:
         print(f"ERROR Local SQL Gen: {e}")
         return "SELECT name, selling_price FROM products LIMIT 5"
 
+def _is_safe_select(sql: str) -> bool:
+    """
+    Validate that a SQL string is a read-only SELECT with no dangerous keywords.
+    Returns True only if the SQL is safe to execute.
+    """
+    # Strip comments and normalize whitespace
+    cleaned = re.sub(r'--[^\n]*', '', sql)  # single-line comments
+    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)  # block comments
+    cleaned = cleaned.strip().lower()
+    
+    # Must start with SELECT
+    if not cleaned.startswith('select'):
+        logger.warning(f"SECURITY: Rejected non-SELECT SQL: {sql[:100]}")
+        return False
+    
+    # Block any destructive or schema-modifying keywords
+    _BLOCKED_SQL_KEYWORDS = [
+        r'\bdelete\b', r'\bupdate\b', r'\binsert\b', r'\btruncate\b',
+        r'\bdrop\b', r'\balter\b', r'\bcreate\b', r'\bgrant\b',
+        r'\brevoke\b', r'\bexec\b', r'\bexecute\b', r'\bcopy\b',
+        r'\bpg_read_file\b', r'\bpg_write_file\b', r'\binformation_schema\b',
+        r'\bpg_catalog\b', r'\bpg_shadow\b', r'\bpg_user\b',
+        r';\s*(?:select|insert|update|delete|drop)',  # stacked queries
+    ]
+    for pattern in _BLOCKED_SQL_KEYWORDS:
+        if re.search(pattern, cleaned):
+            logger.warning(f"SECURITY: Dangerous keyword in SQL: {pattern} | SQL: {sql[:100]}")
+            return False
+    return True
+
 async def execute_sql(sql: str) -> str:
     """
-    Execute SQL using the Supabase RPC function
+    Execute SQL using the Supabase RPC function — read-only SELECT queries only.
     """
     if not supabase:
-        return "Error: Database connection not configured."
+        return "Database is currently unavailable."
+    
+    if not _is_safe_select(sql):
+        return "I can only run read-only lookup queries. That request cannot be processed."
         
     try:
-        print(f"DEBUG: Executing SQL: {sql}")
+        logger.info(f"Executing validated SQL: {sql[:200]}")
         response = supabase.rpc("exec_sql_read_only", {"query": sql}).execute()
         return str(response.data)
     except Exception as e:
-        print(f"ERROR: SQL Execution failed: {e}")
-        return f"Error executing query: {str(e)}"
+        logger.error(f"SQL Execution failed: {e}")
+        # Never expose raw database errors to the user — they leak schema info
+        return "I couldn't retrieve that data right now. Please try rephrasing your query."
 
 def execute_sql_local(sql: str) -> str:
     """
-    Execute SQL against Local SQLite DB
+    Execute SQL against Local SQLite DB — read-only SELECT queries only.
     """
     if not local_db:
-        return "Error: Local Database not available."
+        return "Local database is not available."
+    
+    if not _is_safe_select(sql):
+        return "I can only run read-only lookup queries. That request cannot be processed."
     
     try:
-        print(f"DEBUG: Executing Local SQL: {sql}")
+        logger.info(f"Executing validated local SQL: {sql[:200]}")
         conn = local_db.get_db_connection()
         c = conn.cursor()
         c.execute(sql)
         rows = c.fetchall()
         conn.close()
-        
-        # Convert to list of dicts
         result = [dict(row) for row in rows]
         return str(result)
     except Exception as e:
-        print(f"ERROR: Local SQL Execution failed: {e}")
-        return f"Error executing local query: {str(e)}"
+        logger.error(f"Local SQL Execution failed: {e}")
+        # Generic error only — never leak schema or table names
+        return "I couldn't retrieve that data right now. Please try rephrasing your query."
 
 async def get_chat_history(user_id: str, limit: int = 10) -> list:
     """
@@ -1116,26 +1152,43 @@ async def safety_guard_node(state: AgentState):
         print("DEBUG: Safety Guard BYPASSED — image/excel attachment is always safe.")
         return {"category": state.get("category")}
 
-    # Fast heuristic: block obvious destructive SQL only
-    # Comprehensive regex-based SQL injection detection (case-insensitive)
-    dangerous_patterns = [
+    # ── Layer 1: Block explicit SQL injection patterns ────────────────────────
+    sql_injection_patterns = [
         r'\bdrop\b', r'\btruncate\b', r'\balter\s+table\b',
-        r'\bdelete\s+from\b', r'\bupdate\s+pg_', r'\bcopy\s+from\b',
+        r'\bdelete\s+from\b', r'\bupdate\s+(?!.*where.*user_id)', r'\bcopy\s+from\b',
         r'\bgrant\b', r'\brevoke\b',
         r'\bcreate\s+(?:table|index|function|role|schema)\b',
         r'\bexec(?:ute)?\b', r';\s*(?:select|insert|update|delete|drop)',
         r'--\s', r'/\*', r'\bunion\s+select\b', r'\binto\s+outfile\b',
-        r'\bload_file\b', r'\binformation_schema\b',
+        r'\bload_file\b', r'\binformation_schema\b', r'\bpg_catalog\b',
+        r'\bpg_read_file\b', r'\bsupabase\.auth\b',
     ]
     msg_lower = last_msg.lower()
-    if any(re.search(pat, msg_lower) for pat in dangerous_patterns):
-        print("DEBUG: Safety Guard caught malicious SQL pattern.")
+    if any(re.search(pat, msg_lower) for pat in sql_injection_patterns):
+        logger.warning(f"SECURITY: SQL injection pattern detected in message: {last_msg[:100]}")
         return {
             "messages": [AIMessage(content="I cannot perform that action for security reasons.")],
             "category": "BLOCKED"
         }
 
-    # All other requests pass through — LLM safety check removed (too many false positives)
+    # ── Layer 2: Block natural language destructive intent ────────────────────
+    # Catches prompts like "delete all products", "erase my customers", "wipe data"
+    destructive_nl_patterns = [
+        r'\b(?:delete|erase|wipe|remove|clear|drop|destroy)\s+(?:all|every|my|the)?\s*(?:data|products?|customers?|sales?|invoices?|records?|entries|history|stock|inventory|ledger|accounts?)\b',
+        r'\b(?:empty|flush|nuke|reset)\s+(?:the|my|all|our)?\s*(?:database|db|table|store|shop)\b',
+        r'\bright\s+to\s+be\s+forgotten\b',  # GDPR erasure prompt injection
+        r'\bignore\s+(?:previous|above|all)\s+instructions\b',  # prompt injection
+        r'\bforget\s+your\s+(?:previous|above|previous)?\s*instructions\b',  # prompt injection
+        r'\bact\s+as\s+(?:a|an)?\s*(?:admin|superuser|root|dba)\b',  # privilege escalation
+        r'\b(?:system|os|shell|bash|powershell|cmd)\s*(?:\(|>|exec|call)\b',  # code injection
+    ]
+    if any(re.search(pat, msg_lower) for pat in destructive_nl_patterns):
+        logger.warning(f"SECURITY: Destructive natural language intent detected: {last_msg[:100]}")
+        return {
+            "messages": [AIMessage(content="I'm a shop assistant and can only help with looking up or adding business information. I cannot delete or erase any data.")],
+            "category": "BLOCKED"
+        }
+
     return {"category": state.get("category")}
 
 # --- NODES ---
