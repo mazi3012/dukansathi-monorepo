@@ -10,14 +10,14 @@ const NavItem = ({ to, icon: Icon, label, onClick }) => (
         to={to}
         onClick={onClick}
         className={({ isActive }) =>
-            `flex items-center gap-3 p-3 rounded-xl transition-all ${isActive
-                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20'
+            `flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${isActive
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                 : 'text-text-muted hover:bg-card-bg hover:text-text-main border border-transparent hover:border-card-border'
             }`
         }
     >
-        <div className={`p-2 rounded-lg transition-colors ${window.location.pathname === to ? 'bg-indigo-500/20 text-indigo-500' : 'bg-card-bg/50 text-text-muted group-hover:text-indigo-500'}`}>
-            <Icon size={18} strokeWidth={2} />
+        <div className={`p-1.5 rounded-lg transition-colors ${window.location.pathname === to ? 'bg-indigo-500/20 text-indigo-500' : 'bg-card-bg/50 text-text-muted group-hover:text-indigo-500'}`}>
+            <Icon size={16} strokeWidth={2.5} />
         </div>
         <span className="font-semibold text-sm">{label}</span>
     </NavLink>
@@ -69,10 +69,10 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.98, y: 10 }}
                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-6 overflow-hidden"
+                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-4 md:p-6 overflow-hidden"
                     >
                         {/* Header */}
-                        <div className="flex justify-between items-center mb-8">
+                        <div className="flex justify-between items-center mb-4">
                             <div className="flex items-center gap-3">
                                 <img
                                     src={logo}
@@ -96,7 +96,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         </div>
 
                         {/* Navigation Links */}
-                        <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-hide py-4 px-1">
+                        <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-hide py-2 px-1">
                             <NavItem to="/" icon={Home} label="Overview" onClick={onClose} />
                             <NavItem to="/inventory" icon={Package} label="Inventory" onClick={onClose} />
                             <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
@@ -107,9 +107,9 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         </div>
 
                         {/* Footer */}
-                        <div className="pt-6 border-t border-card-border/50 flex flex-col gap-4">
+                        <div className="pt-4 border-t border-card-border/50 flex flex-col gap-2 relative bottom-0">
                             {/* Sync Toggle */}
-                            <div className="flex items-center justify-between p-4 glass-card rounded-2xl">
+                            <div className="flex items-center justify-between p-3 glass-card rounded-2xl">
                                 <div className="flex items-center gap-3">
                                     <div className={`p-2 rounded-xl transition-colors ${isSyncing ? 'bg-indigo-500/20 text-indigo-500' : 'bg-card-bg text-text-muted'}`}>
                                         <RefreshCw size={18} strokeWidth={2} />
@@ -126,10 +126,10 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
 
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center gap-4 p-4 w-full text-left text-red-500 hover:bg-red-500/10 rounded-2xl transition-all group"
+                                className="flex items-center gap-3 p-3 w-full text-left text-red-500 hover:bg-red-500/10 rounded-2xl transition-all group border border-transparent hover:border-red-500/20"
                             >
-                                <div className="p-2 bg-red-500/10 rounded-xl text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
-                                    <LogOut size={20} strokeWidth={2} />
+                                <div className="p-1.5 bg-red-500/10 rounded-lg text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
+                                    <LogOut size={16} strokeWidth={2.5} />
                                 </div>
                                 <span className="font-black text-[10px] uppercase tracking-widest">Terminate Session</span>
                             </button>
