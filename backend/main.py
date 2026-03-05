@@ -547,10 +547,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
         from dukansathi_ai.agent_graph import process_user_input
         logger.info(f"[WS] AI Modules loaded in {time.time() - start_time:.2f}s")
     except Exception as e:
-        logger.error(f"Failed to import AI modules after {time.time() - start_time:.2f}s: {e}")
+        import traceback
+        logger.error(f"Failed to import AI modules after {time.time() - start_time:.2f}s: {e}\n{traceback.format_exc()}")
         await websocket.send_json({"type": "error", "content": "AI System Offline. Please retry in a minute."})
         await websocket.close()
         return
+
 
     # Check database and credentials
     if not supabase:
