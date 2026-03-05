@@ -127,13 +127,6 @@ def get_pull_status():
     """Get the current model pull status"""
     return LocalLLMService.get_pull_status()
 
-@router.get("/hardware")
-def get_hardware():
-    """Scan and return system hardware specs"""
-    specs = LocalLLMService.get_hardware_specs()
-    logger.info(f"Hardware Scan: {specs}")
-    return specs
-
 @router.get("/ollama-check")
 def check_ollama():
     """Check if Ollama is running and accessible"""

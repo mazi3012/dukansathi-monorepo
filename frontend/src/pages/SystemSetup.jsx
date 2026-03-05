@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cpu, HardDrive, Check, AlertTriangle, Save, Download, Server, ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -24,9 +24,20 @@ const SystemSetup = () => {
     const [aiStatus, setAiStatus] = useState('idle'); // idle, pulling, done, error
     const [pullProgress, setPullProgress] = useState(0);
     const [logs, setLogs] = useState([]);
+    const pollIntervalRef = useRef(null);
 
     const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
     const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+
+    // Cleanup polling interval on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         initSetup();
@@ -103,7 +114,19 @@ const SystemSetup = () => {
     };
 
     const pollPullStatus = () => {
-        const interval = setInterval(async () => {
+        let retryCount = 0;
+        const MAX_RETRIES = 60; // Stop after 2 minutes (60 * 2s)
+        // Clear any previous interval
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = setInterval(async () => {
+            retryCount++;
+            if (retryCount > MAX_RETRIES) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+                setAiStatus('error');
+                toast.error('Download timed out. Please check Ollama manually.');
+                return;
+            }
             try {
                 const res = await fetch(`${API_URL}/api/setup/pull-status`);
                 const data = await res.json();
@@ -114,17 +137,19 @@ const SystemSetup = () => {
                 if (data.status === 'done') {
                     setAiStatus('done');
                     toast.success("AI Model Ready!");
-                    clearInterval(interval);
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
                 } else if (data.status === 'error') {
                     setAiStatus('error');
                     toast.error(data.error || "Download failed");
-                    clearInterval(interval);
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
                 }
             } catch (err) {
                 console.error("Polling error:", err);
             }
         }, 2000);
-        return interval;
+        return pollIntervalRef.current;
     };
 
     const handleInstallAI = async () => {

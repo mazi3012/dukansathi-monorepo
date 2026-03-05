@@ -1,0 +1,15 @@
+# Cloud Build configuration for DukanSathi
+# Increases the default build timeout from 10 minutes to 30 minutes
+# to accommodate heavy Python dependencies (google-cloud-aiplatform, faster-whisper)
+timeout: 1800s
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_IMAGE_NAME}', '.']
+    timeout: 1500s
+
+substitutions:
+  _IMAGE_NAME: 'gcr.io/${PROJECT_ID}/dukansathi-backend'
+
+images:
+  - '${_IMAGE_NAME}'

@@ -18,7 +18,10 @@ WORKDIR /app
 COPY backend/requirements.txt ./backend/requirements.txt
 COPY ai-bot/requirements.txt ./ai-bot/requirements.txt
 
-RUN pip install --no-cache-dir \
+# Use --prefer-binary to avoid compiling from source (prevents timeout)
+# Increase pip timeout for large packages like google-cloud-aiplatform
+RUN pip install --no-cache-dir --prefer-binary \
+    --timeout 300 --retries 3 \
     -r backend/requirements.txt \
     -r ai-bot/requirements.txt
 

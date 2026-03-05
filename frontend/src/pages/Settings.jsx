@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, QrCode, Moon, Sun, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, QrCode, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -159,6 +159,19 @@ const Settings = () => {
         }
     };
 
+    // Ref to track the install polling interval for cleanup
+    const installPollRef = useRef(null);
+
+    // Cleanup polling interval on unmount
+    useEffect(() => {
+        return () => {
+            if (installPollRef.current) {
+                clearInterval(installPollRef.current);
+                installPollRef.current = null;
+            }
+        };
+    }, []);
+
     const installModel = async (modelName) => {
         setIsInstalling(modelName);
         try {
@@ -171,16 +184,32 @@ const Settings = () => {
 
             if (res.ok) {
                 alert(`Started installing ${modelName}. This will take a few minutes in the background.`);
-                // Poll for completion every 10 seconds
-                const interval = setInterval(async () => {
-                    const checkHeaders = await getAuthHeaders();
-                    const checkRes = await fetch(`${API_BASE}/api/setup/local-models`, { headers: checkHeaders });
-                    const checkData = await checkRes.json();
-                    const isDone = checkData.models?.some(m => m.name.includes(modelName));
-                    if (isDone) {
-                        setLocalModels(checkData.models);
+                let retryCount = 0;
+                const MAX_RETRIES = 30; // Stop after 5 minutes (30 * 10s)
+                // Clear any previous interval
+                if (installPollRef.current) clearInterval(installPollRef.current);
+                installPollRef.current = setInterval(async () => {
+                    retryCount++;
+                    if (retryCount > MAX_RETRIES) {
+                        clearInterval(installPollRef.current);
+                        installPollRef.current = null;
                         setIsInstalling(null);
-                        clearInterval(interval);
+                        alert('Installation timed out. Check Ollama manually.');
+                        return;
+                    }
+                    try {
+                        const checkHeaders = await getAuthHeaders();
+                        const checkRes = await fetch(`${API_BASE}/api/setup/local-models`, { headers: checkHeaders });
+                        const checkData = await checkRes.json();
+                        const isDone = checkData.models?.some(m => m.name.includes(modelName));
+                        if (isDone) {
+                            setLocalModels(checkData.models);
+                            setIsInstalling(null);
+                            clearInterval(installPollRef.current);
+                            installPollRef.current = null;
+                        }
+                    } catch (pollErr) {
+                        console.error('Install poll error:', pollErr);
                     }
                 }, 10000);
             } else {
@@ -303,7 +332,7 @@ const Settings = () => {
             <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-6 gap-6 relative z-10">
                 <div className="flex items-center gap-5">
                     <div className="w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
-                        <Settings size={32} strokeWidth={2.5} />
+                        <SettingsIcon size={32} strokeWidth={2.5} />
                     </div>
                     <div>
                         <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Control Center</h1>
