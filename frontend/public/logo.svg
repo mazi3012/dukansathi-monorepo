@@ -1,0 +1,28 @@
+<svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brand-grad" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Premium rounded container -->
+  <rect width="256" height="256" rx="60" fill="url(#brand-grad)"/>
+  
+  <!-- Stylized Abstract D & Voice/AI elements -->
+  <!-- Glassy underlying wave -->
+  <path d="M50 180C90 180 120 120 206 120" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.1"/>
+  <path d="M50 200C90 200 120 140 206 140" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.05"/>
+
+  <!-- Main "D" construct -->
+  <g>
+    <!-- Vertical pillar -->
+    <rect x="76" y="64" width="24" height="128" rx="12" fill="white" fill-opacity="0.95"/>
+    
+    <!-- Outer curve -->
+    <path d="M100 64H136C171.346 64 200 92.654 200 128C200 163.346 171.346 192 136 192H100" stroke="#f59e0b" stroke-width="24" stroke-linecap="round" fill="none"/>
+    
+    <!-- AI Spark dot -->
+    <circle cx="120" cy="128" r="14" fill="white" fill-opacity="0.95"/>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -8,6 +8,7 @@ import NavigationDrawer from '../components/NavigationDrawer';
 import { DashboardSkeleton } from '../components/Skeleton';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import logo from '../assets/logo.svg';
 
 const MainLayout = () => {
     const navigate = useNavigate();
@@ -113,9 +114,30 @@ const MainLayout = () => {
                 user={user}
             />
 
+            {/* Mobile Top Header (hidden on desktop and chat page) */}
+            {location.pathname !== '/chat' && (
+                <header className="md:hidden fixed top-0 left-0 right-0 h-14 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/50 z-40 flex items-center px-4">
+                    {/* Hamburger Menu on Left */}
+                    <button
+                        onClick={() => setIsMenuOpen(true)}
+                        className="w-10 h-10 flex items-center justify-center -ml-2 text-text-muted hover:text-indigo-500 hover:bg-card-bg/80 rounded-full transition-colors"
+                    >
+                        <Menu size={24} />
+                    </button>
+
+                    {/* Centered Branding */}
+                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+                        <img src={logo} alt="Logo" className="w-5 h-5 object-contain" />
+                        <h1 className="font-heading font-black text-base text-text-main tracking-tight">
+                            DUKAN<span className="text-indigo-600">SATHI</span>
+                        </h1>
+                    </div>
+                </header>
+            )}
+
             {/* Main Content Area */}
-            {/* Adjusted classes for better mobile/desktop layout */}
-            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}>
+            {/* Adjusted classes for better mobile/desktop layout. Added pt-16 on mobile non-chat to clear the header. */}
+            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-14 md:pt-0'}`}>
 
 
                 <div className={`${location.pathname === '/chat' ? 'h-[100dvh] flex flex-col w-full pb-0' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
@@ -138,7 +160,6 @@ const MainLayout = () => {
             {location.pathname !== '/chat' && (
                 <div className="md:hidden">
                     <BottomNav
-                        onMenuClick={() => setIsMenuOpen(true)}
                         onCenterClick={() => navigate('/chat')}
                     />
                 </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Package, Receipt, User } from 'lucide-react';
+import { Home, Package, Receipt, Users } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import VoiceFAB from './VoiceFAB';
 
@@ -15,7 +15,7 @@ const NavItem = ({ to, icon: Icon, label }) => (
     </NavLink>
 );
 
-const BottomNav = ({ isListening, onMenuClick, ...props }) => {
+const BottomNav = ({ isListening, ...props }) => {
     return (
         <div className="fixed bottom-0 left-0 right-0 glass-card border-t border-card-border shadow-2xl pb-safe z-50 rounded-t-[32px]">
             <div className="relative flex items-center justify-between h-16 px-2 max-w-md mx-auto">
@@ -34,13 +34,7 @@ const BottomNav = ({ isListening, onMenuClick, ...props }) => {
                 {/* Right Links */}
                 <div className="flex w-2/5 justify-around">
                     <NavItem to="/sales" icon={Receipt} label="Sales" />
-                    <button
-                        onClick={onMenuClick}
-                        className="flex flex-col items-center justify-center w-full py-1 text-[10px] font-black uppercase tracking-widest transition-all text-text-muted hover:text-text-main"
-                    >
-                        <User size={24} strokeWidth={1.5} className="mb-1" />
-                        <span>Menu</span>
-                    </button>
+                    <NavItem to="/customers" icon={Users} label="Customers" />
                 </div>
 
             </div>
