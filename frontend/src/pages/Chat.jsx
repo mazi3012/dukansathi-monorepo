@@ -876,14 +876,46 @@ const Chat = () => {
 
                                 {msg.pdf_url && (
                                     <div className="mt-2 flex flex-col gap-2 w-full">
-                                        <div className="w-full h-[70vh] sm:h-[600px] rounded-xl sm:rounded-2xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
-                                            {/* Direct PDF url is fast, Google Docs iframe was slow for new files */}
+                                        {/* Desktop: inline iframe viewer */}
+                                        <div className="hidden sm:block w-full h-[600px] rounded-2xl overflow-hidden border border-indigo-500/20 bg-slate-50 shadow-inner">
                                             <iframe
                                                 src={`${msg.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
                                                 title="Invoice Preview"
                                                 className="w-full h-full border-0 bg-white"
                                             />
                                         </div>
+
+                                        {/* Mobile: PDF preview card (iframes don't work on iOS/Android) */}
+                                        <div className="flex sm:hidden w-full items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-400/30 shadow-sm">
+                                            <div className="flex-shrink-0 w-11 h-14 rounded-lg bg-white border border-indigo-300/40 flex flex-col items-center justify-center shadow-sm gap-0.5 overflow-hidden">
+                                                <div className="w-full h-1.5 bg-indigo-500 rounded-t-sm" />
+                                                <div className="flex flex-col gap-0.5 p-1 w-full">
+                                                    {[...Array(4)].map((_, i) => (
+                                                        <div key={i} className="h-0.5 bg-slate-300 rounded-full w-full" />
+                                                    ))}
+                                                </div>
+                                                <span className="text-[7px] font-bold text-indigo-500 tracking-widest">PDF</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-bold text-text-main truncate">Invoice #{msg.invoice_id}</p>
+                                                <p className="text-xs text-text-muted truncate">{msg.customer_name} · ₹{msg.grand_total}</p>
+                                                <p className="text-[10px] text-indigo-500 font-semibold mt-0.5">Tap below to open or share</p>
+                                            </div>
+                                            <a
+                                                href={msg.pdf_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center shadow-md shadow-indigo-500/30"
+                                            >
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                                                    <polyline points="15 3 21 3 21 9" />
+                                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                                </svg>
+                                            </a>
+                                        </div>
+
+                                        {/* Action Buttons — shared for both mobile and desktop */}
                                         <div className="flex gap-2 px-1 flex-wrap sm:flex-nowrap">
                                             <a download href={`${msg.pdf_url}?download=Invoice.pdf`} className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-1 sm:order-none">
                                                 <Download size={16} /> <span className="whitespace-nowrap">Download</span>
@@ -903,7 +935,6 @@ const Chat = () => {
                                             <button
                                                 onClick={async () => {
                                                     try {
-                                                        // Attempt to share the actual file if supported (mobile devices usually)
                                                         try {
                                                             const response = await fetch(msg.pdf_url);
                                                             const blob = await response.blob();
@@ -914,13 +945,12 @@ const Chat = () => {
                                                                     files: [file],
                                                                     title: 'Invoice from Dukan Sathi',
                                                                 });
-                                                                return; // Stop here if file share was successful
+                                                                return;
                                                             }
                                                         } catch (fetchErr) {
                                                             console.warn("Could not fetch PDF for sharing as file, falling back to link:", fetchErr);
                                                         }
 
-                                                        // Fallback to sharing URL
                                                         if (navigator.share) {
                                                             await navigator.share({
                                                                 title: 'Invoice from Dukan Sathi',
@@ -942,6 +972,7 @@ const Chat = () => {
                                         </div>
                                     </div>
                                 )}
+
                             </div>
 
                             {/* Timestamp */}
