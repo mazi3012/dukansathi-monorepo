@@ -16,6 +16,69 @@ const formatWhatsAppNumber = (phone) => {
     return cleaned;
 };
 
+// --- Mobile Fallback Text Invoice Component ---
+const MobileInvoiceCard = ({ msg }) => {
+    if (!msg) return null;
+
+    // Parse items_summary into an array if it's a string from previous format
+    // Format: "1. Item Name x 5\n2. Another Item x 2"
+    let items = [];
+    if (msg.items_summary) {
+        items = msg.items_summary.split('\n').filter(line => line.trim());
+    }
+
+    return (
+        <div className="w-full bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-indigo-500/20 shadow-sm relative">
+            {/* Header */}
+            <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-500/20">
+                <span className="font-bold text-indigo-700 dark:text-indigo-400">TAX INVOICE</span>
+                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">#{msg.invoice_id}</span>
+            </div>
+
+            <div className="p-4">
+                {/* To Details */}
+                <div className="mb-4 text-sm">
+                    <p className="text-text-muted text-xs mb-1">Billed To:</p>
+                    <p className="font-semibold text-text-main">{msg.customer_name || 'Customer'}</p>
+                    {msg.customer_phone && <p className="text-text-muted">{msg.customer_phone}</p>}
+                </div>
+
+                {/* Items List */}
+                <div className="mb-4">
+                    <p className="text-text-muted text-xs mb-2 border-b border-card-border pb-1">Items Summary:</p>
+                    <div className="space-y-1.5">
+                        {items.length > 0 ? (
+                            items.map((item, idx) => {
+                                // Basic parse of "1. Item Name x Qty"
+                                const match = item.match(/^\d+\.\s*(.+?)\s*x\s*(\d+)$/);
+                                if (match) {
+                                    return (
+                                        <div key={idx} className="flex justify-between text-sm items-start">
+                                            <span className="text-text-main line-clamp-1 flex-1 pr-2">{match[1]}</span>
+                                            <span className="text-text-muted whitespace-nowrap">Qty: {match[2]}</span>
+                                        </div>
+                                    );
+                                }
+                                return <div key={idx} className="text-sm text-text-main">{item}</div>;
+                            })
+                        ) : (
+                            <div className="text-sm text-text-muted italic">No items listed.</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Total */}
+                <div className="flex justify-between items-center pt-3 border-t border-card-border/50">
+                    <span className="font-bold text-text-main">Grand Total:</span>
+                    <span className="font-bold text-lg text-indigo-600 dark:text-indigo-400">₹{msg.grand_total}</span>
+                </div>
+            </div>
+            {/* Decorative dots / dashed line effect */}
+            <div className="absolute top-[44px] left-0 right-0 h-0 border-b border-dashed border-indigo-200 dark:border-indigo-500/30"></div>
+        </div>
+    );
+};
+
 const Chat = () => {
     const {
         messages,
@@ -877,10 +940,20 @@ const Chat = () => {
 
                                 {msg.pdf_url && (
                                     <div className="mt-2 flex flex-col gap-2 w-full">
-                                        {/* Unified PDF Viewer for Mobile & Desktop */}
+
+                                        {/* --- RESPONSIVE FALLBACK CONTAINER --- */}
                                         <div className="w-full">
-                                            <PDFViewer url={msg.pdf_url} />
+                                            {/* Desktop: Show actual PDF */}
+                                            <div className="hidden sm:block">
+                                                <PDFViewer url={msg.pdf_url} />
+                                            </div>
+
+                                            {/* Mobile: Show Text Template */}
+                                            <div className="block sm:hidden">
+                                                <MobileInvoiceCard msg={msg} />
+                                            </div>
                                         </div>
+                                        {/* ----------------------------------- */}
 
                                         {/* Action Buttons — shared for both mobile and desktop */}
                                         <div className="flex gap-2 px-1 flex-wrap sm:flex-nowrap">
