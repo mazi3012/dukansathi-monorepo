@@ -115,7 +115,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         </div>
 
                         {/* Footer */}
-                        <div className="pt-4 border-t border-card-border/50 flex flex-col gap-2 relative bottom-0">
+                        <div className="pt-4 pb-6 border-t border-card-border/50 flex flex-col gap-2 relative bottom-0">
                             {/* Sync Toggle */}
                             <div className="flex items-center justify-between p-3 glass-card rounded-2xl">
                                 <div className="flex items-center gap-3">

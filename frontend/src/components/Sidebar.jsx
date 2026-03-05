@@ -22,10 +22,17 @@ import logo from '../assets/logo.svg';
 
 const Sidebar = () => {
     const navigate = useNavigate();
+    const [user, setUser] = React.useState(null);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
     const [isSyncing, setIsSyncing] = React.useState(true);
 
     React.useEffect(() => {
+        const fetchUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+        };
+        fetchUser();
+
         const storedSyncState = localStorage.getItem('auto_sync_enabled');
         if (storedSyncState !== null) {
             setIsSyncing(storedSyncState === 'true');
@@ -165,11 +172,15 @@ const Sidebar = () => {
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-card-bg border border-transparent hover:border-card-border transition-all cursor-pointer select-none group"
                 >
                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-heading font-bold text-xs shadow-inner">
-                        DS
+                        {user?.user_metadata?.full_name?.charAt(0)?.toUpperCase() || 'DS'}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-text-main truncate group-hover:text-indigo-500 transition-colors">Workspace</p>
-                        <p className="text-[11px] font-medium text-text-muted truncate">Owner</p>
+                        <p className="text-sm font-bold text-text-main truncate group-hover:text-indigo-500 transition-colors">
+                            {user?.user_metadata?.full_name || 'Workspace'}
+                        </p>
+                        <p className="text-[11px] font-medium text-text-muted truncate">
+                            {user?.email || 'Owner'}
+                        </p>
                     </div>
                     <ChevronUp
                         size={16}
