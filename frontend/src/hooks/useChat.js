@@ -11,6 +11,7 @@ export const useChat = () => {
     const [isThinking, setIsThinking] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [ws, setWs] = useState(null);
+    const [isConnected, setIsConnected] = useState(false);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
     let initialModel = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
@@ -106,10 +107,12 @@ export const useChat = () => {
 
         socket.onopen = () => {
             console.log('✅ Connected to Chat WS');
+            setIsConnected(true);
             reconnectAttemptRef.current = 0;
         };
 
         socket.onclose = (event) => {
+            setIsConnected(false);
             if (!event.wasClean) {
                 const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 30000);
                 console.warn(`⚠️ WS disconnected (code ${event.code}). Reconnecting in ${delay}ms...`);
@@ -118,7 +121,10 @@ export const useChat = () => {
             }
         };
 
-        socket.onerror = (e) => console.error('[WS] Error:', e);
+        socket.onerror = (e) => {
+            console.error('[WS] Error:', e);
+            setIsConnected(false);
+        };
 
         // Use ref so the latest handler is always called, without re-creating this socket callback
         socket.onmessage = (event) => onMessageHandlerRef.current?.(event);
@@ -322,12 +328,10 @@ export const useChat = () => {
         unlockAudio();
 
         if (!ws || ws.readyState !== WebSocket.OPEN) {
-            console.warn("⚠️ WebSocket not connected. Cannot send message.");
-            setMessages(prev => [...prev, {
-                type: 'ai',
-                text: 'Network issue: Main koshish kar raha hoon connect karne ki... Kripya thodi der mein phir se try karein.'
-            }]);
-            setIsThinking(false);
+            console.warn("⚠️ WebSocket not connected. Waiting for connection...");
+            // We no longer append the network issue pseudo-message automatically.
+            // UI will disable sending while !isConnected. 
+            // If the user somehow triggers it, we just return safely without spamming.
             return;
         }
         setIsThinking(true);
@@ -490,6 +494,7 @@ export const useChat = () => {
         toggleMute,
         unlockAudio,
         isPlaying,
+        isConnected,
         model,
         pendingAttachment,
         setPendingAttachment

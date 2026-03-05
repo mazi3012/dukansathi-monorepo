@@ -94,6 +94,7 @@ const Chat = () => {
         toggleMute,
         unlockAudio,
         isPlaying,
+        isConnected,
         model,
         pendingAttachment,
         setPendingAttachment
@@ -896,9 +897,9 @@ const Chat = () => {
                     <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap">Dukan Sathi AI</h2>
                     <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1"></div>
                     <div className="flex items-center gap-1.5 md:gap-2">
-                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500')} transition-all duration-300`}></div>
+                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (!isConnected ? 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500'))} transition-all duration-300`}></div>
                         <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-text-muted mt-[1px]">
-                            {model === 'phi3:mini' ? 'Local Compute' : (isOnline ? 'Cloud AI' : 'Offline')}
+                            {model === 'phi3:mini' ? 'Local Compute' : (!isConnected ? 'Connecting...' : (isOnline ? 'Cloud AI' : 'Offline'))}
                         </span>
                     </div>
                 </div>
@@ -1160,10 +1161,11 @@ const Chat = () => {
 
                         <button
                             onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                            disabled={isThinking || !isConnected}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showAttachmentMenu
                                 ? 'bg-indigo-500/10 text-indigo-500'
                                 : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'
-                                }`}
+                                } disabled:opacity-50`}
                             title="Attach File"
                         >
                             <Plus size={20} strokeWidth={1.5} className={`transition-transform duration-200 ${showAttachmentMenu ? 'rotate-45' : ''}`} />
@@ -1240,8 +1242,8 @@ const Chat = () => {
                                     if (isOnline || localAIReady) handleSend();
                                 }
                             }}
-                            placeholder={isThinking ? "AI connecting, please hold on..." : (isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI...")}
-                            disabled={(!isOnline && !localAIReady) || isThinking}
+                            placeholder={!isConnected ? "AI connecting, please hold on..." : (isThinking ? "Wait for AI to finish..." : (isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."))}
+                            disabled={(!isOnline && !localAIReady) || isThinking || !isConnected}
                             className="w-full bg-transparent text-text-main text-sm md:text-base placeholder-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl disabled:opacity-50"
                             rows={1}
                             style={{ height: input ? 'auto' : '44px' }}
@@ -1253,7 +1255,7 @@ const Chat = () => {
                         {input.trim() || pendingAttachment ? (
                             <button
                                 onClick={handleSend}
-                                disabled={isThinking}
+                                disabled={isThinking || !isConnected}
                                 className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                             >
                                 <Send size={18} className="translate-x-[2px]" />
@@ -1264,7 +1266,7 @@ const Chat = () => {
                                     if (isListening) stopRecording();
                                     else startRecording();
                                 }}
-                                disabled={isThinking}
+                                disabled={isThinking || !isConnected}
                                 className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
                                     ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse'
                                     : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'
