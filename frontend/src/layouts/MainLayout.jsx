@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
 import NavigationDrawer from '../components/NavigationDrawer';
-import Loader from '../components/Loader';
+import { DashboardSkeleton } from '../components/Skeleton';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
@@ -85,7 +85,11 @@ const MainLayout = () => {
     };
 
     if (loading) {
-        return <Loader />;
+        return (
+            <div className="min-h-screen bg-bg-main pt-6">
+                <DashboardSkeleton />
+            </div>
+        );
     }
 
     return (
@@ -134,40 +138,8 @@ const MainLayout = () => {
             {location.pathname !== '/chat' && (
                 <div className="md:hidden">
                     <BottomNav
-                        isListening={isListening}
                         onMenuClick={() => setIsMenuOpen(true)}
-                        onTouchStart={(e) => {
-                            e.preventDefault();
-                            window.__isMicHeld = true;
-                            if (window.location.pathname !== '/chat') {
-                                navigate('/chat', { state: { autoStartRecord: true } });
-                            } else {
-                                window.dispatchEvent(new CustomEvent('nav-mic-press'));
-                            }
-                        }}
-                        onMouseDown={(e) => {
-                            e.preventDefault();
-                            window.__isMicHeld = true;
-                            if (window.location.pathname !== '/chat') {
-                                navigate('/chat', { state: { autoStartRecord: true } });
-                            } else {
-                                window.dispatchEvent(new CustomEvent('nav-mic-press'));
-                            }
-                        }}
-                        onTouchEnd={(e) => {
-                            e.preventDefault();
-                            window.__isMicHeld = false;
-                            window.dispatchEvent(new CustomEvent('nav-mic-release'));
-                        }}
-                        onMouseUp={(e) => {
-                            e.preventDefault();
-                            window.__isMicHeld = false;
-                            window.dispatchEvent(new CustomEvent('nav-mic-release'));
-                        }}
-                        onMouseLeave={(e) => {
-                            window.__isMicHeld = false;
-                            window.dispatchEvent(new CustomEvent('nav-mic-release'));
-                        }}
+                        onCenterClick={() => navigate('/chat')}
                     />
                 </div>
             )}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import MainLayout from './layouts/MainLayout';
@@ -17,6 +17,15 @@ import Connections from './pages/Connections';
 import StoreFront from './pages/StoreFront';
 
 function App() {
+  // Ping backend to wake up Cloud Run instance (Cold Start Fix)
+  useEffect(() => {
+    try {
+      const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+      const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+      fetch(`${API_URL}/health`).catch(() => { });
+    } catch (e) { }
+  }, []);
+
   return (
     <BrowserRouter>
       <AnimatedRoutes />

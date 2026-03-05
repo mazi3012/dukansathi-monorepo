@@ -28,14 +28,7 @@ const BottomNav = ({ isListening, onMenuClick, ...props }) => {
 
                 {/* Center Space for FAB */}
                 <div className="w-1/5 relative">
-                    <VoiceFAB
-                        isListening={isListening}
-                        onTouchStart={props.onTouchStart}
-                        onTouchEnd={props.onTouchEnd}
-                        onMouseDown={props.onMouseDown}
-                        onMouseUp={props.onMouseUp}
-                        onMouseLeave={props.onMouseLeave}
-                    />
+                    <VoiceFAB onClick={props.onCenterClick} />
                 </div>
 
                 {/* Right Links */}
