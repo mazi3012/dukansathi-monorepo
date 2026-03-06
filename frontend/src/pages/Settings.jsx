@@ -365,7 +365,7 @@ const Settings = () => {
                 {activeTab === 'system' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* System Protocol & Hardware */}
-                        <section className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-6 text-white shadow-xl overflow-hidden relative">
+                        <section className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-6 text-white shadow-xl overflow-hidden relative hidden md:block">
                             <div className="relative z-10">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">

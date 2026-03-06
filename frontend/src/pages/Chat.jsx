@@ -899,7 +899,8 @@ const Chat = () => {
                     <div className="flex items-center gap-1.5 md:gap-2">
                         <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (!isConnected ? 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500'))} transition-all duration-300`}></div>
                         <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-text-muted mt-[1px]">
-                            {model === 'phi3:mini' ? 'Local Compute' : (!isConnected ? 'Connecting...' : (isOnline ? 'Cloud AI' : 'Offline'))}
+                            <span className="hidden md:inline">{model === 'phi3:mini' ? 'Local Compute' : (!isConnected ? 'Connecting...' : (isOnline ? 'Cloud AI' : 'Offline'))}</span>
+                            <span className="inline md:hidden">{!isConnected ? 'Connecting...' : (isOnline ? 'AI Connected' : 'Offline')}</span>
                         </span>
                     </div>
                 </div>
