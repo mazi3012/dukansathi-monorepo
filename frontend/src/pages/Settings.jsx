@@ -1,4 +1,5 @@
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
