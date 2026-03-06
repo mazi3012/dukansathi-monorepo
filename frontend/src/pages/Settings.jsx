@@ -30,7 +30,7 @@ const MODEL_OPTIONS = [
 
 const Settings = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('ai'); // 'ai' | 'voice' | 'branding' | 'system'
+    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'ai'); // 'ai' | 'voice' | 'branding' | 'system'
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
     const [selectedModel, setSelectedModel] = useState('llama-4-scout-17b-16e-instruct-maas');
@@ -314,13 +314,13 @@ const Settings = () => {
         );
     }
 
-    const TabButton = ({ id, icon: Icon, label }) => (
+    const TabButton = ({ id, icon: Icon, label, className = '' }) => (
         <button
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${activeTab === id
+            className={`items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${activeTab === id
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
                 : 'text-text-muted border-transparent hover:bg-card-bg hover:text-text-main'
-                }`}
+                } ${className || 'flex'}`}
         >
             <Icon size={18} />
             {label}
@@ -354,7 +354,7 @@ const Settings = () => {
             </header>
 
             <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
-                <TabButton id="ai" icon={Brain} label="Intelligence" />
+                <TabButton id="ai" icon={Brain} label="Intelligence" className="hidden md:flex" />
                 <TabButton id="voice" icon={Volume2} label="Neural Voice" />
                 <TabButton id="branding" icon={QrCode} label="Identity" />
                 <TabButton id="system" icon={Cpu} label="Core System" />
