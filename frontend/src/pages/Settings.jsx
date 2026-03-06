@@ -1,6 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, QrCode, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
-import { QRCodeCanvas } from 'qrcode.react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -292,19 +290,7 @@ const Settings = () => {
         }
     };
 
-    const downloadQRCode = () => {
-        const canvas = document.getElementById("qr-gen");
-        if (!canvas) return;
-        const pngUrl = canvas
-            .toDataURL("image/png")
-            .replace("image/png", "image/octet-stream");
-        let downloadLink = document.createElement("a");
-        downloadLink.href = pngUrl;
-        downloadLink.download = `DukanSathi_Store_${user?.id || 'QR'}.png`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-    };
+
 
     if (loading) {
         return (
@@ -356,7 +342,6 @@ const Settings = () => {
             <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
                 <TabButton id="ai" icon={Brain} label="Intelligence" className="hidden md:flex" />
                 <TabButton id="voice" icon={Volume2} label="Neural Voice" />
-                <TabButton id="branding" icon={QrCode} label="Identity" />
                 <TabButton id="system" icon={Cpu} label="Core System" />
             </div>
 
@@ -618,53 +603,7 @@ const Settings = () => {
                     </div>
                 )}
 
-                {activeTab === 'branding' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        {/* Customer QR Code */}
-                        <section className="glass-card rounded-[40px] p-10 flex flex-col items-center relative overflow-hidden group">
-                            {/* Ambient Glow */}
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/[0.03] rounded-full blur-[100px] -mr-32 -mt-32" />
 
-                            <div className="flex items-center gap-3 mb-8 w-full relative z-10">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                                    <QrCode size={24} />
-                                </div>
-                                <div>
-                                    <h2 className="font-black text-text-main text-xl tracking-tight transition-colors">Neural Store Identity</h2>
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-0.5">Physical-to-Digital Bridge</p>
-                                </div>
-                            </div>
-
-                            <p className="text-sm text-text-muted mb-10 text-center max-w-md transition-colors font-bold leading-relaxed relative z-10">
-                                Deploy your store's AI access point. Print this premium poster to allow customers to interact with Sathi AI directly.
-                            </p>
-
-                            <div className="bg-white p-10 rounded-[48px] shadow-2xl shadow-indigo-500/20 border-[12px] border-indigo-500/[0.03] relative group mb-10 transition-all duration-700 hover:scale-105 hover:rotate-1 active:scale-95">
-                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[36px]" />
-                                <QRCodeCanvas
-                                    id="qr-gen"
-                                    value={`${window.location.origin}/store/${user?.id}`}
-                                    size={240}
-                                    level={"H"}
-                                    fgColor={"#312e81"}
-                                    bgColor={"#ffffff"}
-                                />
-                                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-indigo-600 px-8 py-2.5 rounded-full shadow-2xl ring-4 ring-indigo-500/10 active:scale-90 transition-transform cursor-default">
-                                    <p className="font-black text-white text-[10px] tracking-[0.3em] whitespace-nowrap uppercase">Protocol: Active</p>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={downloadQRCode}
-                                className="flex items-center gap-4 px-10 py-4 bg-indigo-600 text-white rounded-[20px] font-black text-xs hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-indigo-500/40 uppercase tracking-[0.2em] relative z-10"
-                            >
-                                <Download size={20} strokeWidth={2.5} />
-                                Export Vector Manifest
-                            </button>
-                            <p className="mt-8 text-[9px] text-text-muted uppercase font-black tracking-[0.3em] opacity-40 hover:opacity-100 transition-opacity">Built with DukanSathi Agentic Neural Engine</p>
-                        </section>
-                    </div>
-                )}
             </div>
         </div >
     );

@@ -14,7 +14,6 @@ import SystemSetup from './pages/SystemSetup';
 import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
-import StoreFront from './pages/StoreFront';
 
 function App() {
   // Ping backend to wake up Cloud Run instance (Cold Start Fix)
@@ -43,7 +42,6 @@ const AnimatedRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<SystemSetup />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/store/:storeId" element={<StoreFront />} />
 
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
