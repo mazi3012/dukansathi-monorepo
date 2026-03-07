@@ -88,11 +88,16 @@ const ChatInvoiceCard = ({ msg }) => {
                 {/* Total */}
                 <div className="pt-5 border-t border-card-border flex justify-between items-center group/total">
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">Success Payment</span>
-                        <span className="text-xs font-bold text-emerald-500 flex items-center gap-1 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Fully Paid
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">Payment Status</span>
+                        <span className={`text-xs font-bold flex items-center gap-1 mt-0.5 ${msg.payment_status === 'paid' ? 'text-emerald-500' : (msg.balance_due > 0 && msg.amount_paid > 0 ? 'text-orange-500' : 'text-red-500')}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${msg.payment_status === 'paid' ? 'bg-emerald-500' : (msg.balance_due > 0 && msg.amount_paid > 0 ? 'bg-orange-500' : 'bg-red-500')}`}></span>
+                            {msg.payment_status === 'paid' ? 'Fully Paid' : (msg.balance_due > 0 && msg.amount_paid > 0 ? 'Partially Paid' : 'Balance Due')}
                         </span>
+                        {msg.balance_due > 0 && (
+                            <span className="text-[10px] font-bold text-text-muted mt-0.5">
+                                Pending: ₹{msg.balance_due}
+                            </span>
+                        )}
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="text-xs font-bold text-text-muted">Grand Total</span>
@@ -657,6 +662,9 @@ const Chat = () => {
                         customer_name: actionData.customer_name || 'Customer',
                         invoice_id: sale.id,
                         grand_total: grandTotal.toFixed(2),
+                        payment_status: status,
+                        amount_paid: amtPaid.toFixed(2),
+                        balance_due: balanceDue.toFixed(2),
                         items_summary: enrichedItems.map((item, idx) => `${idx + 1}. ${(item.product_name || item.name || 'Item').substring(0, 15)} x ${item.quantity || 0}`).join('\n')
                     };
 
