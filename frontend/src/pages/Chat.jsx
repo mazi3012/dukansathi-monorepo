@@ -446,6 +446,11 @@ const Chat = () => {
                     return { ...item, product_id: prodId, line_total: lineTotal };
                 }));
 
+                // Calculate Balance Due based on Payment Status
+                const status = actionData.payment_status || 'paid';
+                const amtPaid = parseFloat(actionData.amount_paid) || 0;
+                const balanceDue = grandTotal - amtPaid;
+
                 // Create Sale Header
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
@@ -454,11 +459,35 @@ const Chat = () => {
                     subtotal: totalSubtotal,
                     total_tax_amount: totalTax,
                     total_amount: grandTotal,
-                    payment_status: 'paid',
+                    payment_status: status === 'paid' ? 'paid' : (status === 'unpaid' ? 'credit' : 'partial'),
+                    amount_paid: amtPaid,
+                    balance_due: balanceDue,
                     created_at: new Date()
                 }).select().single();
 
                 if (saleError) throw saleError;
+
+                // Handle Balance Due (Udhar/Credit)
+                if (balanceDue > 0 && customerId) {
+                    // 1. Update Customer Credit Balance
+                    const { error: creditError } = await supabase.rpc('add_customer_credit', {
+                        p_user_id: user.id,
+                        p_customer_id: customerId,
+                        p_amount: balanceDue
+                    });
+
+                    if (creditError) console.error("Balance update failed:", creditError);
+
+                    // 2. Add to Customer Ledger
+                    await supabase.from('customer_ledger').insert({
+                        user_id: user.id,
+                        customer_id: customerId,
+                        amount: balanceDue,
+                        type: 'credit',
+                        mode: 'Invoice',
+                        note: `Pending balance from Invoice #${sale.id.toString().slice(-6)}`
+                    });
+                }
 
                 // Create Sale Items & Decrement Stock
                 for (const item of enrichedItems) {

@@ -5,6 +5,8 @@ import InvoiceTemplate from './InvoiceTemplate';
 const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [localData, setLocalData] = useState(actionData);
+    const [paymentStatus, setPaymentStatus] = useState('paid');
+    const [amountPaid, setAmountPaid] = useState('');
 
     // Sync with prop if it changes
     useEffect(() => {
@@ -234,19 +236,64 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         <span className="font-bold text-text-muted text-sm uppercase tracking-wider">Total Amount</span>
                         <span className="font-black text-2xl text-indigo-600">₹{grandTotal.toFixed(2)}</span>
                     </div>
+
+                    {/* Payment Status Selection (Draft Mode Only) */}
+                    {!isEditing && (
+                        <div className="p-4 bg-bg-main/20 space-y-3">
+                            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider">Payment Status</label>
+                            <div className="flex bg-card-bg/50 p-1 rounded-xl border border-card-border/30">
+                                {['paid', 'unpaid', 'partial'].map((status) => (
+                                    <button
+                                        key={status}
+                                        onClick={() => {
+                                            setPaymentStatus(status);
+                                            if (status === 'paid') setAmountPaid(grandTotal.toString());
+                                            else if (status === 'unpaid') setAmountPaid('0');
+                                        }}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all capitalize ${paymentStatus === status
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'text-text-muted hover:text-text-main hover:bg-card-bg/50'
+                                            }`}
+                                    >
+                                        {status}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {paymentStatus === 'partial' && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <label className="block text-[10px] font-bold text-text-muted uppercase mb-1">Amount Paid (Partial)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2 text-text-muted font-bold text-sm">₹</span>
+                                        <input
+                                            type="number"
+                                            value={amountPaid}
+                                            onChange={(e) => setAmountPaid(e.target.value)}
+                                            className="w-full pl-8 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-text-main bg-card-bg/40"
+                                            placeholder="Enter amount paid..."
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer Actions */}
                 <div className="bg-card-bg/40 p-3 sm:p-4 flex gap-3">
                     <button
                         onClick={onDiscard}
-                        className="flex-1 py-2 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 py-1.5 px-3 bg-bg-main/30 border border-card-border/50 text-text-main rounded-lg text-sm font-medium hover:bg-card-bg/40 transition-colors flex items-center justify-center gap-2"
                     >
                         <X size={16} /> Discard
                     </button>
                     <button
-                        onClick={() => onApprove(localData)}
-                        className="flex-1 py-2 px-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2 text-sm"
+                        onClick={() => onApprove({
+                            ...localData,
+                            payment_status: paymentStatus,
+                            amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
+                        })}
+                        className="flex-1 py-1.5 px-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2 text-sm"
                     >
                         <Check size={18} /> Approve
                     </button>
