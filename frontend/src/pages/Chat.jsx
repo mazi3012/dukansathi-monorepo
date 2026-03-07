@@ -780,15 +780,39 @@ const Chat = () => {
                         doc.text(`₹${balanceDue.toFixed(2)}`, rightAlignX, finalY + 30, { align: 'right' });
                     }
 
-                    // QR Code (Placeholder Image or Vector)
-                    // In a real browser env, we'd use canvas.toDataURL()
-                    // Here we'll add a stylized box with "Scan to Verify" for now, or use a tiny QR if possible.
-                    doc.setDrawColor(226, 232, 240);
-                    doc.rect(160, finalY + 40, 30, 30);
-                    doc.setFontSize(6);
-                    doc.setTextColor(148, 163, 184);
-                    doc.text("SECURE QR", 175, finalY + 55, { align: 'center' });
-                    doc.text("VERIFIED", 175, finalY + 58, { align: 'center' });
+                    // Generate QR String (UPI for payment or Compliance for GST)
+                    let qrValue = `GSTIN: ${businessProfile?.gstin || 'N/A'}\nInvoice: ${sale.id}\nAmount: ${grandTotal}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
+
+                    if (businessProfile?.upi_id) {
+                        const name = encodeURIComponent(businessProfile.business_name || 'Business');
+                        const amount = grandTotal;
+                        const note = encodeURIComponent(`Inv ${sale.id}`);
+                        qrValue = `upi://pay?pa=${businessProfile.upi_id}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
+                    }
+
+                    const showQr = businessProfile?.show_qr_on_invoice !== false;
+
+                    if (showQr) {
+                        try {
+                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrValue)}`;
+                            const img = new Image();
+                            img.crossOrigin = "anonymous";
+                            img.src = qrImageUrl;
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = reject;
+                                setTimeout(() => reject(new Error('QR Timeout')), 5000);
+                            });
+                            doc.addImage(img, 'PNG', 160, finalY + 40, 30, 30);
+                        } catch (qrErr) {
+                            console.warn("QR Code generation failed, falling back to box:", qrErr);
+                            doc.setDrawColor(226, 232, 240);
+                            doc.rect(160, finalY + 40, 30, 30);
+                            doc.setFontSize(6);
+                            doc.setTextColor(148, 163, 184);
+                            doc.text("SECURE QR", 175, finalY + 55, { align: 'center' });
+                        }
+                    }
 
                     // Footer / Signature
                     doc.setFontSize(10);

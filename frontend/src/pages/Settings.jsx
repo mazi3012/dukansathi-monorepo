@@ -534,9 +534,9 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Unified Payments Interface [UPI ID]</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Unified Payments Interface [UPI ID] (Optional)</label>
                                     <input
-                                        placeholder="example@upi"
+                                        placeholder="Ex: example@upi"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.upi_id}
                                         onChange={e => { setBusinessData({ ...businessData, upi_id: e.target.value }); markChange(); }}

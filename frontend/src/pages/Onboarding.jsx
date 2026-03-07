@@ -312,11 +312,11 @@ const Onboarding = () => {
                                 <div className="space-y-6">
                                     <div className="space-y-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest ml-1">UPI ID (PhonePe/GPay)</label>
+                                            <label className="text-[10px] text-slate-400 font-black uppercase tracking-widest ml-1">UPI ID (PhonePe/GPay) [Optional]</label>
                                             <input
                                                 value={formData.upi_id}
                                                 onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
-                                                placeholder="mobile@upi"
+                                                placeholder="mobile@upi (Linked to bank)"
                                                 className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
                                             />
                                         </div>
