@@ -4,6 +4,8 @@ import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users, T
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
+import { customerRepo } from '../lib/db/customerRepository';
+import { syncEngine } from '../lib/db/syncEngine';
 import toast from 'react-hot-toast';
 
 const Customers = () => {
@@ -44,13 +46,16 @@ const Customers = () => {
         try {
             setLoading(true);
 
-            const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .order('name', { ascending: true });
-
-            if (error) throw error;
+            // Fetch from Local SQLite
+            const data = await customerRepo.getAll();
             setCustomers(data || []);
+
+            // Trigger background sync if online
+            if (navigator.onLine) {
+                syncEngine.syncAll().then(() => {
+                    customerRepo.getAll().then(updatedData => setCustomers(updatedData));
+                });
+            }
         } catch (err) {
             console.error("Error fetching customers:", err);
             toast.error("Failed to fetch customers.");
@@ -84,23 +89,23 @@ const Customers = () => {
             }
 
             if (isEditModalOpen && editingCustomer) {
-                const { error } = await supabase
-                    .from('customers')
-                    .update({
-                        name: formData.name,
-                        phone: formData.phone,
-                        email: formData.email,
-                        address: formData.address,
-                        gstin: formData.gstin,
-                        state: formData.state
-                    })
-                    .eq('id', editingCustomer.id);
-                if (error) throw error;
+                const payload = {
+                    name: formData.name,
+                    phone: formData.phone,
+                    email: formData.email,
+                    address: formData.address,
+                    gstin: formData.gstin,
+                    state: formData.state,
+                    id: editingCustomer.id
+                };
+                await customerRepo.upsert(payload);
                 toast.success("Identity updated successfully!");
                 setIsEditModalOpen(false);
                 setEditingCustomer(null);
             } else {
+                const localId = Date.now();
                 const payload = {
+                    id: localId,
                     user_id: user ? user.id : 'anon',
                     name: formData.name,
                     phone: formData.phone,
@@ -108,15 +113,15 @@ const Customers = () => {
                     address: formData.address,
                     gstin: formData.gstin,
                     state: formData.state,
-                    total_spend: 0,
                     credit_balance: 0
                 };
-                const { error } = await supabase
-                    .from('customers')
-                    .insert([payload]);
-                if (error) throw error;
+                await customerRepo.upsert(payload);
                 toast.success("Customer added successfully!");
                 setIsAddModalOpen(false);
+            }
+
+            if (navigator.onLine) {
+                syncEngine.syncAll();
             }
 
             setFormData({ name: '', phone: '', email: '', address: '', gstin: '', state: '' });
@@ -147,8 +152,10 @@ const Customers = () => {
         e.stopPropagation();
         if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
             try {
-                const { error } = await supabase.from('customers').delete().eq('id', id);
-                if (error) throw error;
+                await customerRepo.delete(id);
+                if (navigator.onLine) {
+                    await supabase.from('customers').delete().eq('id', id);
+                }
                 toast.success("Customer deleted successfully");
                 fetchCustomers();
             } catch (err) {

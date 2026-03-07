@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
 import InvoiceTemplate from '../components/InvoiceTemplate';
+import { productRepo } from '../lib/db/productRepository';
+import { customerRepo } from '../lib/db/customerRepository';
+import { syncEngine } from '../lib/db/syncEngine';
+import { getDB, persistDB } from '../lib/sqlite';
 import toast from 'react-hot-toast';
 
 
@@ -95,10 +99,20 @@ const Sales = () => {
                 setUserProfile(profile);
                 if (profile?.is_gst_registered) setBillType('GST');
             }
-            const { data: prods } = await supabase.from('products').select('*');
+
+            // Fetch from Local SQLite
+            const prods = await productRepo.getAll();
             setProductsList(prods || []);
-            const { data: custs } = await supabase.from('customers').select('*');
+            const custs = await customerRepo.getAll();
             setCustomers(custs || []);
+
+            // Background sync
+            if (navigator.onLine) {
+                syncEngine.syncAll().then(() => {
+                    productRepo.getAll().then(p => setProductsList(p));
+                    customerRepo.getAll().then(c => setCustomers(c));
+                });
+            }
         } catch (error) {
             console.error("Error fetching data:", error);
         }
@@ -107,22 +121,32 @@ const Sales = () => {
     const fetchHistory = async () => {
         try {
             setLoading(true);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayISO = today.toISOString();
+            const db = getDB();
 
-            let query = supabase
-                .from('sales')
-                .select('*, customers(name)')
-                .order('created_at', { ascending: false });
+            // Fetch from Local SQLite instead of Supabase
+            // We'll use a raw query to join with customers for the name
+            const sql = `
+                SELECT s.*, c.name as customer_name 
+                FROM sales s 
+                LEFT JOIN customers c ON s.customer_id = c.id 
+                ORDER BY s.created_at DESC 
+                LIMIT 50
+            `;
+            const result = db.exec(sql);
 
-            if (timeframe === 'today') {
-                query = query.gte('created_at', todayISO);
+            if (result.length > 0) {
+                const columns = result[0].columns;
+                const sales = result[0].values.map(v => {
+                    const obj = {};
+                    columns.forEach((col, i) => obj[col] = v[i]);
+                    // Map customer_name to the structure the UI expects
+                    obj.customers = { name: obj.customer_name };
+                    return obj;
+                });
+                setHistory(sales);
+            } else {
+                setHistory([]);
             }
-
-            const { data: sales, error } = await query.limit(20);
-            if (error) throw error;
-            setHistory(sales || []);
         } catch (error) {
             console.error("Error fetching history:", error);
         } finally {
@@ -134,14 +158,30 @@ const Sales = () => {
     const handleViewReceipt = async (sale) => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('sale_items')
-                .select('*, products(name, tax_percent, hsn_code)')
-                .eq('sale_id', sale.id);
+            const db = getDB();
 
-            if (error) throw error;
+            // Fetch items from Local SQLite
+            const sql = `
+                SELECT si.*, p.name as product_name, p.tax_percent, p.hsn_code 
+                FROM sale_items si 
+                LEFT JOIN products p ON si.product_id = p.id 
+                WHERE si.sale_id = ?
+            `;
+            const result = db.exec(sql, [sale.id]);
 
-            setReceiptItems(data || []);
+            if (result.length > 0) {
+                const columns = result[0].columns;
+                const items = result[0].values.map(v => {
+                    const obj = {};
+                    columns.forEach((col, i) => obj[col] = v[i]);
+                    obj.products = { name: obj.product_name, tax_percent: obj.tax_percent, hsn_code: obj.hsn_code };
+                    return obj;
+                });
+                setReceiptItems(items);
+            } else {
+                setReceiptItems([]);
+            }
+
             setReceiptSale(sale);
             setShowReceiptModal(true);
         } catch (error) {
@@ -205,99 +245,70 @@ const Sales = () => {
 
     const handleGenerateInvoice = async () => {
         try {
+            const db = getDB();
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return alert("Please login");
+            const userId = user ? user.id : 'anon';
 
             if (!selectedCustomerId && !customerName) return alert("Please select a customer");
             if (items.length === 0 || !items[0].name) return alert("Please add at least one item");
 
-            // 1. Create Sale Record
-            const salePayload = {
-                user_id: user.id,
-                customer_id: selectedCustomerId, // Can be null if generic customer, but usually we map it
-                // If it's a new customer name typed in, we might want to create them first or just store in notes?
-                // For now, let's assume selectedCustomerId is preferred, but logic in schema allows null.
+            const saleId = Date.now(); // Local-first ID
+            const now = new Date().toISOString();
 
-                invoice_type: billType === 'GST' ? 'gst' : 'regular',
-                subtotal: totals.subtotal,
-                discount_amount: parseFloat(additionalDiscount) || 0,
-                total_tax_amount: totals.totalTax,
-                total_amount: totals.grandTotal,
-                payment_method: paymentMethod, // cash, upi, etc.
-                payment_status: totals.status,
-                amount_paid: parseFloat(amountPaid) || 0,
-                balance_due: totals.balance,
-                created_at: new Date()
-            };
+            // 1. Create Sale Record in SQLite
+            const saleSql = `
+                INSERT INTO sales (id, user_id, customer_id, invoice_type, subtotal, discount_amount, 
+                                 total_tax_amount, total_amount, payment_method, payment_status, 
+                                 amount_paid, balance_due, created_at, updated_at, is_synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            `;
+            db.run(saleSql, [
+                saleId, userId, selectedCustomerId,
+                billType === 'GST' ? 'gst' : 'regular',
+                totals.subtotal, parseFloat(additionalDiscount) || 0,
+                totals.totalTax, totals.grandTotal, paymentMethod, totals.status,
+                parseFloat(amountPaid) || 0, totals.balance, now, now
+            ]);
 
-            const { data: saleData, error: saleError } = await supabase
-                .from('sales')
-                .insert([salePayload])
-                .select()
-                .single();
-
-            if (saleError) throw saleError;
-            const saleId = saleData.id;
-
-            // 2. Create Sale Items
-            const itemsPayload = items.map(item => {
+            // 2. Create Sale Items in SQLite
+            for (const item of items) {
                 const qty = parseFloat(item.qty) || 0;
                 const price = parseFloat(item.price) || 0;
                 const total = qty * price;
+                const itemSql = `
+                    INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, is_synced)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                `;
+                db.run(itemSql, [Date.now() + Math.random(), userId, saleId, item.product_id, qty, price, total, now]);
 
-                return {
-                    user_id: user.id,
-                    sale_id: saleId,
-                    product_id: item.product_id, // Important for stock trigger
-                    quantity: qty,
-                    unit_price: price,
-                    total_price: total,
-                    hsn_code: item.hsn,
-                    // Basic Tax logic for items if GST
-                    taxable_amount: billType === 'GST' ? total : 0, // Simplified
-                    // We aren't calculating detailed split (CGST/SGST per item) here to keep it simple, 
-                    // relying on the header totals mostly, but schema has fields.
-                    // Ideally we distribute totals.totalTax proportionally or calculated per item.
-                };
-            });
-
-            const { error: itemsError } = await supabase
-                .from('sale_items')
-                .insert(itemsPayload);
-
-            if (itemsError) throw itemsError;
-
-            // 3. Update Customer Balance (if customer selected)
-            if (selectedCustomerId) {
-                const { data: customerData, error: custFetchError } = await supabase
-                    .from('customers')
-                    .select('total_spend, credit_balance')
-                    .eq('id', selectedCustomerId)
-                    .single();
-
-                if (!custFetchError && customerData) {
-                    const newSpend = (parseFloat(customerData.total_spend) || 0) + totals.grandTotal;
-                    const newCredit = (parseFloat(customerData.credit_balance) || 0) + totals.balance;
-
-                    await supabase
-                        .from('customers')
-                        .update({
-                            total_spend: newSpend,
-                            credit_balance: newCredit,
-                            last_visit: new Date()
-                        })
-                        .eq('id', selectedCustomerId);
+                // 3. Update Product Stock locally
+                if (item.product_id) {
+                    db.run(`UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = ?, is_synced = 0 WHERE id = ?`,
+                        [qty, now, item.product_id]);
                 }
             }
 
+            // 4. Update Customer Balance locally
+            if (selectedCustomerId) {
+                db.run(`UPDATE customers SET credit_balance = credit_balance + ?, updated_at = ?, is_synced = 0 WHERE id = ?`,
+                    [totals.balance, now, selectedCustomerId]);
+            }
+
+            persistDB();
+
             // Success
-            alert("Invoice Created Successfully!");
+            toast.success("Invoice Created Locally!");
             setShowModal(false);
             setItems([{ id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0 }]);
             setAmountPaid('');
             setCustomerName('');
             setSelectedCustomerId(null);
-            fetchHistory(); // Refresh list
+            fetchHistory(); // Refresh from local DB
+
+            // Push to cloud immediately if online
+            if (navigator.onLine) {
+                syncEngine.syncAll();
+            }
 
         } catch (error) {
             console.error("Invoice Error:", error);

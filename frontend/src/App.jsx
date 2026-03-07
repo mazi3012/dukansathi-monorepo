@@ -15,10 +15,30 @@ import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
 import { ChatProvider } from './contexts/ChatContext';
+import { initSQLite } from './lib/sqlite';
+import { syncEngine } from './lib/db/syncEngine';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register PWA Service Worker
+registerSW({ immediate: true });
 
 function App() {
-  // Ping backend to wake up Cloud Run instance (Cold Start Fix)
+  // Initialize SQLite and Sync Engine
   useEffect(() => {
+    const init = async () => {
+      try {
+        await initSQLite();
+        // Initial sync if online
+        if (navigator.onLine) {
+          syncEngine.syncAll();
+        }
+      } catch (e) {
+        console.error("Failed to initialize local-first layer:", e);
+      }
+    };
+    init();
+
+    // Ping backend to wake up Cloud Run instance (Cold Start Fix)
     try {
       const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
       const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;

@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Smartphone, Shield, Zap, Mic, BarChart3, Users, Wifi, WifiOff, Database, Cpu, LayoutDashboard, TrendingDown } from 'lucide-react';
+import { ArrowRight, CheckCircle, Smartphone, Shield, Zap, Mic, BarChart3, Users, Wifi, WifiOff, Database, Cpu, LayoutDashboard, TrendingDown, Download } from 'lucide-react';
 import logo from '../assets/logo.svg';
+import { usePWA } from '../hooks/usePWA';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -18,6 +19,8 @@ const itemVariants = {
 };
 
 const Landing = () => {
+    const { isInstallable, isInstalled, installApp } = usePWA();
+
     return (
         <div className="min-h-screen bg-slate-950 text-white overflow-hidden relative selection:bg-indigo-500/30">
             {/* Background Ambient Effects */}
@@ -72,6 +75,17 @@ const Landing = () => {
                             Get Started Free
                             <ArrowRight className="inline ml-2 group-hover:translate-x-1 transition-transform" size={18} />
                         </Link>
+
+                        {isInstallable && !isInstalled && (
+                            <button
+                                onClick={installApp}
+                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)]"
+                            >
+                                <Download className="inline mr-2" size={18} />
+                                Install App
+                            </button>
+                        )}
+
                         <Link to="/setup" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
                             Run Diagnostics
                         </Link>

@@ -3,6 +3,8 @@ import { Plus, Search, Package, Edit2, ChevronDown, ChevronUp, Loader2, Filter, 
 import { InventorySkeleton, HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { productRepo } from '../lib/db/productRepository';
+import { syncEngine } from '../lib/db/syncEngine';
 import toast from 'react-hot-toast';
 
 const Inventory = () => {
@@ -32,21 +34,24 @@ const Inventory = () => {
         try {
             setLoading(true);
 
-            // 1. Get User Profile for GST Strategy
+            // 1. Get User Profile for GST Strategy (Keep Supabase for Auth/Profile)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
                 setUserProfile(profile);
             }
 
-            // 2. Get Products
-            const { data: productsData, error } = await supabase
-                .from('products')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
+            // 2. Get Products from SQLite
+            const productsData = await productRepo.getAll();
             setProducts(productsData || []);
+
+            // 3. Trigger background sync if online
+            if (navigator.onLine) {
+                syncEngine.syncAll().then(() => {
+                    // Refresh from local DB after sync completes
+                    productRepo.getAll().then(data => setProducts(data));
+                });
+            }
         } catch (error) {
             console.error('Error fetching inventory:', error);
         } finally {
@@ -189,21 +194,20 @@ const Inventory = () => {
 
             let error;
             if (editingId) {
-                const { error: updateError } = await supabase
-                    .from('products')
-                    .update(payload)
-                    .eq('id', editingId);
-                error = updateError;
+                await productRepo.upsert({ ...payload, id: editingId });
             } else {
-                const { error: insertError } = await supabase
-                    .from('products')
-                    .insert([payload]);
-                error = insertError;
+                // Generate a temporary BigInt ID for local-first
+                const localId = Date.now();
+                await productRepo.upsert({ ...payload, id: localId });
             }
-            if (error) throw error;
 
             setShowModal(false);
-            fetchData(); // Refresh list
+            fetchData(); // Refresh list from local DB
+
+            // Push to cloud immediately if online
+            if (navigator.onLine) {
+                syncEngine.syncAll();
+            }
         } catch (err) {
             console.error("Error saving product:", err);
             alert("Failed to save product. " + err.message);
@@ -214,8 +218,13 @@ const Inventory = () => {
         e.stopPropagation();
         if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
             try {
-                const { error } = await supabase.from('products').delete().eq('id', id);
-                if (error) throw error;
+                await productRepo.delete(id);
+                // Also delete from Supabase if online (or let sync handle it if we add a 'deleted' flag)
+                // For simplicity now, we delete from local and cloud separately if online
+                if (navigator.onLine) {
+                    await supabase.from('products').delete().eq('id', id);
+                }
+
                 toast.success("Product deleted successfully");
                 fetchData();
             } catch (err) {
