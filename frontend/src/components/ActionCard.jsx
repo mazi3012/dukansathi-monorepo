@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw, Package, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import InvoiceTemplate from './InvoiceTemplate';
+import { getStateFromGSTIN } from '../utils/gstUtils';
 
 const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -10,7 +11,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
     // Sync with prop if it changes
     useEffect(() => {
-        setLocalData(actionData);
+        let updatedData = { ...actionData };
+        if (updatedData.type === 'customer_draft' && updatedData.gstin && !updatedData.state) {
+            const detectedState = getStateFromGSTIN(updatedData.gstin);
+            if (detectedState) {
+                updatedData.state = detectedState;
+            }
+        }
+        setLocalData(updatedData);
     }, [actionData]);
 
     if (!localData) return null;
@@ -663,6 +671,43 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             placeholder="e.g. 12 Gandhi Nagar"
                         />
                     </div>
+
+                    {/* GST Details */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                                GSTIN <span className="text-text-muted/70">(opt)</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={localData.gstin || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value.toUpperCase();
+                                    const detectedState = getStateFromGSTIN(val);
+                                    setLocalData({
+                                        ...localData,
+                                        gstin: val,
+                                        state: detectedState || localData.state || ''
+                                    });
+                                }}
+                                className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono uppercase font-semibold text-text-main"
+                                placeholder="GSTIN"
+                                maxLength={15}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
+                                State
+                            </label>
+                            <input
+                                type="text"
+                                value={localData.state || ''}
+                                onChange={(e) => setLocalData({ ...localData, state: e.target.value })}
+                                className="w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium text-text-main"
+                                placeholder="State"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Footer */}
@@ -877,8 +922,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             <tr className="text-xs font-semibold text-text-muted uppercase tracking-wider border-b border-card-border/50">
                                 <th className="pb-2">Product Name</th>
                                 <th className="pb-2 text-center w-20">Unit</th>
-                                <th className="pb-2 text-center w-24">Cost (₹)</th>
-                                <th className="pb-2 text-center w-24">Sell (₹)</th>
+                                <th className="pb-2 text-center w-20">Cost (₹)</th>
+                                <th className="pb-2 text-center w-20">Sell (₹)</th>
+                                {businessProfile?.is_gst_registered && (
+                                    <>
+                                        <th className="pb-2 text-center w-16">Tax%</th>
+                                        <th className="pb-2 text-center w-20">HSN</th>
+                                    </>
+                                )}
                                 <th className="pb-2 text-center w-20">Stock</th>
                                 <th className="pb-2 text-center w-24">Action</th>
                                 <th className="pb-2 w-8"></th>
@@ -921,6 +972,27 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                             placeholder="0.00"
                                         />
                                     </td>
+                                    {businessProfile?.is_gst_registered && (
+                                        <>
+                                            <td className="py-2 px-1">
+                                                <input
+                                                    className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                                    type="number" min="0" max="100"
+                                                    value={item.tax_percent || ''}
+                                                    onChange={e => handleBulkItemChange(idx, 'tax_percent', parseFloat(e.target.value) || 0)}
+                                                    placeholder="0"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-1">
+                                                <input
+                                                    className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
+                                                    value={item.hsn_code || ''}
+                                                    onChange={e => handleBulkItemChange(idx, 'hsn_code', e.target.value)}
+                                                    placeholder="HSN"
+                                                />
+                                            </td>
+                                        </>
+                                    )}
                                     <td className="py-2 px-1">
                                         <input
                                             className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none text-center font-medium text-text-main py-1"
@@ -1022,6 +1094,29 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                         placeholder="pcs, kg, etc."
                                     />
                                 </div>
+                                {businessProfile?.is_gst_registered && (
+                                    <>
+                                        <div>
+                                            <span className="text-[10px] text-text-muted uppercase font-bold">Tax %</span>
+                                            <input
+                                                className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                                type="number" min="0"
+                                                value={item.tax_percent || ''}
+                                                onChange={e => handleBulkItemChange(idx, 'tax_percent', parseFloat(e.target.value) || 0)}
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-text-muted uppercase font-bold">HSN Code</span>
+                                            <input
+                                                className="w-full bg-transparent border-b border-transparent focus:border-teal-500 outline-none font-semibold text-text-main py-0.5"
+                                                value={item.hsn_code || ''}
+                                                onChange={e => handleBulkItemChange(idx, 'hsn_code', e.target.value)}
+                                                placeholder="HSN"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     ))}

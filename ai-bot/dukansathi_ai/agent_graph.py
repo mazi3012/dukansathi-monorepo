@@ -179,6 +179,8 @@ TABLES & COLUMNS:
     id BIGINT PRIMARY KEY, 
     name TEXT, 
     phone TEXT,
+    gstin TEXT,
+    state TEXT,
     total_spend NUMERIC, 
     credit_balance NUMERIC,
     last_visit TIMESTAMP,
@@ -942,20 +944,34 @@ def fast_parse_action(user_query: str) -> str:
             ql
         )
         customer_pattern_simple = re.search(
-            r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer[:,\.\s]+\s*([\w\s]+)',
+            r'(?:add|new|create|register)\s+(?:a\s+)?(?:new\s+)?customer[:,\.\s]+\s*([\w\s]+?)(?=\s+(?:with|contact|phone|gst|is|,|\.|$))',
             ql
         )
+        
+        # Extract GSTIN if present
+        gst_match = re.search(r'(?:gst|gstin|gst no|number|is)\s+([0-9]{2}[a-z]{5}[0-9]{4}[a-z]{1}[a-z0-9]{1}z[a-z0-9]{1})', ql)
+        gstin = gst_match.group(1).upper() if gst_match else ""
         
         if customer_pattern_with_ext:
             name = customer_pattern_with_ext.group(1).strip().strip(',').strip('.').strip().title()
             phone = customer_pattern_with_ext.group(2).strip()
             # Clean phone from spaces
             phone = "".join(phone.split())
+            
+            # Remove GST and common filler words from name
+            if gstin and gstin.lower() in name.lower():
+                name = name.lower().replace(gstin.lower(), "").strip().title()
+            
+            for filler in [' with', ' and', ' gstin', ' gst', ' having']:
+                if name.lower().endswith(filler):
+                    name = name[:-len(filler)].strip().title()
+
             return json.dumps({
                 "type": "customer_draft",
                 "name": name,
                 "phone": phone,
-                "address": ""
+                "address": "",
+                "gstin": gstin
             })
         elif customer_pattern_simple:
             name = customer_pattern_simple.group(1).strip().strip(',').strip('.').strip().title()
@@ -973,14 +989,24 @@ def fast_parse_action(user_query: str) -> str:
                             "type": "customer_draft",
                             "name": real_name,
                             "phone": ph,
-                            "address": ""
+                            "address": "",
+                            "gstin": gstin
                         })
+            
+            # Remove GST and common filler words from name
+            if gstin and gstin.lower() in name.lower():
+                 name = name.lower().replace(gstin.lower(), "").strip().title()
+            
+            for filler in [' with', ' and', ' gstin', ' gst', ' having', ' is']:
+                if name.lower().endswith(filler):
+                    name = name[:-len(filler)].strip().title()
 
             return json.dumps({
                 "type": "customer_draft",
                 "name": name,
                 "phone": "",
-                "address": ""
+                "address": "",
+                "gstin": gstin
             })
 
 

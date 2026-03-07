@@ -487,7 +487,8 @@ const Chat = () => {
 
                 // Calculate Balance Due based on Payment Status
                 const status = actionData.payment_status || 'paid';
-                const balanceDue = grandTotal - amtPaid;
+                const amtPaid = actionData.amount_paid || 0;
+                const balanceDue = actionData.balance_due ?? (grandTotal - amtPaid);
 
                 // Determine tax split
                 // Simplified: if current state (businessProfile state) != customer state, use IGST
@@ -900,7 +901,9 @@ const Chat = () => {
                     user_id: user.id,
                     name: actionData.name,
                     phone: actionData.phone,
-                    address: actionData.address
+                    address: actionData.address,
+                    gstin: actionData.gstin,
+                    state: actionData.state
                 });
                 if (error) {
                     alert("Failed to add customer: " + error.message);
@@ -908,7 +911,10 @@ const Chat = () => {
                 }
                 setMessages(prev => [
                     ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                    { type: 'bot', text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}` }
+                    {
+                        type: 'bot',
+                        text: `✅ Customer Added!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}${actionData.gstin ? `\n🔢 GSTIN: ${actionData.gstin}` : ''}${actionData.state ? `\n🗺️ State: ${actionData.state}` : ''}`
+                    }
                 ]);
             }
 

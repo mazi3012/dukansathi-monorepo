@@ -12,7 +12,7 @@ CRITICAL: EVERY JSON MUST START WITH "type"!
 2. type: product_draft
    Keys: type="product_draft", name, selling_price, cost_price, stock_quantity, category, unit, hsn_code, tax_percent, tax_type("inclusive" OR "exclusive")
 3. type: customer_draft
-   Keys: name, phone, address
+   Keys: name, phone, address, gstin, state
 4. type: payment_draft
    Keys: customer_name, amount, payment_type("payment" OR "due")
    Notes: "payment" = user received money from customer. "due" = user gave credit/udhar to customer. CRITICAL: If the query is just "add 500 due to kartik", it is a payment_draft, NOT an invoice.
@@ -37,6 +37,7 @@ CRITICAL: EVERY JSON MUST START WITH "type"!
 "Add 500 due to Amit" -> {"type": "payment_draft", "customer_name": "Amit", "amount": 500, "payment_type": "due"}
 "Restock 50 rice" -> {"type": "restock_draft", "product_name": "Rice", "quantity_to_add": 50}
 IMAGE with product table rows like "Basmati Rice | Rice | 420 | 480 | 18% | 1006 | inclusive" -> {"type": "bulk_product_draft", "items": [{"name": "Basmati Rice", "category": "Rice", "cost_price": 420, "selling_price": 480, "tax_percent": 18, "hsn_code": "1006", "tax_type": "inclusive"}]}
+"Add customer Rahul with GSTIN 07AAAAA0000A1Z5" -> {"type": "customer_draft", "name": "Rahul", "gstin": "07AAAAA0000A1Z5", "state": "Delhi"}
 
 [SQL RULES]
 - Postgres: filter by `user_id = '{user_id}'`. LIMIT 50. Use ILIKE.
