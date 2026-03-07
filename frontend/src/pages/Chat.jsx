@@ -552,10 +552,10 @@ const Chat = () => {
                         unit_price: item.base_rate || item.price || 0,
                         hsn_code: item.hsn_code || null,
                         taxable_amount: item.actual_subtotal || 0,
-                        cgst_percent: isGst ? (item.tax_percent / 2) : 0,
-                        cgst_amount: isGst ? (item.total_item_tax / 2) : 0,
-                        sgst_percent: isGst ? (item.tax_percent / 2) : 0,
-                        sgst_amount: isGst ? (item.total_item_tax / 2) : 0,
+                        cgst_percent: isGstSession ? (item.tax_percent / 2) : 0,
+                        cgst_amount: isGstSession ? (item.total_item_tax / 2) : 0,
+                        sgst_percent: isGstSession ? (item.tax_percent / 2) : 0,
+                        sgst_amount: isGstSession ? (item.total_item_tax / 2) : 0,
                         total_price: item.line_total
                     });
                     // Decrement stock only if product was found

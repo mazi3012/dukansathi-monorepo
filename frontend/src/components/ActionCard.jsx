@@ -226,7 +226,14 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 {templateItems.map((item, idx) => (
                                     <div key={idx} className="grid grid-cols-12 gap-1 items-center pb-2 border-b border-card-border/10 last:border-0 last:pb-0">
                                         <div className="col-span-6 pr-2">
-                                            <p className="text-sm font-semibold text-text-main leading-tight truncate">{item.name}</p>
+                                            <p className="text-sm font-semibold text-text-main leading-tight truncate">
+                                                {item.name}
+                                                {item.tax_percent > 0 && (
+                                                    <span className="ml-1.5 text-[9px] px-1.5 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-md font-bold uppercase tracking-tighter">
+                                                        {item.tax_percent}% GST
+                                                    </span>
+                                                )}
+                                            </p>
                                         </div>
                                         <div className="col-span-3 text-center">
                                             <p className="text-xs font-medium text-text-muted">{item.quantity} × ₹{item.unit_price}</p>
@@ -237,12 +244,26 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Tax Breakdown for GST Shops */}
+                            {isGstShop && totalTaxAmount > 0 && (
+                                <div className="mt-4 pt-3 border-t border-card-border/20 space-y-1.5">
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Taxable Value</span>
+                                        <span className="text-xs font-bold text-text-main">₹{subtotal.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Total tax (GST)</span>
+                                        <span className="text-xs font-bold text-indigo-500">₹{totalTaxAmount.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Grand Total Area (Always visible) */}
                     <div className={`mt-2 flex justify-between items-center p-4 border-y border-card-border/50 ${isEditing ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : 'bg-transparent'}`}>
-                        <span className="font-bold text-text-muted text-sm uppercase tracking-wider">Total Amount</span>
+                        <span className="font-bold text-text-muted text-sm uppercase tracking-wider">{isGstShop ? 'Invoice Total' : 'Total Amount'}</span>
                         <span className="font-black text-2xl text-indigo-600">₹{grandTotal.toFixed(2)}</span>
                     </div>
 

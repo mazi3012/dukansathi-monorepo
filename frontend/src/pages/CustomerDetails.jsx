@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, MapPin, Mail, FileText, ArrowDownLeft, ArrowUpRight, Loader } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Phone, MapPin, Mail, FileText, ArrowDownLeft, ArrowUpRight, Loader, Edit2, X, Save } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 const CustomerDetails = () => {
     const { id } = useParams();
@@ -11,6 +12,17 @@ const CustomerDetails = () => {
     const [customer, setCustomer] = useState(null);
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Edit Modal State
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editData, setEditData] = useState({ name: '', phone: '', email: '', address: '', gstin: '', state: '' });
+
+    // Due Modal State
+    const [isDueModalOpen, setIsDueModalOpen] = useState(false);
+    const [dueType, setDueType] = useState('credit'); // 'credit' (add due) | 'payment' (receive money)
+    const [dueAmount, setDueAmount] = useState('');
+    const [dueNote, setDueNote] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         if (id) fetchData();
@@ -29,31 +41,111 @@ const CustomerDetails = () => {
 
             if (custError) throw custError;
             setCustomer(custData);
+            setEditData({
+                name: custData.name || '',
+                phone: custData.phone || '',
+                email: custData.email || '',
+                address: custData.address || '',
+                gstin: custData.gstin || '',
+                state: custData.state || ''
+            });
 
-            // 2. Fetch Sales History (Invoices)
-            const { data: salesData, error: salesError } = await supabase
-                .from('sales')
+            // 2. Fetch Sales History & Ledger
+            const { data: ledgerData, error: ledgerError } = await supabase
+                .from('customer_ledger')
                 .select('*')
                 .eq('customer_id', id)
                 .order('created_at', { ascending: false });
 
-            if (salesError) throw salesError;
+            if (ledgerError) throw ledgerError;
 
-            // Map sales to "Transactions" format for the Ledger View
-            const txns = salesData.map(sale => ({
-                id: sale.id,
-                type: 'SALE',
-                amount: sale.total_amount,
-                date: new Date(sale.created_at).toLocaleDateString(),
-                description: `Invoice #${sale.id.slice(0, 6)}...` // Shorten UUID
+            // Map ledger to transactions
+            const txns = ledgerData.map(item => ({
+                id: item.id,
+                type: item.type === 'credit' ? 'SALE' : 'PAYMENT',
+                amount: item.amount,
+                date: new Date(item.created_at).toLocaleDateString(),
+                description: item.note || (item.type === 'credit' ? 'Due Added' : 'Payment Received'),
+                mode: item.mode
             }));
 
             setTransactions(txns);
 
         } catch (error) {
             console.error("Error fetching customer details:", error);
+            toast.error("Failed to load customer data.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdateProfile = async () => {
+        try {
+            setIsProcessing(true);
+            const { error } = await supabase
+                .from('customers')
+                .update(editData)
+                .eq('id', id);
+
+            if (error) throw error;
+
+            toast.success("Profile updated successfully!");
+            setIsEditModalOpen(false);
+            fetchData();
+        } catch (err) {
+            toast.error("Update failed: " + err.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSaveDue = async () => {
+        try {
+            const amount = parseFloat(dueAmount);
+            if (!amount || amount <= 0) {
+                toast.error("Please enter a valid amount.");
+                return;
+            }
+
+            setIsProcessing(true);
+            const { data: authData } = await supabase.auth.getUser();
+            const user = authData.user;
+
+            // 1. Update Customer Balance
+            const newBalance = dueType === 'credit'
+                ? (customer.credit_balance || 0) + amount
+                : (customer.credit_balance || 0) - amount;
+
+            const { error: balanceError } = await supabase
+                .from('customers')
+                .update({ credit_balance: newBalance })
+                .eq('id', id);
+
+            if (balanceError) throw balanceError;
+
+            // 2. Insert into Ledger
+            const { error: ledgerError } = await supabase
+                .from('customer_ledger')
+                .insert([{
+                    user_id: user.id,
+                    customer_id: id,
+                    amount: amount,
+                    type: dueType,
+                    mode: dueType === 'payment' ? 'Cash' : 'Manual',
+                    note: dueNote || (dueType === 'credit' ? 'Manual Due Adjustment' : 'Manual Payment Entry')
+                }]);
+
+            if (ledgerError) throw ledgerError;
+
+            toast.success(dueType === 'credit' ? "Due added successfully" : "Payment recorded successfully");
+            setIsDueModalOpen(false);
+            setDueAmount('');
+            setDueNote('');
+            fetchData();
+        } catch (err) {
+            toast.error("Action failed: " + err.message);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -91,10 +183,16 @@ const CustomerDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="w-16 h-16 rounded-[22px] bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-xl shadow-indigo-500/5"
+                        title="Edit Profile"
+                    >
+                        <Edit2 size={24} />
+                    </button>
                     {customer.phone && (
-                        <a href={`tel:${customer.phone}`} className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]">
-                            <Phone size={18} strokeWidth={3} />
-                            Voice Link
+                        <a href={`tel:${customer.phone}`} className="flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-[22px] shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all">
+                            <Phone size={24} strokeWidth={2.5} />
                         </a>
                     )}
                 </div>
@@ -121,10 +219,16 @@ const CustomerDetails = () => {
                 {activeTab === 'due' && (
                     <div className="space-y-6">
                         <div className="flex gap-4">
-                            <button className="flex-1 py-5 bg-red-500/10 text-red-500 font-black rounded-3xl border border-red-500/20 flex items-center justify-center gap-3 transition-all hover:bg-red-500 hover:text-white uppercase tracking-widest text-[10px]">
+                            <button
+                                onClick={() => { setDueType('credit'); setIsDueModalOpen(true); }}
+                                className="flex-1 py-5 bg-red-500/10 text-red-500 font-black rounded-3xl border border-red-500/20 flex items-center justify-center gap-3 transition-all hover:bg-red-500 hover:text-white uppercase tracking-widest text-[10px]"
+                            >
                                 <ArrowDownLeft size={18} strokeWidth={3} /> Debit Memo
                             </button>
-                            <button className="flex-1 py-5 bg-emerald-500/10 text-emerald-500 font-black rounded-3xl border border-emerald-500/20 flex items-center justify-center gap-3 transition-all hover:bg-emerald-500 hover:text-white uppercase tracking-widest text-[10px]">
+                            <button
+                                onClick={() => { setDueType('payment'); setIsDueModalOpen(true); }}
+                                className="flex-1 py-5 bg-emerald-500/10 text-emerald-500 font-black rounded-3xl border border-emerald-500/20 flex items-center justify-center gap-3 transition-all hover:bg-emerald-500 hover:text-white uppercase tracking-widest text-[10px]"
+                            >
                                 <ArrowUpRight size={18} strokeWidth={3} /> Credit Entry
                             </button>
                         </div>
@@ -185,25 +289,130 @@ const CustomerDetails = () => {
                 )}
 
                 {activeTab === 'info' && (
-                    <div className="space-y-8 glass-card p-8 rounded-[40px] border border-card-border shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl rounded-full" />
-                        <div>
-                            <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] block mb-3 ml-1">Neural Node Location</label>
-                            <div className="flex gap-4 p-5 bg-card-bg/40 rounded-2xl border border-card-border">
-                                <MapPin size={20} className="text-indigo-500 shrink-0" />
-                                <p className="font-bold text-text-main">{customer.address || "No spatial coordinates provided"}</p>
+                    <div className="space-y-6">
+                        <div className="glass-card p-6 rounded-[32px] border border-card-border shadow-md space-y-4">
+                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Contact Details</h3>
+                            <div className="space-y-3">
+                                <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
+                                    <Phone size={18} className="text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Phone Number</p>
+                                        <p className="font-bold text-text-main">{customer.phone || "Not linked"}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
+                                    <Mail size={18} className="text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Email Address</p>
+                                        <p className="font-bold text-text-main">{customer.email || "Not linked"}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] block mb-3 ml-1">Digital Identity Handle</label>
-                            <div className="flex gap-4 p-5 bg-card-bg/40 rounded-2xl border border-card-border">
-                                <Mail size={20} className="text-indigo-500 shrink-0" />
-                                <p className="font-bold text-text-main">{customer.email || "No encryption handle linked"}</p>
+
+                        <div className="glass-card p-6 rounded-[32px] border border-card-border shadow-md space-y-4">
+                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Location & Identity</h3>
+                            <div className="space-y-3">
+                                <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
+                                    <MapPin size={18} className="text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Billing Address</p>
+                                        <p className="font-bold text-text-main">{customer.address || "No address provided"}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
+                                    <FileText size={18} className="text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">GST Identity</p>
+                                        <p className="font-bold text-text-main">{customer.gstin ? `${customer.gstin} (${customer.state || 'N/A'})` : "Regular (Non-GST)"}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* MODALS */}
+            <AnimatePresence>
+                {/* Edit Profile Modal */}
+                {isEditModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-bg-main w-full max-w-lg rounded-[32px] p-6 relative z-10 border border-card-border shadow-2xl flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Modify Identity</h2>
+                                <button onClick={() => setIsEditModalOpen(false)} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4 overflow-y-auto pr-1 scrollbar-hide flex-1">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Customer Name</label>
+                                    <input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Phone Number</label>
+                                    <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Email Address</label>
+                                    <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Address</label>
+                                    <textarea value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} rows={2} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main resize-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">GSTIN</label>
+                                        <input value={editData.gstin} onChange={e => setEditData({ ...editData, gstin: e.target.value.toUpperCase() })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main uppercase font-mono" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">State</label>
+                                        <input value={editData.state} onChange={e => setEditData({ ...editData, state: e.target.value })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onClick={handleUpdateProfile} disabled={isProcessing} className="w-full mt-6 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/30 flex items-center justify-center gap-2 uppercase tracking-widest text-xs hover:bg-indigo-700 transition-all disabled:opacity-50">
+                                {isProcessing ? <Loader className="animate-spin" size={18} /> : <><Save size={18} /> Apply Changes</>}
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Due Adjustment Modal */}
+                {isDueModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDueModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                        <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="bg-bg-main w-full max-w-md rounded-[32px] p-6 relative z-10 border border-card-border shadow-2xl">
+                            <h2 className="text-xl font-black font-heading text-text-main mb-6 uppercase tracking-tight">
+                                {dueType === 'credit' ? 'Create Debit Memo' : 'Register Credit Entry'}
+                            </h2>
+
+                            <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Transaction Amount</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-text-muted">₹</span>
+                                        <input type="number" value={dueAmount} onChange={e => setDueAmount(e.target.value)} className="w-full p-4 pl-10 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none font-black text-2xl text-text-main" placeholder="0.00" autoFocus />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Narration / Note</label>
+                                    <input value={dueNote} onChange={e => setDueNote(e.target.value)} className="w-full p-4 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" placeholder="Brief description..." />
+                                </div>
+                            </div>
+
+                            <button onClick={handleSaveDue} disabled={isProcessing} className={`w-full mt-8 py-4 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase tracking-widest text-xs transition-all disabled:opacity-50 ${dueType === 'credit' ? 'bg-red-600 shadow-red-500/20 hover:bg-red-700' : 'bg-emerald-600 shadow-emerald-500/20 hover:bg-emerald-700'}`}>
+                                {isProcessing ? <Loader className="animate-spin" size={18} /> : dueType === 'credit' ? 'Add to Due' : 'Record Payment'}
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
