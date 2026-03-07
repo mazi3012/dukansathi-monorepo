@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Edit2, ShoppingBag, User, FileText, Save, RefreshCw, Package, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import InvoiceTemplate from './InvoiceTemplate';
-import { getStateFromGSTIN } from '../utils/gstUtils';
+import { getStateFromGSTIN, TaxCalculator, HSN_TAX_RATES } from '../utils/gstUtils';
 
 const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -66,45 +66,56 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
         const templateItems = itemsList.map(item => {
             const qty = parseFloat(item.quantity) || 0;
-            const rate = parseFloat(item.price) || 0; // Draft uses 'price', Template uses 'unit_price'
+            const rate = parseFloat(item.price) || 0;
+            const hsn = item.hsn_code || "1905"; // Default to Biscuits (18%) for demo if missing, or use actual
 
-            // Tax Logic (Default to 0 if not present in draft)
-            // Ideally backend should fetch tax_percent too. For now assume inclusive or 0 for draft.
-            // If GST Shop, let's assume rates are exclusive for calculation simplicity in draft unless specified.
-            const taxPercent = parseFloat(item.tax_percent) || 0;
+            const taxCalc = TaxCalculator.calculate({
+                sellingPrice: rate,
+                quantity: qty,
+                hsnCode: hsn,
+                sellerGstin: businessProfile?.gstin,
+                buyerGstin: localData.gstin,
+                placeOfSupply: localData.state_code // Use state_code if available
+            });
 
-            const taxableValue = qty * rate;
-            const taxAmt = (taxableValue * taxPercent) / 100;
-            const itemTotal = taxableValue + taxAmt;
-
-            subtotal += taxableValue;
-            totalTaxAmount += taxAmt;
-            grandTotal += itemTotal;
+            subtotal += taxCalc.taxable_value;
+            totalTaxAmount += (taxCalc.cgst_amount + taxCalc.sgst_amount + taxCalc.igst_amount);
+            grandTotal += taxCalc.grand_total;
 
             return {
                 ...item,
-                name: item.product_name, // Map product_name -> name
-                products: { name: item.product_name }, // Map for deep access if used
-                unit_price: rate, // Map price -> unit_price
+                name: item.product_name,
+                products: { name: item.product_name },
+                unit_price: rate,
                 quantity: qty,
-                tax_percent: taxPercent
+                hsn_code: hsn,
+                taxable_amount: taxCalc.taxable_value,
+                cgst_amount: taxCalc.cgst_amount,
+                sgst_amount: taxCalc.sgst_amount,
+                igst_amount: taxCalc.igst_amount,
+                tax_percent: taxCalc.gst_rate
             };
         });
-
-        // Note: localData.total_amount might be from the backend (simple qty*price). 
-        // We override it with our precise calculation for the template.
 
         const mockSale = {
             id: "DRAFT",
             created_at: new Date().toISOString(),
             invoice_type: isGstShop ? "gst" : "regular",
             customer_name: localData.customer_name,
-            customers: { name: localData.customer_name, address: "TBD", phone: "TBD" },
+            customers: {
+                name: localData.customer_name,
+                address: localData.address || "TBD",
+                phone: localData.phone || "TBD",
+                gstin: localData.gstin
+            },
 
             // Calculated Totals
             subtotal: subtotal,
             total_tax_amount: totalTaxAmount,
             total_amount: grandTotal,
+            cgst_amount: templateItems.reduce((sum, i) => sum + i.cgst_amount, 0),
+            sgst_amount: templateItems.reduce((sum, i) => sum + i.sgst_amount, 0),
+            igst_amount: templateItems.reduce((sum, i) => sum + i.igst_amount, 0),
             payment_status: paymentStatus,
             amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0),
             balance_due: grandTotal - (parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)),
@@ -247,15 +258,28 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                             {/* Tax Breakdown for GST Shops */}
                             {isGstShop && totalTaxAmount > 0 && (
-                                <div className="mt-4 pt-3 border-t border-card-border/20 space-y-1.5">
+                                <div className="mt-4 pt-3 border-t border-card-border/20 space-y-2">
                                     <div className="flex justify-between items-center px-1">
                                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Taxable Value</span>
                                         <span className="text-xs font-bold text-text-main">₹{subtotal.toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Total tax (GST)</span>
-                                        <span className="text-xs font-bold text-indigo-500">₹{totalTaxAmount.toFixed(2)}</span>
-                                    </div>
+                                    {mockSale.igst_amount > 0 ? (
+                                        <div className="flex justify-between items-center px-1">
+                                            <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">IGST (Inter-State)</span>
+                                            <span className="text-xs font-bold text-indigo-500">₹{mockSale.igst_amount.toFixed(2)}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between items-center px-1">
+                                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">CGST (Central)</span>
+                                                <span className="text-xs font-bold text-indigo-500">₹{mockSale.cgst_amount.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center px-1">
+                                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">SGST (State)</span>
+                                                <span className="text-xs font-bold text-indigo-500">₹{mockSale.sgst_amount.toFixed(2)}</span>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
