@@ -16,65 +16,93 @@ const formatWhatsAppNumber = (phone) => {
     return cleaned;
 };
 
-// --- Mobile Fallback Text Invoice Component ---
-const MobileInvoiceCard = ({ msg }) => {
+// --- Unified Chat Invoice Template Component ---
+const ChatInvoiceCard = ({ msg }) => {
     if (!msg) return null;
 
-    // Parse items_summary into an array if it's a string from previous format
-    // Format: "1. Item Name x 5\n2. Another Item x 2"
+    // Parse items_summary into an array if it's a string
     let items = [];
     if (msg.items_summary) {
         items = msg.items_summary.split('\n').filter(line => line.trim());
     }
 
     return (
-        <div className="w-full bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-indigo-500/20 shadow-sm relative">
-            {/* Header */}
-            <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-500/20">
-                <span className="font-bold text-indigo-700 dark:text-indigo-400">TAX INVOICE</span>
-                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">#{msg.invoice_id}</span>
+        <div className="w-full bg-card-bg backdrop-blur-md rounded-2xl overflow-hidden border border-card-border shadow-lg relative group transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
+            {/* Header with Gradient */}
+            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-5 py-4 flex justify-between items-center border-b border-card-border/50">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                        <FileSpreadsheet size={16} />
+                    </div>
+                    <span className="font-heading font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">TAX INVOICE</span>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Invoice No.</span>
+                    <span className="text-sm font-mono font-bold text-text-main">#{msg.invoice_id}</span>
+                </div>
             </div>
 
-            <div className="p-4">
+            <div className="p-5">
                 {/* To Details */}
-                <div className="mb-4 text-sm">
-                    <p className="text-text-muted text-xs mb-1">Billed To:</p>
-                    <p className="font-semibold text-text-main">{msg.customer_name || 'Customer'}</p>
-                    {msg.customer_phone && <p className="text-text-muted">{msg.customer_phone}</p>}
+                <div className="mb-6 flex justify-between items-start">
+                    <div className="text-sm">
+                        <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">Billed To:</p>
+                        <p className="font-heading font-bold text-text-main text-base">{msg.customer_name || 'Valued Customer'}</p>
+                        {msg.customer_phone && <p className="text-text-muted font-medium mt-0.5">{msg.customer_phone}</p>}
+                    </div>
+                    <div className="text-right">
+                        <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">Date:</p>
+                        <p className="text-sm font-semibold text-text-main">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
                 </div>
 
                 {/* Items List */}
-                <div className="mb-4">
-                    <p className="text-text-muted text-xs mb-2 border-b border-card-border pb-1">Items Summary:</p>
-                    <div className="space-y-1.5">
+                <div className="mb-6 space-y-3">
+                    <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-2 border-b border-card-border/50 pb-2">Purchase Summary</p>
+                    <div className="space-y-3">
                         {items.length > 0 ? (
                             items.map((item, idx) => {
                                 // Basic parse of "1. Item Name x Qty"
                                 const match = item.match(/^\d+\.\s*(.+?)\s*x\s*(\d+)$/);
                                 if (match) {
                                     return (
-                                        <div key={idx} className="flex justify-between text-sm items-start">
-                                            <span className="text-text-main line-clamp-1 flex-1 pr-2">{match[1]}</span>
-                                            <span className="text-text-muted whitespace-nowrap">Qty: {match[2]}</span>
+                                        <div key={idx} className="flex justify-between text-sm items-center py-0.5">
+                                            <div className="flex flex-col flex-1 pr-4">
+                                                <span className="text-text-main font-semibold line-clamp-1">{match[1]}</span>
+                                                <span className="text-[10px] text-text-muted font-bold">Standard Item</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="px-2 py-0.5 rounded-md bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold border border-indigo-500/10">Qty: {match[2]}</span>
+                                            </div>
                                         </div>
                                     );
                                 }
-                                return <div key={idx} className="text-sm text-text-main">{item}</div>;
+                                return <div key={idx} className="text-sm text-text-main font-medium border-l-2 border-indigo-500/30 pl-3 py-1">{item}</div>;
                             })
                         ) : (
-                            <div className="text-sm text-text-muted italic">No items listed.</div>
+                            <div className="text-sm text-text-muted italic py-2">No items listed.</div>
                         )}
                     </div>
                 </div>
 
                 {/* Total */}
-                <div className="flex justify-between items-center pt-3 border-t border-card-border/50">
-                    <span className="font-bold text-text-main">Grand Total:</span>
-                    <span className="font-bold text-lg text-indigo-600 dark:text-indigo-400">₹{msg.grand_total}</span>
+                <div className="pt-5 border-t border-card-border flex justify-between items-center group/total">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">Success Payment</span>
+                        <span className="text-xs font-bold text-emerald-500 flex items-center gap-1 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Fully Paid
+                        </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <span className="text-xs font-bold text-text-muted">Grand Total</span>
+                        <span className="font-heading font-extrabold text-2xl text-indigo-600 dark:text-indigo-400 drop-shadow-sm">₹{msg.grand_total}</span>
+                    </div>
                 </div>
             </div>
-            {/* Decorative dots / dashed line effect */}
-            <div className="absolute top-[44px] left-0 right-0 h-0 border-b border-dashed border-indigo-200 dark:border-indigo-500/30"></div>
+
+            {/* Premium Pattern Overlay */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none group-hover:bg-indigo-600/10 transition-colors"></div>
         </div>
     );
 };
@@ -943,17 +971,9 @@ const Chat = () => {
                                 {msg.pdf_url && (
                                     <div className="mt-2 flex flex-col gap-2 w-full">
 
-                                        {/* --- RESPONSIVE FALLBACK CONTAINER --- */}
+                                        {/* --- UNIFIED PREMIUM INVOICE TEMPLATE --- */}
                                         <div className="w-full">
-                                            {/* Desktop: Show actual PDF */}
-                                            <div className="hidden sm:block">
-                                                <PDFViewer url={msg.pdf_url} />
-                                            </div>
-
-                                            {/* Mobile: Show Text Template */}
-                                            <div className="block sm:hidden">
-                                                <MobileInvoiceCard msg={msg} />
-                                            </div>
+                                            <ChatInvoiceCard msg={msg} />
                                         </div>
                                         {/* ----------------------------------- */}
 
