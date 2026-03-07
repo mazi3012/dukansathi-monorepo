@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import logo from '../assets/logo.svg';
 import PDFViewer from '../components/PDFViewer';
+import { TaxCalculator } from '../utils/gstUtils';
 
 const formatWhatsAppNumber = (phone) => {
     if (!phone) return '';
