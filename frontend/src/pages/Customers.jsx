@@ -11,7 +11,34 @@ const Customers = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstin: '' });
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingCustomer, setEditingCustomer] = useState(null);
+    const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstin: '', state: '' });
+
+    const INDIAN_STATES = [
+        "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+        "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa",
+        "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka",
+        "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+        "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+        "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+    ];
+
+    const getStateFromGSTIN = (gstin) => {
+        if (!gstin || gstin.length < 2) return "";
+        const stateCode = gstin.substring(0, 2);
+        const codeMap = {
+            "01": "Jammu and Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+            "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+            "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+            "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+            "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+            "27": "Maharashtra", "28": "Andhra Pradesh", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep",
+            "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman and Nicobar Islands",
+            "36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh"
+        };
+        return codeMap[stateCode] || "";
+    };
 
     const fetchCustomers = React.useCallback(async () => {
         try {
@@ -47,7 +74,7 @@ const Customers = () => {
             const { data: authData } = await supabase.auth.getUser();
             user = authData.user;
             if (!user) {
-                toast.error("Please login to add a customer.");
+                toast.error("Please login to proceed.");
                 return;
             }
 
@@ -56,29 +83,63 @@ const Customers = () => {
                 return;
             }
 
-            const payload = {
-                user_id: user ? user.id : 'anon',
-                name: formData.name,
-                phone: formData.phone,
-                email: formData.email,
-                address: formData.address,
-                gstin: formData.gstin,
-                total_spend: 0,
-                credit_balance: 0
-            };
-            const { error } = await supabase
-                .from('customers')
-                .insert([payload]);
-            if (error) throw error;
+            if (isEditModalOpen && editingCustomer) {
+                const { error } = await supabase
+                    .from('customers')
+                    .update({
+                        name: formData.name,
+                        phone: formData.phone,
+                        email: formData.email,
+                        address: formData.address,
+                        gstin: formData.gstin,
+                        state: formData.state
+                    })
+                    .eq('id', editingCustomer.id);
+                if (error) throw error;
+                toast.success("Identity updated successfully!");
+                setIsEditModalOpen(false);
+                setEditingCustomer(null);
+            } else {
+                const payload = {
+                    user_id: user ? user.id : 'anon',
+                    name: formData.name,
+                    phone: formData.phone,
+                    email: formData.email,
+                    address: formData.address,
+                    gstin: formData.gstin,
+                    state: formData.state,
+                    total_spend: 0,
+                    credit_balance: 0
+                };
+                const { error } = await supabase
+                    .from('customers')
+                    .insert([payload]);
+                if (error) throw error;
+                toast.success("Customer added successfully!");
+                setIsAddModalOpen(false);
+            }
 
-            toast.success("Customer added successfully!");
-            setIsAddModalOpen(false);
-            setFormData({ name: '', phone: '', email: '', address: '', gstin: '' });
+            setFormData({ name: '', phone: '', email: '', address: '', gstin: '', state: '' });
             fetchCustomers();
         } catch (err) {
-            console.error("Error adding customer:", err);
-            toast.error("Failed to add customer: " + err.message);
+            console.error("Error saving customer:", err);
+            toast.error("Failed to save: " + err.message);
         }
+    };
+
+    const handleEditClick = (c, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setEditingCustomer(c);
+        setFormData({
+            name: c.name || '',
+            phone: c.phone || '',
+            email: c.email || '',
+            address: c.address || '',
+            gstin: c.gstin || '',
+            state: c.state || ''
+        });
+        setIsEditModalOpen(true);
     };
 
     const handleDeleteCustomer = async (id, e) => {
@@ -197,13 +258,18 @@ const Customers = () => {
                                     </div>
                                     <div className="flex gap-2 relative z-20">
                                         <button
+                                            onClick={(e) => handleEditClick(c, e)}
+                                            className="w-8 h-8 rounded-lg bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center text-indigo-500/70 hover:text-indigo-500 hover:bg-indigo-500/10 transition-colors"
+                                            title="Edit Profile"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
                                             onClick={(e) => handleDeleteCustomer(c.id, e)}
                                             className="w-8 h-8 rounded-lg bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                            title="Delete Account"
                                         >
                                             <Trash2 size={16} />
-                                        </button>
-                                        <button className="w-8 h-8 rounded-lg bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 transition-colors">
-                                            <ArrowUpRight size={16} />
                                         </button>
                                     </div>
                                 </div>
@@ -232,9 +298,9 @@ const Customers = () => {
             </button>
 
             <AnimatePresence>
-                {isAddModalOpen && (
+                {(isAddModalOpen || isEditModalOpen) && (
                     <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-auto">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" onClick={() => setIsAddModalOpen(false)} />
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} />
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
@@ -244,14 +310,16 @@ const Customers = () => {
                             <div className="flex justify-between items-center mb-10 shrink-0">
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                                        <User size={28} />
+                                        {isEditModalOpen ? <Edit2 size={28} /> : <User size={28} />}
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">Create Identity</h2>
+                                        <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">
+                                            {isEditModalOpen ? 'Modify Identity' : 'Create Identity'}
+                                        </h2>
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Digital Ledger Protocol v2</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setIsAddModalOpen(false)} className="w-12 h-12 rounded-2xl bg-card-bg/80 border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
+                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-12 h-12 rounded-2xl bg-card-bg/80 border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
                                     <Plus className="rotate-45" size={24} />
                                 </button>
                             </div>
@@ -280,15 +348,32 @@ const Customers = () => {
                                             maxLength={15}
                                             className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main uppercase font-mono placeholder-text-muted/20 outline-none shadow-inner"
                                             value={formData.gstin}
-                                            onChange={e => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                                            onChange={e => {
+                                                const val = e.target.value.toUpperCase();
+                                                const state = getStateFromGSTIN(val);
+                                                setFormData({ ...formData, gstin: val, state: state || formData.state });
+                                            }}
                                         />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">Place of Supply [State]</label>
+                                        <select
+                                            className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main outline-none shadow-inner appearance-none"
+                                            value={formData.state}
+                                            onChange={e => setFormData({ ...formData, state: e.target.value })}
+                                        >
+                                            <option value="">Select State</option>
+                                            {INDIAN_STATES.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="pt-8 border-t border-card-border/50 shrink-0">
                                 <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
-                                    Commit to Database
+                                    {isEditModalOpen ? 'Update Records' : 'Commit to Database'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
                             </div>

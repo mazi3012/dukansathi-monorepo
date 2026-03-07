@@ -1156,9 +1156,9 @@ from fastapi import UploadFile, File, HTTPException
 # Allowed image MIME types and magic bytes
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 IMAGE_MAGIC_BYTES = {
-    b'\xff\xd8\xff': 'image/jpeg',
+    b'\xff\xd8': 'image/jpeg',   # Standard JPEG SOI
     b'\x89PNG': 'image/png',
-    b'RIFF': 'image/webp',  # RIFF....WEBP
+    b'RIFF': 'image/webp',       # RIFF....WEBP
 }
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -1174,23 +1174,39 @@ async def upload_product_image(request: Request, file: UploadFile = File(...), u
         raise HTTPException(status_code=429, detail="Too many uploads. Try again later.")
     
     try:
+        # Log upload attempt
+        logger.info(f"[UPLOAD] Attempting image upload. MIME: {file.content_type}, Name: {file.filename}")
+        
         # 1. MIME type check
         if file.content_type not in ALLOWED_IMAGE_TYPES:
+            logger.warning(f"[UPLOAD] Rejected: Invalid MIME type {file.content_type}")
             raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are allowed.")
         
         # 2. Size check
         content = await file.read()
-        if len(content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(status_code=400, detail="File too large. Maximum 5MB.")
+        file_size = len(content)
+        logger.info(f"[UPLOAD] File size: {file_size} bytes")
         
+        if file_size > MAX_UPLOAD_SIZE:
+             logger.warning(f"[UPLOAD] Rejected: File too large ({file_size} bytes)")
+             raise HTTPException(status_code=400, detail="File too large. Maximum 5MB.")
+        
+        if file_size == 0:
+             logger.warning("[UPLOAD] Rejected: Empty file")
+             raise HTTPException(status_code=400, detail="Empty file uploaded.")
+
         # 3. Magic byte validation (prevents spoofed MIME types)
         is_valid_magic = False
+        magic_snippet = content[:8]
         for magic, mime in IMAGE_MAGIC_BYTES.items():
             if content[:len(magic)] == magic:
                 is_valid_magic = True
+                logger.info(f"[UPLOAD] Valid magic bytes found: {mime}")
                 break
+        
         if not is_valid_magic:
-            raise HTTPException(status_code=400, detail="Invalid image file.")
+            logger.warning(f"[UPLOAD] Rejected: Invalid magic bytes. Snippet (hex): {magic_snippet.hex()}")
+            raise HTTPException(status_code=400, detail="Invalid image file format.")
         
         # 4. Optimize (convert to JPG, resize)
         optimized_bytes = optimize_image(content)

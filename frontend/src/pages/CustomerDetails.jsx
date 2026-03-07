@@ -17,12 +17,30 @@ const CustomerDetails = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({ name: '', phone: '', email: '', address: '', gstin: '', state: '' });
 
-    // Due Modal State
-    const [isDueModalOpen, setIsDueModalOpen] = useState(false);
-    const [dueType, setDueType] = useState('credit'); // 'credit' (add due) | 'payment' (receive money)
-    const [dueAmount, setDueAmount] = useState('');
-    const [dueNote, setDueNote] = useState('');
-    const [isProcessing, setIsProcessing] = useState(false);
+    const INDIAN_STATES = [
+        "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+        "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa",
+        "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka",
+        "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+        "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+        "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+    ];
+
+    const getStateFromGSTIN = (gstin) => {
+        if (!gstin || gstin.length < 2) return "";
+        const stateCode = gstin.substring(0, 2);
+        const codeMap = {
+            "01": "Jammu and Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+            "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+            "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+            "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+            "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+            "27": "Maharashtra", "28": "Andhra Pradesh", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep",
+            "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman and Nicobar Islands",
+            "36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh"
+        };
+        return codeMap[stateCode] || "";
+    };
 
     useEffect(() => {
         if (id) fetchData();
@@ -185,10 +203,10 @@ const CustomerDetails = () => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setIsEditModalOpen(true)}
-                        className="w-16 h-16 rounded-[22px] bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-xl shadow-indigo-500/5"
-                        title="Edit Profile"
+                        className="h-16 px-6 rounded-[22px] bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center gap-3 text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-xl shadow-indigo-500/5 group"
                     >
-                        <Edit2 size={24} />
+                        <Edit2 size={24} className="group-hover:scale-110 transition-transform" />
+                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Update Profile</span>
                     </button>
                     {customer.phone && (
                         <a href={`tel:${customer.phone}`} className="flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-[22px] shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all">
@@ -313,11 +331,11 @@ const CustomerDetails = () => {
                         <div className="glass-card p-6 rounded-[32px] border border-card-border shadow-md space-y-4">
                             <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Location & Identity</h3>
                             <div className="space-y-3">
-                                <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
-                                    <MapPin size={18} className="text-indigo-500 shrink-0" />
-                                    <div>
-                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Billing Address</p>
-                                        <p className="font-bold text-text-main">{customer.address || "No address provided"}</p>
+                                <div className="flex gap-5 p-6 bg-card-bg/40 rounded-3xl border border-card-border shadow-inner">
+                                    <MapPin size={24} className="text-indigo-500 shrink-0 mt-1" />
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">Primary Settlement Location</p>
+                                        <p className="text-lg font-bold text-text-main leading-relaxed">{customer.address || "Digital Nomad (No address linked)"}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
@@ -364,14 +382,32 @@ const CustomerDetails = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Address</label>
                                     <textarea value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} rows={2} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main resize-none" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">GSTIN</label>
-                                        <input value={editData.gstin} onChange={e => setEditData({ ...editData, gstin: e.target.value.toUpperCase() })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main uppercase font-mono" />
+                                        <input
+                                            value={editData.gstin}
+                                            onChange={e => {
+                                                const val = e.target.value.toUpperCase();
+                                                const state = getStateFromGSTIN(val);
+                                                setEditData({ ...editData, gstin: val, state: state || editData.state });
+                                            }}
+                                            className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main uppercase font-mono"
+                                            maxLength={15}
+                                        />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">State</label>
-                                        <input value={editData.state} onChange={e => setEditData({ ...editData, state: e.target.value })} className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" />
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Place of Supply [State]</label>
+                                        <select
+                                            value={editData.state}
+                                            onChange={e => setEditData({ ...editData, state: e.target.value })}
+                                            className="w-full p-3.5 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main appearance-none cursor-pointer"
+                                        >
+                                            <option value="">Select State</option>
+                                            {INDIAN_STATES.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>

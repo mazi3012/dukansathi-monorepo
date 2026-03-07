@@ -432,6 +432,7 @@ const Chat = () => {
                 let totalIgst = 0;
 
                 const isGstSession = businessProfile?.is_gst_registered;
+                const businessStateCode = businessProfile?.state_code || (businessProfile?.gstin ? businessProfile.gstin.substring(0, 2) : null);
 
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
@@ -491,14 +492,33 @@ const Chat = () => {
                 const balanceDue = actionData.balance_due ?? (grandTotal - amtPaid);
 
                 // Determine tax split
-                // Simplified: if current state (businessProfile state) != customer state, use IGST
-                // For now, we'll check if totalTax > 0 and calculate splits
-                if (totalTax > 0) {
-                    // Placeholder for state-based logic - for now split CGST/SGST by default
-                    // unless it's explicitly set as IGST in some future logic
-                    totalCgst = totalTax / 2;
-                    totalSgst = totalTax / 2;
-                    totalIgst = 0;
+                if (totalTax > 0 && isGstSession) {
+                    let customerStateCode = null;
+                    if (actionData.gstin) {
+                        customerStateCode = actionData.gstin.substring(0, 2);
+                    } else if (customerId) {
+                        // Fetch customer's state if we have their ID
+                        const { data: custData } = await supabase.from('customers').select('state, gstin').eq('id', customerId).maybeSingle();
+                        if (custData?.gstin) {
+                            customerStateCode = custData.gstin.substring(0, 2);
+                        } else if (custData?.state) {
+                            // Map full state name to code if needed, but for now we look for gstin match
+                            // fallback: if no GSTIN, we'll assume intra-state (CGST/SGST) unless we can map state names
+                        }
+                    }
+
+                    // Compare states: if customer state != business state, use IGST
+                    const isInterState = customerStateCode && businessStateCode && (customerStateCode !== businessStateCode);
+
+                    if (isInterState) {
+                        totalIgst = totalTax;
+                        totalCgst = 0;
+                        totalSgst = 0;
+                    } else {
+                        totalIgst = 0;
+                        totalCgst = totalTax / 2;
+                        totalSgst = totalTax / 2;
+                    }
                 }
 
                 // Create Sale Header
@@ -544,6 +564,9 @@ const Chat = () => {
 
                 // Create Sale Items & Decrement Stock
                 for (const item of enrichedItems) {
+                    const customerStateCode = actionData.gstin ? actionData.gstin.substring(0, 2) : null;
+                    const isInterState = customerStateCode && businessStateCode && (customerStateCode !== businessStateCode);
+
                     await supabase.from('sale_items').insert({
                         user_id: user.id,
                         sale_id: sale.id,
@@ -552,10 +575,12 @@ const Chat = () => {
                         unit_price: item.base_rate || item.price || 0,
                         hsn_code: item.hsn_code || null,
                         taxable_amount: item.actual_subtotal || 0,
-                        cgst_percent: isGstSession ? (item.tax_percent / 2) : 0,
-                        cgst_amount: isGstSession ? (item.total_item_tax / 2) : 0,
-                        sgst_percent: isGstSession ? (item.tax_percent / 2) : 0,
-                        sgst_amount: isGstSession ? (item.total_item_tax / 2) : 0,
+                        cgst_percent: (isGstSession && !isInterState) ? (item.tax_percent / 2) : 0,
+                        cgst_amount: (isGstSession && !isInterState) ? (item.total_item_tax / 2) : 0,
+                        sgst_percent: (isGstSession && !isInterState) ? (item.tax_percent / 2) : 0,
+                        sgst_amount: (isGstSession && !isInterState) ? (item.total_item_tax / 2) : 0,
+                        igst_percent: (isGstSession && isInterState) ? item.tax_percent : 0,
+                        igst_amount: (isGstSession && isInterState) ? item.total_item_tax : 0,
                         total_price: item.line_total
                     });
                     // Decrement stock only if product was found
