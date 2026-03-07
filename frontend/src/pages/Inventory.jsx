@@ -23,7 +23,7 @@ const Inventory = () => {
         expiry_date: '', batch_number: '', warranty_months: '', image: null,
         has_serial_tracking: false, discount: '0',
         cgst_percent: '', sgst_percent: '', igst_percent: '', serial_numbers: '',
-        isGst: false
+        isGst: false, tax_type: 'exclusive', hsn_code: ''
     };
     const [formData, setFormData] = useState(initialFormState);
 
@@ -120,6 +120,8 @@ const Inventory = () => {
             selling_price: product.selling_price || '',
             cost_price: product.cost_price || '',
             unit: product.unit || 'pcs',
+            tax_type: product.tax_type || 'exclusive',
+            hsn_code: product.hsn_code || '',
             // Note: Image handling would go here
         });
         setEditingId(product.id);
@@ -152,6 +154,7 @@ const Inventory = () => {
                 batch_number: formData.batch_number,
                 warranty_months: parseInt(formData.warranty_months) || 0,
                 is_gst_applicable: formData.isGst,
+                tax_type: formData.tax_type,
                 image_url: formData.image_url || null
             };
 
@@ -166,7 +169,7 @@ const Inventory = () => {
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
 
-                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/upload-product-image`, {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/upload-product-image`, {
                         method: 'POST',
                         body: uploadFormData,
                         headers: {
@@ -444,19 +447,47 @@ const Inventory = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex gap-8 items-start">
-                                        <div className="w-32 h-32 glass-card rounded-[32px] border-dashed border-2 border-card-border/50 flex items-center justify-center cursor-pointer hover:border-indigo-500/40 transition-all relative overflow-hidden shrink-0 group shadow-inner">
-                                            {formData.image ? (
-                                                <img src={URL.createObjectURL(formData.image)} alt="Preview" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="text-center group-hover:scale-110 transition-transform duration-500">
-                                                    <Plus size={28} className="text-indigo-500 mx-auto mb-2" />
-                                                    <span className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block">Uplink Image</span>
-                                                </div>
-                                            )}
-                                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })} />
+                                    <div className="flex flex-col sm:flex-row gap-8 items-start">
+                                        {/* Image Upload Area */}
+                                        <div className="w-full sm:w-48 shrink-0">
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 mb-3">Neural Imaging</label>
+                                            <div
+                                                onClick={() => document.getElementById('prod-img').click()}
+                                                className="group relative w-full aspect-square rounded-[32px] bg-card-bg/50 border-2 border-dashed border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 shadow-inner"
+                                            >
+                                                {formData.image_url || (formData.image instanceof File) ? (
+                                                    <>
+                                                        <img
+                                                            src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image_url}
+                                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                            alt="Preview"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Plus className="text-white rotate-45" size={32} />
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 group-hover:scale-110 transition-transform">
+                                                            <Package size={24} />
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-text-muted transition-colors group-hover:text-indigo-500">Capture</span>
+                                                    </>
+                                                )}
+                                                <input
+                                                    id="prod-img"
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) setFormData({ ...formData, image: file });
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="flex-1 space-y-6">
+
+                                        <div className="flex-1 space-y-6 w-full">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Asset Designation</label>
                                                 <input placeholder="Ex: Quantum Processor X1" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
@@ -515,23 +546,44 @@ const Inventory = () => {
                                     </div>
 
                                     {formData.isGst && (
-                                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 glass-card rounded-[32px] border-indigo-500/20 shadow-inner">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Bracket</label>
-                                                <div className="relative">
-                                                    <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none">
-                                                        <option value="0">Zero [0%]</option>
-                                                        <option value="5">Micro [5%]</option>
-                                                        <option value="12">Standard [12%]</option>
-                                                        <option value="18">Primary [18%]</option>
-                                                        <option value="28">Premium [28%]</option>
-                                                    </select>
-                                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 p-6 glass-card rounded-[32px] border-indigo-500/20 shadow-inner">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Bracket</label>
+                                                    <div className="relative">
+                                                        <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none shadow-inner">
+                                                            <option value="0">Zero [0%]</option>
+                                                            <option value="5">Micro [5%]</option>
+                                                            <option value="12">Standard [12%]</option>
+                                                            <option value="18">Primary [18%]</option>
+                                                            <option value="28">Premium [28%]</option>
+                                                        </select>
+                                                        <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Protocol</label>
+                                                    <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none shadow-inner" />
                                                 </div>
                                             </div>
+
+                                            {/* Tax Type Toggle */}
                                             <div className="space-y-2">
-                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Protocol</label>
-                                                <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none" />
+                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Taxation Strategy</label>
+                                                <div className="flex bg-card-bg/30 p-1 rounded-2xl border border-card-border/50 gap-1 shadow-inner">
+                                                    <button
+                                                        onClick={() => setFormData({ ...formData, tax_type: 'exclusive' })}
+                                                        className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.tax_type === 'exclusive' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg' : 'text-text-muted hover:text-text-main'} `}
+                                                    >
+                                                        Exclusive (Price + Tax)
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setFormData({ ...formData, tax_type: 'inclusive' })}
+                                                        className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.tax_type === 'inclusive' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-lg' : 'text-text-muted hover:text-text-main'} `}
+                                                    >
+                                                        Inclusive (Tax in Price)
+                                                    </button>
+                                                </div>
                                             </div>
                                         </motion.div>
                                     )}
@@ -578,5 +630,3 @@ const Inventory = () => {
 };
 
 export default Inventory;
-
-

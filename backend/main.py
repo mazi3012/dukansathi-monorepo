@@ -1162,7 +1162,7 @@ IMAGE_MAGIC_BYTES = {
 }
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
-@app.post("/upload-product-image")
+@app.post("/api/upload-product-image")
 async def upload_product_image(request: Request, file: UploadFile = File(...), user_id: str = Depends(verify_local_auth)):
     """
     Upload and optimize a product image.

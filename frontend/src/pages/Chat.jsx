@@ -247,7 +247,11 @@ const Chat = () => {
                             cost_price: actionData.cost_price || 0,
                             stock_quantity: actionData.stock_quantity,
                             category: actionData.category || 'General',
-                            unit: actionData.unit || 'pcs'
+                            unit: actionData.unit || 'pcs',
+                            hsn_code: actionData.hsn_code || null,
+                            tax_percent: actionData.tax_percent || 0,
+                            tax_type: actionData.tax_type || 'exclusive',
+                            is_gst_applicable: (actionData.tax_percent > 0 || !!actionData.hsn_code)
                         })
                     });
                     if (!res.ok) throw new Error(await res.text());
@@ -423,46 +427,89 @@ const Chat = () => {
                 let grandTotal = 0;
                 let totalSubtotal = 0;
                 let totalTax = 0;
+                let totalCgst = 0;
+                let totalSgst = 0;
+                let totalIgst = 0;
+
+                const isGstSession = businessProfile?.is_gst_registered;
 
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
-                    const rate = parseFloat(item.price) || 0;
-                    const taxPct = parseFloat(item.tax_percent) || 0;
-                    const taxAmt = (qty * rate * taxPct) / 100;
-                    const lineTotal = qty * rate + taxAmt;
-                    totalSubtotal += qty * rate;
-                    totalTax += taxAmt;
+                    const rawRate = parseFloat(item.price) || 0;
+                    const taxPct = isGstSession ? (parseFloat(item.tax_percent) || 0) : 0;
+                    const taxType = item.tax_type || 'exclusive'; // Default to exclusive if not specified
+
+                    let baseRate, itemTaxAmt, lineTotal;
+
+                    if (taxType === 'inclusive' && taxPct > 0) {
+                        // Inclusive: Rate is the final price including tax
+                        baseRate = rawRate / (1 + (taxPct / 100));
+                        itemTaxAmt = rawRate - baseRate;
+                        lineTotal = rawRate * qty;
+                    } else {
+                        // Exclusive: Rate is the base price, tax is added on top
+                        baseRate = rawRate;
+                        itemTaxAmt = (rawRate * taxPct) / 100;
+                        lineTotal = (rawRate + itemTaxAmt) * qty;
+                    }
+
+                    const itemSubtotal = baseRate * qty;
+                    const totalItemTax = itemTaxAmt * qty;
+
+                    totalSubtotal += itemSubtotal;
+                    totalTax += totalItemTax;
                     grandTotal += lineTotal;
 
                     // Find product_id via fuzzy RPC (with ilike fallback)
                     let prodId = null;
                     try {
-                        const { data: fp } = await supabase.rpc('fuzzy_match_product', {
-                            query: item.product_name,
+                        const { data: fuzzyProd } = await supabase.rpc('fuzzy_match_product', {
+                            query: (item.product_name || item.name).trim(),
                             uid: user.id
                         });
-                        if (fp && fp.length > 0) prodId = fp[0].id;
+                        if (fuzzyProd && fuzzyProd.length > 0) prodId = fuzzyProd[0].id;
                     } catch (_) {
-                        const { data: ilp } = await supabase.from('products')
-                            .select('id').ilike('name', `%${item.product_name}%`).eq('user_id', user.id).limit(1);
-                        if (ilp && ilp.length > 0) prodId = ilp[0].id;
+                        const { data: ilikeProd } = await supabase.from('products')
+                            .select('id').ilike('name', (item.product_name || item.name).trim()).eq('user_id', user.id).maybeSingle();
+                        if (ilikeProd) prodId = ilikeProd.id;
                     }
 
-                    return { ...item, product_id: prodId, line_total: lineTotal };
+                    return {
+                        ...item,
+                        product_id: prodId,
+                        base_rate: baseRate,
+                        tax_amt_per_unit: itemTaxAmt,
+                        total_item_tax: totalItemTax,
+                        line_total: lineTotal,
+                        actual_subtotal: itemSubtotal
+                    };
                 }));
 
                 // Calculate Balance Due based on Payment Status
                 const status = actionData.payment_status || 'paid';
-                const amtPaid = parseFloat(actionData.amount_paid) || 0;
                 const balanceDue = grandTotal - amtPaid;
+
+                // Determine tax split
+                // Simplified: if current state (businessProfile state) != customer state, use IGST
+                // For now, we'll check if totalTax > 0 and calculate splits
+                if (totalTax > 0) {
+                    // Placeholder for state-based logic - for now split CGST/SGST by default
+                    // unless it's explicitly set as IGST in some future logic
+                    totalCgst = totalTax / 2;
+                    totalSgst = totalTax / 2;
+                    totalIgst = 0;
+                }
 
                 // Create Sale Header
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
                     customer_id: customerId,
-                    invoice_type: businessProfile?.is_gst_registered ? 'gst' : 'regular',
+                    invoice_type: isGstSession ? 'gst' : 'regular',
                     subtotal: totalSubtotal,
                     total_tax_amount: totalTax,
+                    cgst_amount: totalCgst,
+                    sgst_amount: totalSgst,
+                    igst_amount: totalIgst,
                     total_amount: grandTotal,
                     payment_status: status === 'paid' ? 'paid' : (status === 'unpaid' ? 'credit' : 'partial'),
                     amount_paid: amtPaid,
@@ -501,7 +548,13 @@ const Chat = () => {
                         sale_id: sale.id,
                         product_id: item.product_id || null,
                         quantity: item.quantity,
-                        unit_price: item.price || 0,
+                        unit_price: item.base_rate || item.price || 0,
+                        hsn_code: item.hsn_code || null,
+                        taxable_amount: item.actual_subtotal || 0,
+                        cgst_percent: isGst ? (item.tax_percent / 2) : 0,
+                        cgst_amount: isGst ? (item.total_item_tax / 2) : 0,
+                        sgst_percent: isGst ? (item.tax_percent / 2) : 0,
+                        sgst_amount: isGst ? (item.total_item_tax / 2) : 0,
                         total_price: item.line_total
                     });
                     // Decrement stock only if product was found
@@ -516,8 +569,7 @@ const Chat = () => {
                     const { jsPDF } = await import('jspdf');
                     const autoTable = (await import('jspdf-autotable')).default;
                     const doc = new jsPDF();
-
-                    const isGst = sale.invoice_type === 'gst' || (businessProfile?.is_gst_registered && sale.invoice_type !== 'regular');
+                    const isGst = sale.invoice_type === 'gst';
 
                     // Header
                     doc.setFontSize(22);
@@ -529,7 +581,11 @@ const Chat = () => {
                     let yPos = 30;
                     if (businessProfile?.address) { doc.text(businessProfile.address, 14, yPos); yPos += 5; }
                     if (businessProfile?.phone) { doc.text(`Phone: ${businessProfile.phone}`, 14, yPos); yPos += 5; }
-                    if (isGst && businessProfile?.gstin) { doc.text(`GSTIN: ${businessProfile.gstin}`, 14, yPos); yPos += 5; }
+                    if (isGst && businessProfile?.gstin) {
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`GSTIN: ${businessProfile.gstin}`, 14, yPos); yPos += 5;
+                        doc.setFont(undefined, 'normal');
+                    }
 
                     // Invoice Meta
                     doc.setFontSize(16);
@@ -552,23 +608,23 @@ const Chat = () => {
 
                     // Table
                     const tableHead = isGst
-                        ? [['#', 'Item', 'Qty', 'Rate', 'Taxable', 'CGST', 'SGST', 'Total']]
+                        ? [['#', 'Item', 'HSN', 'Qty', 'Rate', 'Taxable', 'CGST', 'SGST', 'Total']]
                         : [['#', 'Item', 'Qty', 'Rate', 'Total']];
 
                     const tableBody = enrichedItems.map((item, idx) => {
                         const qty = parseFloat(item.quantity) || 0;
-                        const rate = parseFloat(item.price) || 0;
-                        const taxable = qty * rate;
-                        const taxPercent = parseFloat(item.tax_percent) || 0;
-                        const totalTaxAmt = (taxable * taxPercent) / 100;
-                        const total = taxable + totalTaxAmt;
+                        const baseRate = item.base_rate || 0;
+                        const taxable = item.actual_subtotal || 0;
+                        const totalTaxAmt = item.total_item_tax || 0;
+                        const total = item.line_total || 0;
 
                         if (isGst) {
                             return [
                                 idx + 1,
                                 item.product_name || item.name || "Item",
+                                item.hsn_code || '-',
                                 qty,
-                                rate.toFixed(2),
+                                baseRate.toFixed(2),
                                 taxable.toFixed(2),
                                 (totalTaxAmt / 2).toFixed(2),
                                 (totalTaxAmt / 2).toFixed(2),
@@ -717,7 +773,11 @@ const Chat = () => {
                             cost_price: actionData.cost_price || existingProd.cost_price,
                             stock_quantity: newStock,
                             category: actionData.category || existingProd.category,
-                            unit: actionData.unit || existingProd.unit
+                            unit: actionData.unit || existingProd.unit,
+                            hsn_code: actionData.hsn_code || existingProd.hsn_code,
+                            tax_percent: actionData.tax_percent || existingProd.tax_percent,
+                            tax_type: actionData.tax_type || existingProd.tax_type,
+                            is_gst_applicable: (actionData.tax_percent > 0 || !!actionData.hsn_code) || existingProd.is_gst_applicable
                         }).eq('id', existingProd.id);
                         if (error) throw error;
 
@@ -737,7 +797,11 @@ const Chat = () => {
                             cost_price: actionData.cost_price || 0,
                             stock_quantity: actionData.stock_quantity,
                             category: actionData.category || 'General',
-                            unit: actionData.unit || 'pcs'
+                            unit: actionData.unit || 'pcs',
+                            hsn_code: actionData.hsn_code || null,
+                            tax_percent: actionData.tax_percent || 0,
+                            tax_type: actionData.tax_type || 'exclusive',
+                            is_gst_applicable: (actionData.tax_percent > 0 || !!actionData.hsn_code)
                         });
                         if (error) throw error;
 
@@ -917,7 +981,11 @@ const Chat = () => {
                                     cost_price: item.cost_price || 0,
                                     stock_quantity: newStock,
                                     category: item.category || 'General',
-                                    unit: item.unit || 'pcs'
+                                    unit: item.unit || 'pcs',
+                                    hsn_code: item.hsn_code || null,
+                                    tax_percent: item.tax_percent || 0,
+                                    tax_type: item.tax_type || 'exclusive',
+                                    is_gst_applicable: (item.tax_percent > 0 || !!item.hsn_code)
                                 }).eq('id', existing.id);
                                 restocked++;
                             } else {
@@ -929,7 +997,11 @@ const Chat = () => {
                                     cost_price: item.cost_price || 0,
                                     stock_quantity: item.stock_quantity || 0,
                                     category: item.category || 'General',
-                                    unit: item.unit || 'pcs'
+                                    unit: item.unit || 'pcs',
+                                    hsn_code: item.hsn_code || null,
+                                    tax_percent: item.tax_percent || 0,
+                                    tax_type: item.tax_type || 'exclusive',
+                                    is_gst_applicable: (item.tax_percent > 0 || !!item.hsn_code)
                                 });
                                 if (error) throw error;
                                 added++;

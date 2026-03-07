@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2, Store, FileText, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getStateFromGSTIN } from '../utils/gstUtils';
 
 const Onboarding = () => {
     const navigate = useNavigate();
@@ -14,6 +15,7 @@ const Onboarding = () => {
         business_category: 'kirana',
         is_gst_registered: false,
         gstin: '',
+        state_code: '',
     });
 
     const handleUpdateProfile = async () => {
@@ -29,6 +31,7 @@ const Onboarding = () => {
                 business_category: formData.business_category,
                 is_gst_registered: formData.is_gst_registered,
                 gstin: formData.is_gst_registered ? formData.gstin : null,
+                state_code: formData.is_gst_registered ? formData.state_code : null,
                 onboarding_completed: true,
                 updated_at: new Date(),
             };
@@ -86,8 +89,8 @@ const Onboarding = () => {
                                         key={cat}
                                         onClick={() => setFormData({ ...formData, business_category: cat })}
                                         className={`p-4 rounded-xl border-2 text-left transition-all flex items-center justify-between ${formData.business_category === cat
-                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                                                : 'border-slate-100 bg-white text-slate-600 hover:border-slate-200'
+                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                            : 'border-slate-100 bg-white text-slate-600 hover:border-slate-200'
                                             }`}
                                     >
                                         <span className="capitalize font-bold">{cat}</span>
@@ -124,11 +127,27 @@ const Onboarding = () => {
 
                         {formData.is_gst_registered && (
                             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">GSTIN Number</label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-bold text-slate-700">GSTIN Number</label>
+                                    {formData.state_code && (
+                                        <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                                            {getStateFromGSTIN(formData.gstin)}
+                                        </span>
+                                    )}
+                                </div>
                                 <input
                                     value={formData.gstin}
-                                    onChange={(e) => setFormData({ ...formData, gstin: e.target.value })}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toUpperCase();
+                                        const detectedState = getStateFromGSTIN(val);
+                                        setFormData({
+                                            ...formData,
+                                            gstin: val,
+                                            state_code: detectedState ? val.substring(0, 2) : ''
+                                        });
+                                    }}
                                     placeholder="22AAAAA0000A1Z5"
+                                    maxLength={15}
                                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono uppercase"
                                 />
                             </motion.div>

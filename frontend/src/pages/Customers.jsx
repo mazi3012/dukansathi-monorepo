@@ -11,7 +11,7 @@ const Customers = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '' });
+    const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstin: '' });
 
     const fetchCustomers = React.useCallback(async () => {
         try {
@@ -62,6 +62,7 @@ const Customers = () => {
                 phone: formData.phone,
                 email: formData.email,
                 address: formData.address,
+                gstin: formData.gstin,
                 total_spend: 0,
                 credit_balance: 0
             };
@@ -72,7 +73,7 @@ const Customers = () => {
 
             toast.success("Customer added successfully!");
             setIsAddModalOpen(false);
-            setFormData({ name: '', phone: '', email: '', address: '' });
+            setFormData({ name: '', phone: '', email: '', address: '', gstin: '' });
             fetchCustomers();
         } catch (err) {
             console.error("Error adding customer:", err);
@@ -235,46 +236,62 @@ const Customers = () => {
                     <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-auto">
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" onClick={() => setIsAddModalOpen(false)} />
                         <motion.div
-                            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-                            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                            className="bg-bg-main w-full max-w-lg h-[80vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="bg-bg-main w-full max-w-lg h-[85vh] sm:h-auto sm:rounded-[40px] rounded-t-[40px] p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
-                            <div className="flex justify-between items-center mb-10">
-                                <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main transition-colors tracking-tight">Create Identity</h2>
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest transition-colors">Digital Ledger Protocol v2</p>
+                            <div className="flex justify-between items-center mb-10 shrink-0">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                                        <User size={28} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">Create Identity</h2>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Digital Ledger Protocol v2</p>
+                                    </div>
                                 </div>
-                                <button onClick={() => setIsAddModalOpen(false)} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95">
+                                <button onClick={() => setIsAddModalOpen(false)} className="w-12 h-12 rounded-2xl bg-card-bg/80 border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
                                     <Plus className="rotate-45" size={24} />
                                 </button>
                             </div>
 
-                            <div className="space-y-6 overflow-y-auto pr-2 scrollbar-hide mb-8">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Full Name</label>
-                                    <input placeholder="Enter Client Name" className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-text-main" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                            <div className="space-y-8 overflow-y-auto pr-2 scrollbar-hide mb-8 flex-1">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">Full Name</label>
+                                    <input placeholder="Ex: John Matrix" className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Communication Channel</label>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-12 h-12 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted">
-                                            <Phone size={18} />
-                                        </div>
-                                        <input placeholder="+91 XXXXX XXXXX" className="flex-1 p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-text-main" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                <div className="space-y-3">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Communication Channel</label>
+                                    <div className="relative group">
+                                        <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-indigo-500 transition-colors" />
+                                        <input placeholder="+91 XXXXX XXXXX" className="w-full p-5 pl-14 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Physical Location</label>
-                                        <textarea placeholder="Client Address..." rows={3} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-text-main resize-none" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                <div className="grid grid-cols-1 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Physical Location</label>
+                                        <textarea placeholder="Client Primary Address..." rows={3} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 resize-none outline-none shadow-inner text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Identity [GSTIN]</label>
+                                        <input
+                                            placeholder="27AAAAA0000A1Z5"
+                                            maxLength={15}
+                                            className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main uppercase font-mono placeholder-text-muted/20 outline-none shadow-inner"
+                                            value={formData.gstin}
+                                            onChange={e => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                                        />
                                     </div>
                                 </div>
                             </div>
 
-                            <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest">
-                                Commit to Database
-                            </button>
+                            <div className="pt-8 border-t border-card-border/50 shrink-0">
+                                <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
+                                    Commit to Database
+                                    <ArrowUpRight size={20} strokeWidth={3} />
+                                </button>
+                            </div>
                         </motion.div>
                     </div>
                 )}
