@@ -14,6 +14,7 @@ import SystemSetup from './pages/SystemSetup';
 import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
+import { ChatProvider } from './contexts/ChatContext';
 
 function App() {
   // Ping backend to wake up Cloud Run instance (Cold Start Fix)
@@ -26,9 +27,11 @@ function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <AnimatedRoutes />
-    </BrowserRouter>
+    <ChatProvider>
+      <BrowserRouter>
+        <AnimatedRoutes />
+      </BrowserRouter>
+    </ChatProvider>
   );
 }
 
