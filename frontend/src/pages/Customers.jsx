@@ -158,7 +158,7 @@ const Customers = () => {
         }
     };
 
-    const filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredCustomers = (customers || []).filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
         <div className="pb-20 min-h-screen relative overflow-hidden">
@@ -247,7 +247,7 @@ const Customers = () => {
                                 <div className="flex items-start justify-between mb-6 relative z-10">
                                     <div className="flex gap-4 items-center">
                                         <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-black text-xl shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 uppercase">
-                                            {c.name[0]}
+                                            {c.name ? c.name[0] : '?'}
                                         </div>
                                         <div>
                                             <h3 className="font-heading font-black text-text-main text-lg truncate transition-colors group-hover:text-indigo-500">{c.name}</h3>

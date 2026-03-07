@@ -42,6 +42,13 @@ const CustomerDetails = () => {
         return codeMap[stateCode] || "";
     };
 
+    // Due Modal State
+    const [isDueModalOpen, setIsDueModalOpen] = useState(false);
+    const [dueType, setDueType] = useState('credit'); // 'credit' (add due) | 'payment' (receive money)
+    const [dueAmount, setDueAmount] = useState('');
+    const [dueNote, setDueNote] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+
     useEffect(() => {
         if (id) fetchData();
     }, [id]);

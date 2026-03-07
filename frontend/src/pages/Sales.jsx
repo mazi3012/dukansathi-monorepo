@@ -393,8 +393,8 @@ const Sales = () => {
                                             <h3 className="font-heading font-black text-text-main text-lg transition-colors group-hover:text-indigo-500">
                                                 {sale.customers?.name || "Anonymous Client"}
                                             </h3>
-                                            <span className={`px - 2.5 py - 1 rounded - lg text - [10px] font - black uppercase tracking - widest border transition - all ${sale.invoice_type === 'gst' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-text-muted/10 text-text-muted border-card-border'} `}>
-                                                {sale.invoice_type}
+                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${sale.invoice_type === 'gst' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-text-muted/10 text-text-muted border-card-border'}`}>
+                                                {sale.invoice_type === 'gst' ? 'GST' : 'Standard'}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -620,7 +620,7 @@ const Sales = () => {
                         >
                             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
                                 <h2 className="text-lg font-bold text-slate-800">
-                                    {receiptSale.invoice_type === 'gst' ? 'Tax Invoice' : 'Receipt'} Preview
+                                    {receiptSale.invoice_type === 'gst' ? 'Tax Invoice' : 'Bill of Supply'} Preview
                                 </h2>
                                 <div className="flex gap-2">
                                     <button

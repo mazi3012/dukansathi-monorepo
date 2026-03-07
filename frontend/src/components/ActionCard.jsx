@@ -124,7 +124,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <div className="flex items-center gap-2 text-white">
                         <FileText size={18} />
                         <span className="font-bold text-sm">
-                            {isGstShop ? "Draft Tax Invoice" : "Draft Receipt"}
+                            {isGstShop ? "Draft Tax Invoice" : "Draft Bill of Supply"}
                         </span>
                         {isEditing && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full animate-pulse tracking-wider">EDITING</span>}
                     </div>

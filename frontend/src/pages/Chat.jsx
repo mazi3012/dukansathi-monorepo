@@ -34,7 +34,9 @@ const ChatInvoiceCard = ({ msg }) => {
                     <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                         <FileSpreadsheet size={16} />
                     </div>
-                    <span className="font-heading font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">TAX INVOICE</span>
+                    <span className="font-heading font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">
+                        {msg.invoice_type === 'gst' ? "TAX INVOICE" : "BILL OF SUPPLY"}
+                    </span>
                 </div>
                 <div className="flex flex-col items-end">
                     <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Invoice No.</span>
@@ -597,63 +599,108 @@ const Chat = () => {
                     const doc = new jsPDF();
                     const isGst = sale.invoice_type === 'gst';
 
+                    // Helper for Number to Words
+                    const numberToWords = (num) => {
+                        const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+                        const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+                        const convert = (n) => {
+                            if (n === 0) return '';
+                            if (n < 20) return a[n];
+                            if (n < 100) return b[Math.floor(n / 10)] + ' ' + a[n % 10];
+                            if (n < 1000) return a[Math.floor(n / 100)] + 'hundred ' + convert(n % 100);
+                            if (n < 100000) return convert(Math.floor(n / 1000)) + 'thousand ' + convert(n % 1000);
+                            if (n < 10000000) return convert(Math.floor(n / 100000)) + 'lakh ' + convert(n % 100000);
+                            return convert(Math.floor(n / 10000000)) + 'crore ' + convert(n % 10000000);
+                        };
+
+                        const amountArr = parseFloat(num).toFixed(2).split('.');
+                        const whole = parseInt(amountArr[0]);
+                        const fraction = parseInt(amountArr[1]);
+
+                        let res = convert(whole) + 'Rupees ';
+                        if (fraction > 0) {
+                            res += 'and ' + convert(fraction) + 'Paise ';
+                        }
+                        return res.trim() + ' Only';
+                    };
+
                     // Header
-                    doc.setFontSize(22);
-                    doc.setTextColor(40, 40, 40);
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(24);
+                    doc.setTextColor(30, 41, 59); // slate-800
                     doc.text(businessProfile?.business_name || "My Shop", 14, 22);
 
-                    doc.setFontSize(10);
-                    doc.setTextColor(100, 100, 100);
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139); // slate-500
                     let yPos = 30;
-                    if (businessProfile?.address) { doc.text(businessProfile.address, 14, yPos); yPos += 5; }
+                    if (businessProfile?.business_address || businessProfile?.address) {
+                        doc.text(businessProfile.business_address || businessProfile.address, 14, yPos);
+                        yPos += 5;
+                    }
+                    doc.text(`${businessProfile?.city || ''}, ${businessProfile?.state_name || businessProfile?.state || ''} ${businessProfile?.pincode || ''}`, 14, yPos);
+                    yPos += 5;
                     if (businessProfile?.phone) { doc.text(`Phone: ${businessProfile.phone}`, 14, yPos); yPos += 5; }
                     if (isGst && businessProfile?.gstin) {
                         doc.setFont(undefined, 'bold');
+                        doc.setTextColor(79, 70, 229); // indigo-600
                         doc.text(`GSTIN: ${businessProfile.gstin}`, 14, yPos); yPos += 5;
                         doc.setFont(undefined, 'normal');
+                        doc.setTextColor(100, 116, 139);
                     }
 
                     // Invoice Meta
-                    doc.setFontSize(16);
-                    doc.setTextColor(40, 40, 40);
-                    doc.text(isGst ? "TAX INVOICE" : "RECEIPT", 140, 22);
+                    doc.setFontSize(18);
+                    doc.setTextColor(79, 70, 229);
+                    doc.text(isGst ? "TAX INVOICE" : "BILL OF SUPPLY", 200, 22, { align: 'right' });
                     doc.setFontSize(10);
-                    doc.setTextColor(100, 100, 100);
-                    doc.text(`Invoice #: ${sale.id}`, 140, 30);
-                    doc.text(`Date: ${new Date(sale.created_at).toLocaleDateString()}`, 140, 35);
+                    doc.setTextColor(148, 163, 184); // slate-400
+                    doc.text(`Document ID: #${sale.id}`, 200, 30, { align: 'right' });
+                    doc.text(`Date: ${new Date(sale.created_at).toLocaleDateString('en-IN')}`, 200, 36, { align: 'right' });
+                    if (isGst) {
+                        const placeOfSupply = actionData.customer_state || sale.customers?.state || businessProfile?.state_name || 'Local';
+                        doc.text(`Place of Supply: ${placeOfSupply}`, 200, 42, { align: 'right' });
+                    }
 
                     // Bill To
-                    yPos += 5;
+                    yPos = 55;
+                    doc.setFontSize(10);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text("BILLED TO", 14, yPos);
+                    yPos += 6;
                     doc.setFontSize(12);
-                    doc.setTextColor(40, 40, 40);
-                    doc.text("Bill To:", 14, yPos);
-                    yPos += 5;
-                    doc.setFontSize(11);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'bold');
                     doc.text(actionData.customer_name || "Walk-in Customer", 14, yPos);
-                    yPos += 8;
+                    yPos += 5;
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.setTextColor(71, 85, 105);
+                    if (actionData.customer_phone) { doc.text(actionData.customer_phone, 14, yPos); yPos += 5; }
+                    if (isGst && actionData.gstin) { doc.text(`GSTIN: ${actionData.gstin}`, 14, yPos); yPos += 5; }
 
                     // Table
                     const tableHead = isGst
-                        ? [['#', 'Item', 'HSN', 'Qty', 'Rate', 'Taxable', 'CGST', 'SGST', 'Total']]
-                        : [['#', 'Item', 'Qty', 'Rate', 'Total']];
+                        ? [['#', 'Description of Goods', 'HSN/SAC', 'Qty', 'Unit Rate', 'Taxable', 'GST Amt', 'Total']]
+                        : [['#', 'Description of Goods', 'Qty', 'Unit Rate', 'Total']];
 
                     const tableBody = enrichedItems.map((item, idx) => {
                         const qty = parseFloat(item.quantity) || 0;
-                        const baseRate = item.base_rate || 0;
-                        const taxable = item.actual_subtotal || 0;
+                        const baseRate = item.base_rate || item.price || 0;
+                        const taxable = item.actual_subtotal || (qty * baseRate);
                         const totalTaxAmt = item.total_item_tax || 0;
-                        const total = item.line_total || 0;
+                        const total = item.line_total || (taxable + totalTaxAmt);
 
                         if (isGst) {
                             return [
                                 idx + 1,
                                 item.product_name || item.name || "Item",
-                                item.hsn_code || '-',
+                                item.hsn_code || '---',
                                 qty,
                                 baseRate.toFixed(2),
                                 taxable.toFixed(2),
-                                (totalTaxAmt / 2).toFixed(2),
-                                (totalTaxAmt / 2).toFixed(2),
+                                totalTaxAmt.toFixed(2),
                                 total.toFixed(2)
                             ];
                         } else {
@@ -661,54 +708,98 @@ const Chat = () => {
                                 idx + 1,
                                 item.product_name || item.name || "Item",
                                 qty,
-                                rate.toFixed(2),
+                                baseRate.toFixed(2),
                                 total.toFixed(2)
                             ];
                         }
                     });
 
                     autoTable(doc, {
-                        startY: yPos,
+                        startY: yPos + 5,
                         head: tableHead,
                         body: tableBody,
-                        theme: 'grid',
-                        headStyles: { fillColor: [79, 70, 229] } // Indigo 600
+                        theme: 'striped',
+                        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+                        bodyStyles: { textColor: [30, 41, 59] },
+                        alternateRowStyles: { fillColor: [248, 250, 252] },
+                        margin: { left: 14, right: 14 }
                     });
 
                     // Totals
-                    const finalY = doc.lastAutoTable.finalY + 10;
-                    doc.setFontSize(11);
-                    doc.setTextColor(40, 40, 40);
+                    let finalY = doc.lastAutoTable.finalY + 15;
 
-                    if (isGst) {
-                        doc.text(`Taxable Amount: Rs. ${totalSubtotal.toFixed(2)}`, 140, finalY);
-                        doc.text(`Total Tax: Rs. ${totalTax.toFixed(2)}`, 140, finalY + 6);
-                        doc.setFontSize(14);
-                        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY + 14);
+                    // Left Side: In Words & Bank Info
+                    doc.setFontSize(8);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text("AMOUNT IN WORDS", 14, finalY);
+                    doc.setFontSize(9);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(numberToWords(sale.total_amount), 14, finalY + 5, { maxWidth: 100 });
 
-                        doc.setFontSize(11);
-                        doc.text(`Payment Status: ${status.toUpperCase()}`, 140, finalY + 22);
-                        doc.text(`Amount Paid: Rs. ${amtPaid.toFixed(2)}`, 140, finalY + 28);
-                        if (balanceDue > 0) {
-                            doc.setTextColor(200, 0, 0);
-                            doc.text(`Balance Due: Rs. ${balanceDue.toFixed(2)}`, 140, finalY + 34);
-                        }
-                    } else {
-                        doc.setFontSize(14);
-                        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY);
-
-                        doc.setFontSize(11);
-                        doc.text(`Payment Status: ${status.toUpperCase()}`, 140, finalY + 8);
-                        doc.text(`Amount Paid: Rs. ${amtPaid.toFixed(2)}`, 140, finalY + 14);
-                        if (balanceDue > 0) {
-                            doc.setTextColor(200, 0, 0);
-                            doc.text(`Balance Due: Rs. ${balanceDue.toFixed(2)}`, 140, finalY + 20);
-                        }
+                    if (businessProfile?.bank_name) {
+                        doc.setFontSize(8);
+                        doc.setTextColor(148, 163, 184);
+                        doc.text("BANK DETAILS", 14, finalY + 20);
+                        doc.setFontSize(9);
+                        doc.setTextColor(71, 85, 105);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(`Bank: ${businessProfile.bank_name}`, 14, finalY + 25);
+                        doc.text(`A/c No: ${businessProfile.bank_account_no}`, 14, finalY + 30);
+                        doc.text(`IFSC: ${businessProfile.bank_ifsc}`, 14, finalY + 35);
                     }
 
+                    // Right Side: Summary
                     doc.setFontSize(10);
+                    doc.setTextColor(71, 85, 105);
+                    const rightAlignX = 200;
+
+                    doc.text(`Net Value:`, 140, finalY);
+                    doc.text(`₹${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
+
+                    if (isGst) {
+                        doc.text(`Total Tax:`, 140, finalY + 6);
+                        doc.text(`₹${totalTax.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                    }
+
+                    doc.setFontSize(14);
+                    doc.setTextColor(79, 70, 229);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Grand Total:`, 140, finalY + 15);
+                    doc.text(`₹${grandTotal.toFixed(2)}`, rightAlignX, finalY + 15, { align: 'right' });
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Amount Paid:`, 140, finalY + 24);
+                    doc.text(`₹${amtPaid.toFixed(2)}`, rightAlignX, finalY + 24, { align: 'right' });
+
+                    if (balanceDue > 0) {
+                        doc.setTextColor(220, 38, 38);
+                        doc.text(`Balance Due:`, 140, finalY + 30);
+                        doc.text(`₹${balanceDue.toFixed(2)}`, rightAlignX, finalY + 30, { align: 'right' });
+                    }
+
+                    // QR Code (Placeholder Image or Vector)
+                    // In a real browser env, we'd use canvas.toDataURL()
+                    // Here we'll add a stylized box with "Scan to Verify" for now, or use a tiny QR if possible.
+                    doc.setDrawColor(226, 232, 240);
+                    doc.rect(160, finalY + 40, 30, 30);
+                    doc.setFontSize(6);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text("SECURE QR", 175, finalY + 55, { align: 'center' });
+                    doc.text("VERIFIED", 175, finalY + 58, { align: 'center' });
+
+                    // Footer / Signature
+                    doc.setFontSize(10);
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(`For ${businessProfile?.business_name || "Authorized Firm"}`, 200, 260, { align: 'right' });
+                    doc.line(140, 275, 200, 275);
+                    doc.setFontSize(8);
+                    doc.text("Authorized Signatory", 200, 280, { align: 'right' });
+
                     doc.setTextColor(150, 150, 150);
-                    doc.text("Thank you for your business!", 105, 280, { align: "center" });
+                    doc.text("This is a computer generated invoice.", 14, 280);
 
                     // Output to blob
                     const pdfBlob = doc.output('blob');

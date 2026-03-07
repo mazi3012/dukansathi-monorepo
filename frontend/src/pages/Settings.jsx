@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,7 +29,7 @@ const MODEL_OPTIONS = [
 
 const Settings = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'ai'); // 'ai' | 'voice' | 'branding' | 'system'
+    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'business'); // 'ai' | 'voice' | 'business' | 'system'
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
     const [selectedModel, setSelectedModel] = useState('llama-4-scout-17b-16e-instruct-maas');
@@ -45,6 +45,22 @@ const Settings = () => {
     const [localModels, setLocalModels] = useState([]);
     const [isInstalling, setIsInstalling] = useState(null);
     const [ollamaStatus, setOllamaStatus] = useState('checking');
+    const [businessData, setBusinessData] = useState({
+        business_name: '',
+        owner_name: '',
+        business_address: '',
+        city: '',
+        state_name: '',
+        pincode: '',
+        gstin: '',
+        whatsapp_number: '',
+        is_gst_registered: false,
+        bank_name: '',
+        bank_account_no: '',
+        bank_ifsc: '',
+        upi_id: '',
+        show_qr_on_invoice: true
+    });
 
     let rawApiBase = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
     const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
@@ -73,7 +89,7 @@ const Settings = () => {
                     setUser(session.user);
                     const { data } = await supabase
                         .from('profiles')
-                        .select('voice_id, voice_speed, model_id')
+                        .select('*')
                         .eq('id', session.user.id)
                         .single();
 
@@ -93,6 +109,24 @@ const Settings = () => {
                                 localStorage.setItem('voice_speed', data.voice_speed);
                             }
                         }
+
+                        // Load Business Data
+                        setBusinessData({
+                            business_name: data.business_name || '',
+                            owner_name: data.owner_name || '',
+                            business_address: data.business_address || '',
+                            city: data.city || '',
+                            state_name: data.state_name || '',
+                            pincode: data.pincode || '',
+                            gstin: data.gstin || '',
+                            whatsapp_number: data.whatsapp_number || '',
+                            is_gst_registered: data.is_gst_registered || false,
+                            bank_name: data.bank_name || '',
+                            bank_account_no: data.bank_account_no || '',
+                            bank_ifsc: data.bank_ifsc || '',
+                            upi_id: data.upi_id || '',
+                            show_qr_on_invoice: data.show_qr_on_invoice !== false
+                        });
                     }
                 }
 
@@ -245,7 +279,8 @@ const Settings = () => {
                         voice_id: selectedVoice,
                         voice_speed: speedStr,
                         model_id: selectedModel,
-                        updated_at: new Date().toISOString()
+                        updated_at: new Date().toISOString(),
+                        ...businessData
                     });
 
                 if (error) console.warn("Cloud save warning:", error.message);
@@ -341,12 +376,185 @@ const Settings = () => {
             </header>
 
             <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
+                <TabButton id="business" icon={Briefcase} label="Business Profile" />
                 <TabButton id="ai" icon={Brain} label="Intelligence" className="hidden md:flex" />
                 <TabButton id="voice" icon={Volume2} label="Neural Voice" />
                 <TabButton id="system" icon={Cpu} label="Core System" />
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24 relative z-0">
+
+                {activeTab === 'business' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        {/* Business Core Info */}
+                        <section className="glass-card rounded-[32px] p-8 border-indigo-500/10">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
+                                    <Building2 size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Identity Profile</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Core Business Credentials</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Enterprise Name</label>
+                                    <input
+                                        placeholder="Ex: Matrix Corp"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        value={businessData.business_name}
+                                        onChange={e => { setBusinessData({ ...businessData, business_name: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Proprietor Name</label>
+                                    <input
+                                        placeholder="Ex: John Matrix"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        value={businessData.owner_name}
+                                        onChange={e => { setBusinessData({ ...businessData, owner_name: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Comm Channel [WhatsApp]</label>
+                                    <input
+                                        placeholder="+91 XXXXX XXXXX"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        value={businessData.whatsapp_number}
+                                        onChange={e => { setBusinessData({ ...businessData, whatsapp_number: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Tax Identity [GSTIN]</label>
+                                    <input
+                                        placeholder="27AAAAA0000A1Z5"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main uppercase"
+                                        value={businessData.gstin}
+                                        onChange={e => { setBusinessData({ ...businessData, gstin: e.target.value.toUpperCase() }); markChange(); }}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Location Details */}
+                        <section className="glass-card rounded-[32px] p-8 border-purple-500/10">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-xl shadow-purple-500/5 transition-transform hover:scale-110">
+                                    <MapPin size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Geo Protocol</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Physical Location Nodes</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Primary Address</label>
+                                    <textarea
+                                        placeholder="Full business office address..."
+                                        rows={3}
+                                        className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main resize-none"
+                                        value={businessData.business_address}
+                                        onChange={e => { setBusinessData({ ...businessData, business_address: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">City</label>
+                                        <input
+                                            placeholder="Ex: Mumbai"
+                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            value={businessData.city}
+                                            onChange={e => { setBusinessData({ ...businessData, city: e.target.value }); markChange(); }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">State / UT</label>
+                                        <input
+                                            placeholder="Ex: Maharashtra"
+                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            value={businessData.state_name}
+                                            onChange={e => { setBusinessData({ ...businessData, state_name: e.target.value }); markChange(); }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Pincode</label>
+                                        <input
+                                            placeholder="XXXXXX"
+                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            value={businessData.pincode}
+                                            onChange={e => { setBusinessData({ ...businessData, pincode: e.target.value }); markChange(); }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Financial Routing */}
+                        <section className="glass-card rounded-[32px] p-8 border-emerald-500/10">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shadow-xl shadow-emerald-500/5 transition-transform hover:scale-110">
+                                    <CreditCard size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Fiscal Nodes</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Bank Settlement Details</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Bank Designation</label>
+                                    <input
+                                        placeholder="Ex: HDFC Bank"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
+                                        value={businessData.bank_name}
+                                        onChange={e => { setBusinessData({ ...businessData, bank_name: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Account Protocol</label>
+                                    <input
+                                        placeholder="Acc No: XXXXXXXX"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono"
+                                        value={businessData.bank_account_no}
+                                        onChange={e => { setBusinessData({ ...businessData, bank_account_no: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Switch Code [IFSC]</label>
+                                    <input
+                                        placeholder="HDFC000XXXX"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono uppercase"
+                                        value={businessData.bank_ifsc}
+                                        onChange={e => { setBusinessData({ ...businessData, bank_ifsc: e.target.value.toUpperCase() }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Unified Payments Interface [UPI ID]</label>
+                                    <input
+                                        placeholder="example@upi"
+                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
+                                        value={businessData.upi_id}
+                                        onChange={e => { setBusinessData({ ...businessData, upi_id: e.target.value }); markChange(); }}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-4 pt-6">
+                                    <button
+                                        onClick={() => { setBusinessData({ ...businessData, show_qr_on_invoice: !businessData.show_qr_on_invoice }); markChange(); }}
+                                        className={`w-12 h-6 rounded-full transition-all relative ${businessData.show_qr_on_invoice ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${businessData.show_qr_on_invoice ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                    <span className="text-xs font-black text-text-main uppercase tracking-tighter">Show QR Code on Invoice</span>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                )}
 
                 {activeTab === 'system' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
