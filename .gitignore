@@ -117,6 +117,7 @@ ai-bot/verify_*.py
 
 # ── Custom / Accidental Files ─────────────
 genkit-ide-models/
+.genkit/
 *.jsx.txt
 frontend/theme_*.py
 migrations_part*.sql

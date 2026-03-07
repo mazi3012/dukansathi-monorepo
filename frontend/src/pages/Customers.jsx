@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users, Trash2 } from 'lucide-react';
+import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users, Trash2, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
