@@ -598,9 +598,25 @@ const Chat = () => {
                         doc.text(`Total Tax: Rs. ${totalTax.toFixed(2)}`, 140, finalY + 6);
                         doc.setFontSize(14);
                         doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY + 14);
+
+                        doc.setFontSize(11);
+                        doc.text(`Payment Status: ${status.toUpperCase()}`, 140, finalY + 22);
+                        doc.text(`Amount Paid: Rs. ${amtPaid.toFixed(2)}`, 140, finalY + 28);
+                        if (balanceDue > 0) {
+                            doc.setTextColor(200, 0, 0);
+                            doc.text(`Balance Due: Rs. ${balanceDue.toFixed(2)}`, 140, finalY + 34);
+                        }
                     } else {
                         doc.setFontSize(14);
                         doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY);
+
+                        doc.setFontSize(11);
+                        doc.text(`Payment Status: ${status.toUpperCase()}`, 140, finalY + 8);
+                        doc.text(`Amount Paid: Rs. ${amtPaid.toFixed(2)}`, 140, finalY + 14);
+                        if (balanceDue > 0) {
+                            doc.setTextColor(200, 0, 0);
+                            doc.text(`Balance Due: Rs. ${balanceDue.toFixed(2)}`, 140, finalY + 20);
+                        }
                     }
 
                     doc.setFontSize(10);

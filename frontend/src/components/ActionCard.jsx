@@ -97,8 +97,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             subtotal: subtotal,
             total_tax_amount: totalTaxAmount,
             total_amount: grandTotal,
-            amount_paid: grandTotal, // Assume fully paid for draft preview context
-            balance_due: 0,
+            payment_status: paymentStatus,
+            amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0),
+            balance_due: grandTotal - (parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)),
             discount_amount: 0
         };
 

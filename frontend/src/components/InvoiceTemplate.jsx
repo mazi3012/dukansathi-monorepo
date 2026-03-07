@@ -63,6 +63,16 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
                     <div className="text-right">
                         <p className="font-mono font-bold text-base sm:text-lg text-slate-700">#{sale.id}</p>
                         <p className="text-[10px] sm:text-sm text-slate-500 mt-0 sm:mt-1">Date: {formatDate(sale.created_at)}</p>
+                        <div className="mt-2 text-right">
+                            {sale.payment_status === 'paid' && (
+                                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider">Paid</span>
+                            )}
+                            {(sale.payment_status === 'partial' || (sale.payment_status !== 'paid' && sale.balance_due > 0)) && (
+                                <span className={`${sale.amount_paid > 0 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'} px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider`}>
+                                    {sale.amount_paid > 0 ? 'Partial' : 'Due'}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
