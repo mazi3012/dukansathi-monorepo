@@ -40,6 +40,7 @@ const Settings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [user, setUser] = useState(null);
+    const [aiPreference, setAiPreference] = useState(localStorage.getItem('ai_preference') || 'cloud'); // 'cloud', 'local', or 'auto'
     const [playingVoice, setPlayingVoice] = useState(null); // ID of currently playing preview
 
     // Local AI States
@@ -111,6 +112,10 @@ const Settings = () => {
                                 setVoiceSpeed(speed);
                                 localStorage.setItem('voice_speed', data.voice_speed);
                             }
+                        }
+                        if (data.ai_preference) {
+                            setAiPreference(data.ai_preference);
+                            localStorage.setItem('ai_preference', data.ai_preference);
                         }
 
                         // Load Business Data
@@ -270,6 +275,7 @@ const Settings = () => {
             localStorage.setItem('voice_id', selectedVoice);
             localStorage.setItem('voice_speed', speedStr);
             localStorage.setItem('model_id', selectedModel);
+            localStorage.setItem('ai_preference', aiPreference);
 
             window.dispatchEvent(new Event('settings-changed'));
             window.dispatchEvent(new Event('storage'));
@@ -282,6 +288,7 @@ const Settings = () => {
                         voice_id: selectedVoice,
                         voice_speed: speedStr,
                         model_id: selectedModel,
+                        ai_preference: aiPreference,
                         updated_at: new Date().toISOString(),
                         ...businessData
                     });
@@ -679,6 +686,41 @@ const Settings = () => {
                                 </div>
                                 <p className="text-sm text-text-muted mt-1 transition-colors">Choose between blazing fast Cloud AI or private Offline Models.</p>
                             </div>
+
+                            <div className="mb-8">
+                                <label className="text-xs font-black text-text-muted uppercase tracking-widest mb-3 block">AI Routing Preference</label>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        onClick={() => { setAiPreference('cloud'); markChange(); }}
+                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'cloud' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
+                                    >
+                                        Force Cloud AI
+                                    </button>
+                                    <button
+                                        onClick={() => { setAiPreference('local'); markChange(); }}
+                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'local' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
+                                    >
+                                        Force Local / Offline
+                                    </button>
+                                    <button
+                                        onClick={() => { setAiPreference('auto'); markChange(); }}
+                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'auto' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
+                                    >
+                                        Auto (Smart Match)
+                                    </button>
+                                </div>
+                                <p className="text-xs text-text-muted mt-2">
+                                    {aiPreference === 'cloud' && "All requests will use Cloud models directly, ignoring your device type. Requires internet."}
+                                    {aiPreference === 'local' && "All requests will execute on your local physical machine. Private and entirely offline."}
+                                    {aiPreference === 'auto' && "Mobile and Web apps will use Cloud AI. Desktop apps will use your selected Local model when possible."}
+                                </p>
+                            </div>
+
+                            <h3 className="text-xs font-black text-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <div className="h-px bg-card-border flex-1" />
+                                Model Selection
+                                <div className="h-px bg-card-border flex-1" />
+                            </h3>
 
                             {ollamaStatus === 'offline' ? (
                                 <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-start gap-4">

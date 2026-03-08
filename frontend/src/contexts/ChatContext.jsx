@@ -302,20 +302,32 @@ export const ChatProvider = ({ children }) => {
         const mobile = isMobile();
         const pwa = isPWA();
         const isLocalModel = model.includes(':');
+        const aiPreference = localStorage.getItem('ai_preference') || 'cloud';
 
-        // Priority Fix: If Online AND (Mobile OR PWA), ALWAYS use Cloud (Web AI) unless user explicitly chose a local model
-        // Actually, user wants PWA and Mobile to use Cloud AI by default until local is selected.
-        let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+        let activeMode;
         let activeModel = model;
 
-        // Force Cloud AI for Mobile/PWA when online to prevent Ollama errors
-        if (!isOffline && (mobile || pwa)) {
+        if (aiPreference === 'cloud') {
             activeMode = 'cloud';
-            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-        }
-
-        if (activeMode === 'local' && !isLocalModel) {
-            activeModel = 'phi3:mini';
+            if (isLocalModel) {
+                // Default to standard cloud model if they had a local one selected
+                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+            }
+        } else if (aiPreference === 'local') {
+            activeMode = 'local';
+            if (!isLocalModel) {
+                activeModel = 'phi3:mini'; // Fallback to lightest local model
+            }
+        } else {
+            // "auto" behavior: Default to cloud for mobile/PWA if online
+            activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+            if (!isOffline && (mobile || pwa)) {
+                activeMode = 'cloud';
+                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+            }
+            if (activeMode === 'local' && !isLocalModel) {
+                activeModel = 'phi3:mini';
+            }
         }
 
         if (activeMode === 'local') {
@@ -384,18 +396,30 @@ export const ChatProvider = ({ children }) => {
                         const mobile = isMobile();
                         const pwa = isPWA();
                         const isLocalModel = model.includes(':');
+                        const aiPreference = localStorage.getItem('ai_preference') || 'cloud';
 
-                        let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+                        let activeMode;
                         let activeModel = model;
 
-                        // Force Cloud AI for Mobile/PWA when online
-                        if (!isOffline && (mobile || pwa)) {
+                        if (aiPreference === 'cloud') {
                             activeMode = 'cloud';
-                            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-                        }
-
-                        if (activeMode === 'local' && !isLocalModel) {
-                            activeModel = 'phi3:mini';
+                            if (isLocalModel) {
+                                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+                            }
+                        } else if (aiPreference === 'local') {
+                            activeMode = 'local';
+                            if (!isLocalModel) {
+                                activeModel = 'phi3:mini';
+                            }
+                        } else {
+                            activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+                            if (!isOffline && (mobile || pwa)) {
+                                activeMode = 'cloud';
+                                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+                            }
+                            if (activeMode === 'local' && !isLocalModel) {
+                                activeModel = 'phi3:mini';
+                            }
                         }
 
                         const payload = {
