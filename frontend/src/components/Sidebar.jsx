@@ -33,19 +33,19 @@ const Sidebar = () => {
         };
         fetchUser();
 
-        const storedSyncState = localStorage.getItem('auto_sync_enabled');
+        const storedSyncState = localStorage.getItem('sync_enabled');
         if (storedSyncState !== null) {
             setIsSyncing(storedSyncState === 'true');
         } else {
             // Default to true
-            localStorage.setItem('auto_sync_enabled', 'true');
+            localStorage.setItem('sync_enabled', 'true');
         }
     }, []);
 
     const handleSyncToggle = () => {
         const newState = !isSyncing;
         setIsSyncing(newState);
-        localStorage.setItem('auto_sync_enabled', String(newState));
+        localStorage.setItem('sync_enabled', String(newState));
         // You can dispatch a custom event here if other components need to react instantly to the toggle change
         window.dispatchEvent(new CustomEvent('sync-toggle-changed', { detail: { isSyncing: newState } }));
     };

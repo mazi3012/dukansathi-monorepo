@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
+import { localAgent } from '../lib/ai/localAgent';
 
 export const ChatContext = createContext();
 
@@ -266,8 +267,25 @@ export const ChatProvider = ({ children }) => {
         const { supabase } = await import('../lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
 
-        const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
-        const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
+        const activeModel = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'phi3:mini' : model;
+        const activeMode = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'local' : 'cloud';
+
+        if (activeMode === 'local') {
+            setMessages(prev => [...prev, { type: 'user', text }]);
+            try {
+                const response = await localAgent.process(text, messages, activeModel);
+                setIsThinking(false);
+                setMessages(prev => [...prev, { type: 'ai', text: response }]);
+                speakNative(response);
+            } catch (err) {
+                console.error("Local AI Error:", err);
+                setIsThinking(false);
+                const errMsg = "Ollama is not reachable. Please ensure Ollama is running locally.";
+                setMessages(prev => [...prev, { type: 'ai', text: errMsg }]);
+                speakNative(errMsg);
+            }
+            return;
+        }
 
         const payload = {
             type: 'text',
@@ -314,8 +332,8 @@ export const ChatProvider = ({ children }) => {
                         const { supabase } = await import('../lib/supabase');
                         const { data: { session } } = await supabase.auth.getSession();
 
-                        const activeModel = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'phi3:mini' : model;
-                        const activeMode = (!navigator.onLine || localStorage.getItem('auto_sync_enabled') === 'false') ? 'local' : 'cloud';
+                        const activeModel = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'phi3:mini' : model;
+                        const activeMode = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'local' : 'cloud';
 
                         const payload = {
                             type: 'voice',

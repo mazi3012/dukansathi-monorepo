@@ -11,6 +11,7 @@ const SystemSetup = () => {
     // Step 1: Hardware & Ollama
     const [hardware, setHardware] = useState(null);
     const [ollamaReady, setOllamaReady] = useState(false);
+    const [ollamaLocalFound, setOllamaLocalFound] = useState(false);
     const [isCheckingOllama, setIsCheckingOllama] = useState(false);
 
     // Step 2: Config
@@ -71,22 +72,52 @@ const SystemSetup = () => {
         }
     };
 
+    const checkOllamaLocal = async () => {
+        try {
+            console.log("🚀 Checking local Ollama at: http://localhost:11434/api/tags");
+            const res = await fetch("http://localhost:11434/api/tags", { mode: 'cors' });
+            if (res.ok) {
+                console.log("✅ Local Ollama detected!");
+                setOllamaLocalFound(true);
+                return true;
+            }
+        } catch (err) {
+            console.warn("⚠️ Local Ollama not reachable directly via CORS.");
+        }
+        setOllamaLocalFound(false);
+        return false;
+    };
+
     const checkOllama = async () => {
         setIsCheckingOllama(true);
         try {
+            // First check via backend
             console.log("🚀 Checking Ollama at:", `${API_URL}/api/setup/ollama-check`);
             const res = await fetch(`${API_URL}/api/setup/ollama-check`);
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            const data = await res.json();
-            console.log("✅ Ollama status response:", data);
-            setOllamaReady(data.is_running);
-            if (!data.is_running) {
-                console.warn("⚠️ Backend reports Ollama not reachable.");
+            const data = res.ok ? await res.json() : { is_running: false };
+
+            let isReady = data.is_running;
+
+            // If backend check fails (likely remote backend), try local check
+            if (!isReady) {
+                console.log("Backend check failed, trying local direct check...");
+                isReady = await checkOllamaLocal();
+            } else {
+                setOllamaLocalFound(true);
+            }
+
+            console.log("✅ Final Ollama status:", isReady);
+            setOllamaReady(isReady);
+
+            if (!isReady) {
+                toast.error("Ollama not detected! Ensure it is running locally.");
             }
         } catch (err) {
             console.error("❌ Ollama check failed:", err);
-            setOllamaReady(false);
-            toast.error("Ollama Check Failed: " + err.message);
+            // Final fallback to local
+            const localFound = await checkOllamaLocal();
+            setOllamaReady(localFound);
+            if (!localFound) toast.error("Ollama Check Failed: " + err.message);
         } finally {
             setIsCheckingOllama(false);
         }
@@ -253,24 +284,32 @@ const SystemSetup = () => {
                                         </div>
                                     )}
 
-                                    {/* Ollama Status */}
                                     <div className={`p-6 rounded-3xl border transition-all ${ollamaReady ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500' : 'bg-amber-500/5 border-amber-500/20 text-amber-500'}`}>
                                         <div className="flex items-start gap-4">
-                                            {ollamaReady ? <CheckCircle2 className="mt-1" size={24} /> : <AlertTriangle className="mt-1" size={24} />}
+                                            {ollamaReady ? <Check size={24} className="mt-1" /> : <AlertTriangle className="mt-1" size={24} />}
                                             <div className="flex-1">
                                                 <div className="font-black uppercase tracking-tight flex items-center justify-between">
                                                     <span>Ollama Engine: {ollamaReady ? "Bridged" : "Not Detected"}</span>
-                                                    {!ollamaReady && <button onClick={checkOllama} className="text-[9px] underline uppercase tracking-widest">Re-Scan</button>}
+                                                    <button onClick={checkOllama} className="text-[9px] underline uppercase tracking-widest disabled:opacity-50" disabled={isCheckingOllama}>
+                                                        {isCheckingOllama ? "Checking..." : "Re-Scan"}
+                                                    </button>
                                                 </div>
                                                 <div className="text-[11px] font-bold opacity-80 mt-2 leading-relaxed">
                                                     {ollamaReady
-                                                        ? `Optimal Model for your hardware: ${hardware.recommended_model}`
-                                                        : "Ollama is the core neural runtime for local AI. Please install it from ollama.com and ensure the service is active."}
+                                                        ? ollamaLocalFound
+                                                            ? `Optimal Model for your hardware: ${hardware.recommended_model}`
+                                                            : `Remote Backend active. Local Ollama detected via direct bridge.`
+                                                        : "Ollama is the core neural runtime for local AI. Please install it from ollama.com, set OLLAMA_ORIGINS=\"*\" (if using cloud backend), and ensure the service is active."}
                                                 </div>
                                                 {!ollamaReady && (
-                                                    <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-block mt-4 px-6 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all">
-                                                        Deploy Ollama Runtime
-                                                    </a>
+                                                    <div className="flex flex-col gap-3 mt-4">
+                                                        <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-block px-6 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-amber-500 hover:text-white transition-all">
+                                                            Deploy Ollama Runtime
+                                                        </a>
+                                                        <p className="text-[9px] font-black opacity-60">
+                                                            PRO TIP: If backend is remote, run: <code className="bg-black/20 p-1 rounded">set OLLAMA_ORIGINS="*"</code> before starting Ollama.
+                                                        </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

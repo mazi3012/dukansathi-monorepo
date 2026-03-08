@@ -25,8 +25,12 @@ import io
 import uuid
 import threading
 import tempfile
+import mimetypes
 from datetime import datetime, timedelta, timezone
 from PIL import Image
+
+# Ensure WASM MIME type is registered for production environments (Cloud Run/Vercel)
+mimetypes.add_type('application/wasm', '.wasm')
 
 # Load environment variables FIRST
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))

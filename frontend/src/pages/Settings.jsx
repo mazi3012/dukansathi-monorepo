@@ -650,40 +650,6 @@ const Settings = () => {
                             </div>
                         </section>
 
-                        {/* Synchronization Protocol */}
-                        <section className="glass-card rounded-[32px] p-8 border-amber-500/10 bg-amber-500/[0.01]">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5 transition-transform hover:scale-110">
-                                        <RefreshCw size={28} />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black font-heading text-text-main tracking-tight transition-colors">Neural Sync Protocol</h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Cloud Synchronization Control</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <button
-                                        onClick={() => {
-                                            const newVal = !businessData.sync_enabled;
-                                            setBusinessData({ ...businessData, sync_enabled: newVal });
-                                            localStorage.setItem('sync_enabled', newVal.toString());
-                                            markChange();
-                                        }}
-                                        className={`w-14 h-7 rounded-full transition-all relative ${businessData.sync_enabled ? 'bg-amber-500' : 'bg-slate-300'}`}
-                                    >
-                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all shadow-md ${businessData.sync_enabled ? 'left-8' : 'left-1'}`} />
-                                    </button>
-                                    <span className="text-sm font-black text-text-main uppercase tracking-tighter">
-                                        {businessData.sync_enabled ? 'Sync Active' : 'Offline Only'}
-                                    </span>
-                                </div>
-                            </div>
-                            <p className="mt-4 text-xs text-text-muted leading-relaxed">
-                                When enabled, your local SQLite data will automatically synchronize with Supabase Cloud whenever an internet connection is available.
-                                <span className="text-amber-500 font-bold ml-1">Premium Feature: Last-Write-Wins Conflict Resolution Active.</span>
-                            </p>
-                        </section>
 
                         <div className="text-center text-xs text-text-muted py-6">
                             <p className="font-bold">Dukan Sathi v1.2 Premium</p>
