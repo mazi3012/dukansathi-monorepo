@@ -68,7 +68,7 @@ const Landing = () => {
                     </motion.h1>
 
                     <motion.p variants={itemVariants} className="text-slate-400 text-lg md:text-xl md:max-w-2xl mb-12 leading-relaxed">
-                        Voice-first inventory management for Indian shopkeepers. Powered by <span className="text-white font-semibold">Phi-3 Mini on AMD Ryzen™ AI</span> when offline, and <span className="text-indigo-400 font-semibold">Groq + Llama 4 Scout</span> when connected. No internet? No problem.
+                        Voice-first inventory management for Indian shopkeepers. Optimized for the <span className="text-indigo-400 font-semibold font-heading">Web AI Cloud</span> for lightning-fast responses on Mobile & PWA. Powered by <span className="text-indigo-400 font-semibold">Llama 4 Scout</span> online, and <span className="text-white font-semibold">Phi-3 Mini</span> offline.
                     </motion.p>
 
                     <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -86,10 +86,10 @@ const Landing = () => {
                                         alert("Install failed. Please ensure you are in a secure context (HTTPS/localhost) and the browser supports PWA installation.");
                                     }
                                 }}
-                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow"
+                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow active:scale-95"
                             >
                                 <Download className="inline mr-2" size={18} />
-                                Install App (Recommended)
+                                Get Cloud AI App
                             </button>
                         )}
 
@@ -209,9 +209,9 @@ const Landing = () => {
                             <Download size={40} />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-2xl font-bold mb-2">Install Dukan Sathi App</h3>
-                            <p className="text-slate-400 text-sm leading-relaxed">
-                                Get the best experience with **Web AI Power**, offline-first billing, and instant synchronization. One-click install from your browser.
+                            <h3 className="text-2xl font-bold mb-2">Experience Web AI Power</h3>
+                            <p className="text-slate-400 text-sm leading-relaxed text-balance">
+                                Install the Dukan Sathi PWA for the ultimate **Cloud-Accelerated** experience. Get instant responses with Llama 4 Scout, real-time sync, and a premium app-like feel on any device.
                             </p>
                         </div>
                         <button

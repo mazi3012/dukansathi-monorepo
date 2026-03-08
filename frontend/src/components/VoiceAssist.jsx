@@ -15,7 +15,9 @@ const VoiceAssist = () => {
     useEffect(() => {
         let wsUrl = import.meta.env.VITE_BACKEND_WS_URL;
         if (!wsUrl) {
-            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            // Smart dynamic fallback: Use current hostname but port 8000
+            const currentHost = window.location.hostname;
+            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || `http://${currentHost}:8000`;
             wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws/chat';
         }
         const socket = new WebSocket(wsUrl);
@@ -98,8 +100,20 @@ const VoiceAssist = () => {
             mediaRecorderRef.current.start();
             setIsListening(true);
         } catch (err) {
-            console.error("Mic access denied:", err);
-            alert("Please enable microphone access");
+            console.error("Mic access error:", err);
+            setIsListening(false);
+
+            let errMsg = "Please enable microphone access";
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost.";
+            } else if (err.name === 'NotAllowedError') {
+                errMsg = "Microphone permission blocked. Please enable it in browser settings.";
+            } else if (err.name === 'NotFoundError') {
+                errMsg = "No microphone detected on this device.";
+            }
+
+            setMessages(prev => [...prev, { type: 'ai', text: `❌ ${errMsg}` }]);
+            alert(errMsg);
         }
     };
 

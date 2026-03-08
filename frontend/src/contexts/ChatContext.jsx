@@ -203,7 +203,10 @@ export const ChatProvider = ({ children }) => {
 
         let wsUrl = import.meta.env.VITE_BACKEND_WS_URL;
         if (!wsUrl) {
-            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            // Smart dynamic fallback: Use current hostname but port 8000
+            // This allows mobile devices on same network to connect to the dev machine
+            const currentHost = window.location.hostname;
+            const apiUrl = import.meta.env.VITE_BACKEND_API_URL || `http://${currentHost}:8000`;
             wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws/chat';
         }
 
@@ -417,8 +420,24 @@ export const ChatProvider = ({ children }) => {
             mediaRecorderRef.current.start();
             setIsListening(true);
         } catch (e) {
+            console.error("Mic access error:", e);
             isRecordingRef.current = false;
             setIsListening(false);
+
+            let errMsg = "Microphone access denied.";
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost.";
+            } else if (e.name === 'NotAllowedError') {
+                errMsg = "Microphone permission blocked. Please enable it in browser settings.";
+            } else if (e.name === 'NotFoundError') {
+                errMsg = "No microphone detected on this device.";
+            }
+
+            setMessages(prev => [...prev, {
+                type: 'ai',
+                text: `❌ ${errMsg}`,
+                isError: true
+            }]);
         }
     };
 
