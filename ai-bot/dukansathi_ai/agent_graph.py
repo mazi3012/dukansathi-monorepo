@@ -383,31 +383,22 @@ async def generate_sql_local(user_query: str, model: str = "llama-4-scout-17b-16
     logger.info(f"DEBUG: Entering generate_sql_local with model={model}")
     prompt = f"""
     SYSTEM: You are a SQLite expert. 
-    Output the SLQ SELECT query ONLY. No markdown, no explanations.
-
-    TABLES:
-    1. products (id, name, selling_price, stock_quantity, category)
-    2. customers (id, name, phone, credit_balance)
-
-    SCHEMA NOTES:
-    - Products: use name, selling_price, stock_quantity
-    - Customers: use name, phone, credit_balance
-
-    TASK: Convert user request to SQLite.
-    QUERY: "{user_query}"
+    Output the SELECT query ONLY. No markdown, no prefixes like "SQL:".
     
-    OPENCLAW SKILLS & RULES:
-    {OPENCLAW_SKILLS}
+    TABLES:
+    - products (id, name, selling_price, stock_quantity, category)
+    - customers (id, name, phone, credit_balance)
 
-    EXAMPLES:
-    "Show products" -> SELECT name, selling_price FROM products LIMIT 20
-    "Price of Rice" -> SELECT name, selling_price FROM products WHERE name LIKE '%Rice%'
-    "List customers" -> SELECT name, phone FROM customers LIMIT 10
-    "Who owes money?" -> SELECT name, credit_balance FROM customers WHERE credit_balance > 0 ORDER BY credit_balance DESC
-    "Check stock for maggi" -> SELECT name, stock_quantity FROM products WHERE name LIKE '%maggi%'
+    RULES:
+    1. Only use SELECT.
+    2. Use WHERE name LIKE '%term%' for searching.
+    3. Use LIMIT 20.
+    4. For products, show 'name' and 'selling_price'.
+    5. For stock, show 'name' and 'stock_quantity'.
+    6. For customers, show 'name' and 'phone'.
 
-    SQL:
-    """
+    QUERY: "{user_query}"
+    SQL:"""
     try:
         print(f"DEBUG: Generating SQL for query: {user_query}")
         llm = get_llm(model)
