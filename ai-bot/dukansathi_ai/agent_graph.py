@@ -1307,8 +1307,33 @@ async def action_node(state: AgentState):
                 
                 # Two flags: one for LLM source, one for data source
                 is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
-                use_local_data = not is_cloud_llm  # SQLite if local model
-                if supabase and prod_name and is_cloud_llm and not use_local_data:
+                
+                # Try Local DB first (User Priority)
+                if local_db and prod_name:
+                    try:
+                        safe_name = re.sub(r'[^\w\s]', '', prod_name)
+                        results = local_db.search_products_local(safe_name, user_id)
+                        if results:
+                            db_prod = results[0] # Take first match
+                            price = float(db_prod.get("selling_price", 0))
+                            tax_percent = float(db_prod.get("tax_percent", 0))
+                            hsn_code = db_prod.get("hsn_code", "")
+                            official_name = db_prod.get("name", prod_name)
+                            logger.info(f"DEBUG: [LocalDB] Found {official_name}: Price={price}")
+                            
+                            # Mark as found to skip cloud lookup
+                            item["product_id"] = db_prod.get("id")
+                            item["price"] = price
+                            item["tax_percent"] = tax_percent
+                            item["hsn_code"] = hsn_code
+                            item["product_name"] = official_name
+                            item["total"] = price * qty
+                            return item
+                    except Exception as local_err:
+                        logger.error(f"ERROR: Local DB Lookup failed: {local_err}")
+
+                # Fallback to Supabase for cloud models
+                if supabase and prod_name and is_cloud_llm:
                     try:
                         # FUZZY MATCH: Use pg_trgm RPC for typo-tolerant matching
                         # Falls back to ilike if RPC not yet created
@@ -1349,13 +1374,6 @@ async def action_node(state: AgentState):
                              
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
-
-                elif local_db and prod_name and use_local_data:
-                    # LOCAL DB LOOKUP
-                    try:
-                        safe_name = re.sub(r'[^\w\s]', '', prod_name)
-                        results = local_db.search_products_local(safe_name, user_id)
-                        if results:
                             db_prod = results[0] # Take first match
                             price = float(db_prod.get("selling_price", 0))
                             tax_percent = float(db_prod.get("tax_percent", 0))
