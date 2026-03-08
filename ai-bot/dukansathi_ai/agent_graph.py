@@ -156,7 +156,8 @@ VOICE_RULES = (
 )
 
 
-# Helper to check if a model should use Cloud logic
+# Helper to check if a model ID should bypass local sqlite and use Cloud (Supabase) logic.
+# Roles: Llama-4 = Primary Brain/SQL, Gemini = Vision/OCR specialist.
 def is_cloud_model(model_name: str) -> bool:
     m = model_name.lower()
     return "gemini" in m or "llama-4" in m or "maas" in m
