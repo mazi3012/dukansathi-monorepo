@@ -35,6 +35,11 @@ export const ChatProvider = ({ children }) => {
             (navigator.maxTouchPoints > 0);
     };
 
+    const isPWA = () => {
+        return window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true;
+    };
+
     // Refs
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -286,11 +291,23 @@ export const ChatProvider = ({ children }) => {
 
         const isOffline = !navigator.onLine;
         const mobile = isMobile();
+        const pwa = isPWA();
         const isLocalModel = model.includes(':');
 
-        // Priority: Offline -> Local, Local model selected -> Local, else -> Cloud (Web AI)
-        const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
-        const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;
+        // Priority Fix: If Online AND (Mobile OR PWA), ALWAYS use Cloud (Web AI) unless user explicitly chose a local model
+        // Actually, user wants PWA and Mobile to use Cloud AI by default until local is selected.
+        let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+        let activeModel = model;
+
+        // Force cloud for PWA/Mobile if online and current model is NOT a local one (missing ':')
+        if (!isOffline && (mobile || pwa) && !isLocalModel) {
+            activeMode = 'cloud';
+            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+        }
+
+        if (activeMode === 'local' && !isLocalModel) {
+            activeModel = 'phi3:mini';
+        }
 
         if (activeMode === 'local') {
             setMessages(prev => [...prev, { type: 'user', text }]);
@@ -356,9 +373,20 @@ export const ChatProvider = ({ children }) => {
 
                         const isOffline = !navigator.onLine;
                         const mobile = isMobile();
+                        const pwa = isPWA();
                         const isLocalModel = model.includes(':');
-                        const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
-                        const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;
+
+                        let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+                        let activeModel = model;
+
+                        if (!isOffline && (mobile || pwa) && !isLocalModel) {
+                            activeMode = 'cloud';
+                            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+                        }
+
+                        if (activeMode === 'local' && !isLocalModel) {
+                            activeModel = 'phi3:mini';
+                        }
 
                         const payload = {
                             type: 'voice',

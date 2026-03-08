@@ -110,14 +110,33 @@ const VoiceAssist = () => {
         }
     };
 
-    // Load settings from localStorage
+    // Load settings from localStorage with prioritization
     const getSettings = () => {
         const speed = localStorage.getItem('voice_speed') || '+0%';
-        // Backend expects 'voice_rate', frontend/localstorage uses 'voice_speed'
+        const model = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
+        const isOffline = !navigator.onLine;
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+        const isLocalModel = model.includes(':');
+
+        let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+        let activeModel = model;
+
+        // Priority Fix: force cloud for PWA/Mobile if online and not a local model
+        if (!isOffline && (isMobile || isPWA) && !isLocalModel) {
+            activeMode = 'cloud';
+            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+        }
+
+        if (activeMode === 'local' && !isLocalModel) {
+            activeModel = 'phi3:mini';
+        }
+
         return {
             voice_id: localStorage.getItem('voice_id') || 'en-IN-PrabhatNeural',
             voice_rate: speed,
-            model: localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas'
+            model: activeModel,
+            ai_mode: activeMode
         };
     };
 
