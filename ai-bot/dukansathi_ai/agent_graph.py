@@ -165,89 +165,18 @@ def is_cloud_model(model_name: str) -> bool:
 
 # Database schema for AI context - this helps Llama understand our data structure
 DATABASE_SCHEMA = """
-TABLES & COLUMNS:
-1. profiles (
-    id UUID PRIMARY KEY, 
-    business_name TEXT, 
-    business_category TEXT,
-    is_gst_registered BOOLEAN,
-    subscription_tier TEXT
-)
-2. products (
-    id BIGINT PRIMARY KEY, 
-    name TEXT, 
-    selling_price NUMERIC, 
-    cost_price NUMERIC,
-    stock_quantity INTEGER, 
-    category TEXT,
-    tax_percent NUMERIC,
-    cgst_percent NUMERIC,
-    sgst_percent NUMERIC,
-    igst_percent NUMERIC,
-    discount NUMERIC,
-    unit TEXT,
-    user_id UUID
-)
-3. customers (
-    id BIGINT PRIMARY KEY, 
-    name TEXT, 
-    phone TEXT,
-    gstin TEXT,
-    state TEXT,
-    total_spend NUMERIC, 
-    credit_balance NUMERIC,
-    last_visit TIMESTAMP,
-    user_id UUID
-)
-4. sales (
-    id BIGINT PRIMARY KEY, 
-    customer_id BIGINT, 
-    invoice_number TEXT,
-    total_amount NUMERIC, 
-    payment_method TEXT,
-    payment_status TEXT,
-    amount_paid NUMERIC,
-    balance_due NUMERIC,
-    created_at TIMESTAMP,
-    user_id UUID
-)
-5. sale_items (
-    id BIGINT PRIMARY KEY, 
-    sale_id BIGINT, 
-    product_id BIGINT, 
-    quantity INTEGER, 
-    unit_price NUMERIC,
-    total_price NUMERIC
-)
-6. draft_invoices (
-    id BIGINT PRIMARY KEY, 
-    customer_name TEXT, 
-    items JSONB,
-    total_amount NUMERIC, 
-    status TEXT,
-    user_id UUID
-)
-7. draft_inventory_batches (
-    id BIGINT PRIMARY KEY, 
-    source_name TEXT, 
-    items JSONB, 
-    status TEXT,
-    user_id UUID
-)
-8. purchase_orders (
-    id BIGINT PRIMARY KEY,
-    supplier_id BIGINT,
-    items JSONB,
-    total_amount NUMERIC,
-    status TEXT,
-    user_id UUID
-)
+TABLES:
+1. profiles (id, business_name, business_category, is_gst_registered)
+2. products (id, name, selling_price, cost_price, stock_quantity, category, user_id)
+3. customers (id, name, phone, credit_balance, user_id)
+4. sales (id, customer_id, total_amount, payment_method, payment_status, created_at, user_id)
+5. sale_items (id, sale_id, product_id, quantity, unit_price, total_price, user_id)
+6. draft_invoices (id, customer_name, items, total_amount, user_id)
 
-RULES FOR AI:
-- READ: You can SELECT from any table to answer questions
-- WRITE: NEVER directly INSERT/UPDATE/DELETE core tables
-- WRITE EXCEPTION: Create drafts for user approval using JSON format
-- Security: Always filter by user_id (handled by RLS automatically)
+BUSINESS INTELLIGENCE RULES:
+- Revenue = SUM(sales.total_amount)
+- Profit = SUM((si.unit_price - p.cost_price) * si.quantity) JOIN sale_items si ON p.id = si.product_id
+- Today's data: WHERE created_at::date = CURRENT_DATE (Postgres) or date(created_at) = date('now') (SQLite).
 """
 
 # Agent State - tracks conversation context
@@ -363,9 +292,11 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     4. Cast UUIDs properly if needed, but usually 'string' works in Postgres text-to-uuid.
     5. Handle case-insensitive string matching using ILIKE for names.
     6. For business questions (totals, revenue, counts), use aggregation functions like SUM, COUNT, AVG.
-    7. For "sales" or "revenue", use the `sales` table (total_amount). Example: "Total revenue" -> SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}'.
-    8. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
-    {f"9. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
+    7. REVENUE: Use `SUM(total_amount)` from `sales` table.
+    8. PROFIT: Join `sale_items` (si) and `products` (p) on `si.product_id = p.id`. Profit = `SUM((si.unit_price - p.cost_price) * si.quantity)`.
+    9. TODAY vs TOTAL: If the user asks for "today", use `WHERE created_at::date = CURRENT_DATE`. Otherwise use the whole range unless specified.
+    10. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
+    {f"11. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
     
     OPENCLAW SKILLS & RULES:
     {OPENCLAW_SKILLS}
@@ -403,16 +334,18 @@ async def generate_sql_local(user_query: str, model: str = "llama-4-scout-17b-16
     Output the SELECT query ONLY. No markdown, no prefixes like "SQL:".
     
     TABLES:
-    - products (id, name, selling_price, stock_quantity, category)
+    - products (id, name, selling_price, cost_price, stock_quantity, category)
     - customers (id, name, phone, credit_balance)
+    - local_sales (id, customer_name, total_amount, created_at)
 
     RULES:
     1. Only use SELECT.
-    2. Use WHERE name LIKE '%term%' for searching.
-    3. Use LIMIT 20.
+    2. REVENUE: SELECT SUM(total_amount) FROM local_sales.
+    3. TODAY: use `WHERE date(created_at) = date('now', 'localtime')`.
     4. For products, show 'name' and 'selling_price'.
     5. For stock, show 'name' and 'stock_quantity'.
     6. For customers, show 'name' and 'phone'.
+    7. Use LIMIT 20.
 
     QUERY: "{user_query}"
     SQL:"""
@@ -1737,8 +1670,31 @@ async def chat_node(state: AgentState):
             local_customers = local_db.get_customers_local(user_id)
             local_sales = local_db.get_invoices_local()
             
-            # Summarize Stats (Only for owner)
+            today_str = datetime.now(IST).strftime('%Y-%m-%d')
+            today_sales = [s for s in local_sales if s.get('created_at', '').startswith(today_str)]
+            
+            # Revenue Calculations
+            today_rev = sum(s.get('total_amount', 0) for s in today_sales)
             total_rev = sum(s.get('total_amount', 0) for s in local_sales)
+            
+            # Profit Calculations (joining products and sales items)
+            cost_map = {p.get('id'): (p.get('cost_price') or 0) for p in local_products}
+            
+            def calc_profit(sales_list):
+                profit = 0
+                for s in sales_list:
+                    items = s.get('items', [])
+                    for item in items:
+                        qty = float(item.get('quantity') or item.get('qty') or 0)
+                        price = float(item.get('unit_price') or item.get('price') or 0)
+                        p_id = item.get('product_id')
+                        cost = float(cost_map.get(p_id, 0))
+                        profit += (price - cost) * qty
+                return profit
+
+            today_profit = calc_profit(today_sales)
+            total_profit = calc_profit(local_sales)
+            
             total_dues = sum(c.get('credit_balance', 0) for c in local_customers)
             low_stock = [p.get('name') for p in local_products if p.get('stock_quantity', 0) <= 5]
             
@@ -1763,13 +1719,14 @@ async def chat_node(state: AgentState):
                     for c in local_customers[:20]
                 ]
                 
-                local_db_context = f"\n\n[OFFLINE DATA]\n"
-                local_db_context += f"- Revenue Today: ₹{total_rev}\n"
+                local_db_context = f"\n\n[OFFLINE DATA SNAPSHOT]\n"
+                local_db_context += f"- Revenue Today: ₹{today_rev} (Total All-time: ₹{total_rev})\n"
+                local_db_context += f"- Profit Today: ₹{today_profit} (Total All-time: ₹{total_profit})\n"
                 local_db_context += f"- Total Dues: ₹{total_dues}\n"
-                local_db_context += f"- Total Sales: {len(local_sales)}\n"
-                local_db_context += f"- Customers: {', '.join([c.get('name') for c in local_customers]) if local_customers else 'None'}\n"
+                local_db_context += f"- Today's Sales: {len(today_sales)} (Archived: {len(local_sales)})\n"
+                local_db_context += f"- Customers: {', '.join([c.get('name') for c in local_customers[:20]]) if local_customers else 'None'}\n"
                 if low_stock:
-                    local_db_context += f"- Low Stock: {', '.join(low_stock)}\n"
+                    local_db_context += f"- Low Stock: {', '.join(low_stock[:10])}\n"
                 
                 if prod_lines:
                     local_db_context += "\nINVENTORY:\n" + "\n".join(prod_lines)
