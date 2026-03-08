@@ -1,5 +1,6 @@
 // file:///e:/dukanv22/frontend/src/lib/db/baseRepository.js
 import { getDB, persistDB } from '../sqlite';
+import { syncEngine } from './syncEngine';
 
 export class BaseRepository {
     constructor(tableName) {
@@ -49,6 +50,12 @@ export class BaseRepository {
         db.run(sql, Object.values(data));
 
         await persistDB();
+
+        // Trigger background sync if not from cloud and online
+        if (!isFromCloud && navigator.onLine) {
+            syncEngine.push(this.tableName).catch(err => console.error("Background push failed:", err));
+        }
+
         return data;
     }
 

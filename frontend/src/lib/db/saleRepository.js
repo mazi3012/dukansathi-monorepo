@@ -1,0 +1,70 @@
+import { BaseRepository } from './baseRepository';
+import { getDB, persistDB } from '../sqlite';
+import { syncEngine } from './syncEngine';
+
+export class SaleRepository extends BaseRepository {
+    constructor() {
+        super('sales');
+    }
+
+    // Custom create to handle the complex sale object and trigger sync
+    async createSale(saleData, items) {
+        const db = getDB();
+        const now = new Date().toISOString();
+
+        // 1. Insert Sale
+        const saleSql = `
+            INSERT INTO sales (id, user_id, customer_id, invoice_type, subtotal, discount_amount, 
+                             total_tax_amount, total_amount, payment_method, payment_status, 
+                             amount_paid, balance_due, created_at, updated_at, is_synced)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        `;
+
+        db.run(saleSql, [
+            saleData.id,
+            saleData.user_id,
+            saleData.customer_id,
+            saleData.invoice_type,
+            saleData.subtotal,
+            saleData.discount_amount || 0,
+            saleData.total_tax_amount || 0,
+            saleData.total_amount,
+            saleData.payment_method,
+            saleData.payment_status,
+            saleData.amount_paid || 0,
+            saleData.balance_due || 0,
+            now, now
+        ]);
+
+        // 2. Insert Items
+        for (const item of items) {
+            const itemSql = `
+                INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, is_synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            `;
+            const itemId = Date.now() + Math.random();
+            db.run(itemSql, [
+                itemId,
+                saleData.user_id,
+                saleData.id,
+                item.product_id,
+                item.quantity,
+                item.unit_price,
+                item.total_price,
+                now
+            ]);
+        }
+
+        await persistDB();
+
+        // Background sync
+        if (navigator.onLine) {
+            syncEngine.push('sales');
+            syncEngine.push('sale_items');
+        }
+
+        return saleData.id;
+    }
+}
+
+export const saleRepo = new SaleRepository();

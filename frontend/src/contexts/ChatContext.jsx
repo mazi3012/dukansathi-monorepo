@@ -28,6 +28,13 @@ export const ChatProvider = ({ children }) => {
     const [pendingAttachment, setPendingAttachment] = useState(null);
     const pendingAttachmentRef = useRef(null);
 
+    // Environment Detection
+    const isMobile = () => {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+            ('ontouchstart' in window) ||
+            (navigator.maxTouchPoints > 0);
+    };
+
     // Refs
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -278,7 +285,10 @@ export const ChatProvider = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
 
         const isOffline = !navigator.onLine;
+        const mobile = isMobile();
         const isLocalModel = model.includes(':');
+
+        // Priority: Offline -> Local, Local model selected -> Local, else -> Cloud (Web AI)
         const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
         const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;
 
@@ -345,6 +355,7 @@ export const ChatProvider = ({ children }) => {
                         const { data: { session } } = await supabase.auth.getSession();
 
                         const isOffline = !navigator.onLine;
+                        const mobile = isMobile();
                         const isLocalModel = model.includes(':');
                         const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
                         const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;

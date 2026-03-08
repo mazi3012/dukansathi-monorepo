@@ -6,20 +6,54 @@ export class SyncEngine {
     constructor() {
         this.tables = ['products', 'customers', 'sales', 'sale_items', 'customer_ledger'];
         this.isSyncing = false;
+        this.listeners = [];
+        this.syncEnabled = localStorage.getItem('sync_enabled') !== 'false';
+    }
+
+    setSyncEnabled(enabled) {
+        this.syncEnabled = enabled;
+        localStorage.setItem('sync_enabled', enabled ? 'true' : 'false');
+    }
+
+    isOffline() {
+        return !navigator.onLine;
+    }
+
+    subscribe(callback) {
+        this.listeners.push(callback);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== callback);
+        };
+    }
+
+    notify(status) {
+        this.listeners.forEach(l => l(status));
     }
 
     async syncAll() {
-        if (this.isSyncing) return;
+        if (this.isSyncing || this.isOffline() || !this.syncEnabled) return;
+
         this.isSyncing = true;
+        this.notify({ status: 'syncing', message: 'Starting Sync...' });
         console.log("Starting Sync Process...");
 
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                this.notify({ status: 'error', message: 'Not Authenticated' });
+                this.isSyncing = false;
+                return;
+            }
+
             for (const table of this.tables) {
+                this.notify({ status: 'syncing', message: `Syncing ${table}...` });
                 await this.pull(table);
                 await this.push(table);
             }
+            this.notify({ status: 'idle', message: 'Sync Completed' });
             console.log("Sync Process Completed Successfully");
         } catch (error) {
+            this.notify({ status: 'error', message: 'Sync Failed' });
             console.error("Sync Process Failed:", error);
         } finally {
             this.isSyncing = false;
@@ -59,6 +93,8 @@ export class SyncEngine {
     }
 
     async push(tableName) {
+        if (this.isOffline() || !this.syncEnabled) return;
+
         const db = getDB();
         // Get unsynced changes
         const result = db.exec(`SELECT * FROM ${tableName} WHERE is_synced = 0`);
@@ -73,7 +109,13 @@ export class SyncEngine {
             return obj;
         });
 
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
         for (const item of unsyncedItems) {
+            // Ensure user_id is set for security
+            item.user_id = session.user.id;
+
             const { error } = await supabase
                 .from(tableName)
                 .upsert(item);

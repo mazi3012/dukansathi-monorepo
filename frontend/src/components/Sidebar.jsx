@@ -13,18 +13,23 @@ import {
     ChevronUp,
     Send,
     Link as LinkIcon,
-    RefreshCw
+    RefreshCw,
+    Cloud,
+    CloudOff,
+    Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { syncEngine } from '../lib/db/syncEngine';
 import logo from '../assets/logo.svg';
 
 const Sidebar = () => {
     const navigate = useNavigate();
     const [user, setUser] = React.useState(null);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
-    const [isSyncing, setIsSyncing] = React.useState(true);
+    const [isAutoSyncEnabled, setIsAutoSyncEnabled] = React.useState(true);
+    const [syncStatus, setSyncStatus] = React.useState({ status: 'idle', message: '' });
 
     React.useEffect(() => {
         const fetchUser = async () => {
@@ -35,19 +40,29 @@ const Sidebar = () => {
 
         const storedSyncState = localStorage.getItem('sync_enabled');
         if (storedSyncState !== null) {
-            setIsSyncing(storedSyncState === 'true');
+            setIsAutoSyncEnabled(storedSyncState === 'true');
         } else {
-            // Default to true
             localStorage.setItem('sync_enabled', 'true');
         }
+
+        const unsubscribe = syncEngine.subscribe((status) => {
+            setSyncStatus(status);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const handleSyncToggle = () => {
-        const newState = !isSyncing;
-        setIsSyncing(newState);
+        const newState = !isAutoSyncEnabled;
+        setIsAutoSyncEnabled(newState);
         localStorage.setItem('sync_enabled', String(newState));
-        // You can dispatch a custom event here if other components need to react instantly to the toggle change
         window.dispatchEvent(new CustomEvent('sync-toggle-changed', { detail: { isSyncing: newState } }));
+    };
+
+    const triggerManualSync = () => {
+        if (navigator.onLine) {
+            syncEngine.syncAll();
+        }
     };
 
     const handleLogout = async () => {
@@ -109,18 +124,52 @@ const Sidebar = () => {
                 ))}
             </nav>
 
-            {/* Sync Toggle */}
-            <div className="px-6 py-4 border-t border-card-border bg-card-bg/50 backdrop-blur-md">
+            {/* Sync Status & Toggle */}
+            <div className="px-6 py-4 border-t border-card-border bg-card-bg/50 backdrop-blur-md space-y-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <RefreshCw size={18} className={`transition-colors duration-300 ${isSyncing ? 'text-indigo-500' : 'text-text-muted'}`} />
-                        <span className="text-sm font-semibold text-text-main transition-colors">Auto Sync</span>
+                        {isAutoSyncEnabled ? (
+                            <Cloud size={16} className="text-indigo-500" />
+                        ) : (
+                            <CloudOff size={16} className="text-text-muted" />
+                        )}
+                        <span className="text-xs font-bold text-text-main">Auto Sync</span>
                     </div>
                     <button
                         onClick={handleSyncToggle}
-                        className={`w-11 h-6 rounded-full flex items-center transition-colors duration-300 p-1 ${isSyncing ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                        className={`w-10 h-5 rounded-full flex items-center transition-colors duration-300 p-1 ${isAutoSyncEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
                     >
-                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isSyncing ? 'translate-x-5' : 'translate-x-0'}`} />
+                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isAutoSyncEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between group/sync">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        {syncStatus.status === 'syncing' ? (
+                            <Loader2 size={16} className="text-indigo-500 animate-spin flex-shrink-0" />
+                        ) : (
+                            <RefreshCw
+                                size={16}
+                                className={`flex-shrink-0 transition-colors ${syncStatus.status === 'error' ? 'text-red-500' : 'text-emerald-500'}`}
+                            />
+                        )}
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted truncate">
+                                {syncStatus.status === 'syncing' ? 'Syncing...' : 'Encrypted'}
+                            </span>
+                            {syncStatus.message && (
+                                <span className="text-[8px] text-text-muted/60 truncate italic leading-none">
+                                    {syncStatus.message}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <button
+                        onClick={triggerManualSync}
+                        disabled={syncStatus.status === 'syncing' || !navigator.onLine}
+                        className="p-2 rounded-lg hover:bg-indigo-500/10 text-text-muted hover:text-indigo-500 transition-all disabled:opacity-30 active:scale-90"
+                    >
+                        <RefreshCw size={14} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
                     </button>
                 </div>
             </div>

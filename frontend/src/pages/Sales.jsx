@@ -7,6 +7,7 @@ import Combobox from '../components/Combobox';
 import InvoiceTemplate from '../components/InvoiceTemplate';
 import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
+import { saleRepo } from '../lib/db/saleRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { getDB, persistDB } from '../lib/sqlite';
 import toast from 'react-hot-toast';
@@ -121,29 +122,31 @@ const Sales = () => {
     const fetchHistory = async () => {
         try {
             setLoading(true);
-            const db = getDB();
-
-            // Fetch from Local SQLite instead of Supabase
-            // We'll use a raw query to join with customers for the name
-            const sql = `
-                SELECT s.*, c.name as customer_name 
-                FROM sales s 
-                LEFT JOIN customers c ON s.customer_id = c.id 
-                ORDER BY s.created_at DESC 
-                LIMIT 50
-            `;
-            const result = db.exec(sql);
-
-            if (result.length > 0) {
-                const columns = result[0].columns;
-                const sales = result[0].values.map(v => {
-                    const obj = {};
-                    columns.forEach((col, i) => obj[col] = v[i]);
-                    // Map customer_name to the structure the UI expects
-                    obj.customers = { name: obj.customer_name };
-                    return obj;
-                });
-                setHistory(sales);
+            const sales = await saleRepo.getAll();
+            if (sales && sales.length > 0) {
+                // Map customer_name for the UI if it's joined, but for now just populate
+                // We'll add a custom query to saleRepo if needed, or join manually
+                const db = getDB();
+                const sql = `
+                    SELECT s.*, c.name as customer_name 
+                    FROM sales s 
+                    LEFT JOIN customers c ON s.customer_id = c.id 
+                    ORDER BY s.created_at DESC 
+                    LIMIT 50
+                `;
+                const result = db.exec(sql);
+                if (result.length > 0) {
+                    const columns = result[0].columns;
+                    const items = result[0].values.map(v => {
+                        const obj = {};
+                        columns.forEach((col, i) => obj[col] = v[i]);
+                        obj.customers = { name: obj.customer_name };
+                        return obj;
+                    });
+                    setHistory(items);
+                } else {
+                    setHistory([]);
+                }
             } else {
                 setHistory([]);
             }
@@ -245,56 +248,54 @@ const Sales = () => {
 
     const handleGenerateInvoice = async () => {
         try {
-            const db = getDB();
             const { data: { user } } = await supabase.auth.getUser();
             const userId = user ? user.id : 'anon';
 
             if (!selectedCustomerId && !customerName) return alert("Please select a customer");
             if (items.length === 0 || !items[0].name) return alert("Please add at least one item");
 
-            const saleId = Date.now(); // Local-first ID
+            const saleId = Date.now();
             const now = new Date().toISOString();
 
-            // 1. Create Sale Record in SQLite
-            const saleSql = `
-                INSERT INTO sales (id, user_id, customer_id, invoice_type, subtotal, discount_amount, 
-                                 total_tax_amount, total_amount, payment_method, payment_status, 
-                                 amount_paid, balance_due, created_at, updated_at, is_synced)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-            `;
-            db.run(saleSql, [
-                saleId, userId, selectedCustomerId,
-                billType === 'GST' ? 'gst' : 'regular',
-                totals.subtotal, parseFloat(additionalDiscount) || 0,
-                totals.totalTax, totals.grandTotal, paymentMethod, totals.status,
-                parseFloat(amountPaid) || 0, totals.balance, now, now
-            ]);
+            const saleData = {
+                id: saleId,
+                user_id: userId,
+                customer_id: selectedCustomerId,
+                invoice_type: billType === 'GST' ? 'gst' : 'regular',
+                subtotal: totals.subtotal,
+                discount_amount: parseFloat(additionalDiscount) || 0,
+                total_tax_amount: totals.totalTax,
+                total_amount: totals.grandTotal,
+                payment_method: paymentMethod,
+                payment_status: totals.status,
+                amount_paid: parseFloat(amountPaid) || 0,
+                balance_due: totals.balance
+            };
 
-            // 2. Create Sale Items in SQLite
+            const saleItems = items.map(item => ({
+                product_id: item.product_id,
+                quantity: parseFloat(item.qty) || 0,
+                unit_price: parseFloat(item.price) || 0,
+                total_price: (parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)
+            }));
+
+            // Use Repository for double-write
+            await saleRepo.createSale(saleData, saleItems);
+
+            // 3. Update Product Stock locally (Still doing here for now, but could be in Repo)
+            const db = getDB();
             for (const item of items) {
-                const qty = parseFloat(item.qty) || 0;
-                const price = parseFloat(item.price) || 0;
-                const total = qty * price;
-                const itemSql = `
-                    INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, is_synced)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-                `;
-                db.run(itemSql, [Date.now() + Math.random(), userId, saleId, item.product_id, qty, price, total, now]);
-
-                // 3. Update Product Stock locally
                 if (item.product_id) {
-                    db.run(`UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = ?, is_synced = 0 WHERE id = ?`,
-                        [qty, now, item.product_id]);
+                    await productRepo.updateStock(item.product_id, -(parseFloat(item.qty) || 0));
                 }
             }
 
             // 4. Update Customer Balance locally
             if (selectedCustomerId) {
-                db.run(`UPDATE customers SET credit_balance = credit_balance + ?, updated_at = ?, is_synced = 0 WHERE id = ?`,
-                    [totals.balance, now, selectedCustomerId]);
+                await customerRepo.update(selectedCustomerId, {
+                    credit_balance: (customers.find(c => c.id === selectedCustomerId)?.credit_balance || 0) + totals.balance
+                });
             }
-
-            persistDB();
 
             // Success
             toast.success("Invoice Created Locally!");
@@ -304,11 +305,6 @@ const Sales = () => {
             setCustomerName('');
             setSelectedCustomerId(null);
             fetchHistory(); // Refresh from local DB
-
-            // Push to cloud immediately if online
-            if (navigator.onLine) {
-                syncEngine.syncAll();
-            }
 
         } catch (error) {
             console.error("Invoice Error:", error);

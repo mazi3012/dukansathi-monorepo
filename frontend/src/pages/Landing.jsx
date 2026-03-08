@@ -93,22 +93,8 @@ const Landing = () => {
                             </button>
                         )}
 
-                        <button
-                            onClick={() => {
-                                if (isElectron) {
-                                    alert("You are running the Native Desktop version! 🚀");
-                                } else {
-                                    alert("Native App Setup:\n\n1. Open your project terminal\n2. Run: npm run electron:dev\n\nThis launches the native window with automated local AI management.");
-                                }
-                            }}
-                            className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm group"
-                        >
-                            <Cpu className="mr-2 group-hover:scale-110 transition-transform" size={18} />
-                            {isElectron ? "App: Native Mode" : "Native Desktop Mode"}
-                        </button>
-
-                        <Link to="/setup" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
-                            Run Diagnostics
+                        <Link to="/login" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
+                            Open Dashboard
                         </Link>
                     </motion.div>
                 </motion.div>
@@ -210,6 +196,32 @@ const Landing = () => {
                         </div>
                     </motion.div>
                 </div>
+
+                {/* PWA App Download CTA */}
+                {isInstallable && !isInstalled && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="mt-20 max-w-3xl mx-auto p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-[32px] backdrop-blur-xl flex flex-col md:flex-row items-center gap-8 text-left"
+                    >
+                        <div className="w-20 h-20 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-2xl shadow-indigo-500/30">
+                            <Download size={40} />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-2xl font-bold mb-2">Install Dukan Sathi App</h3>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                                Get the best experience with **Web AI Power**, offline-first billing, and instant synchronization. One-click install from your browser.
+                            </p>
+                        </div>
+                        <button
+                            onClick={installApp}
+                            className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20"
+                        >
+                            Download App
+                        </button>
+                    </motion.div>
+                )}
             </section>
 
             {/* Features Section */}

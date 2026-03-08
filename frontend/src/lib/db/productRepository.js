@@ -24,9 +24,16 @@ export class ProductRepository extends BaseRepository {
 
     async updateStock(id, change) {
         const db = getDB();
+        const now = new Date().toISOString();
         db.run(`UPDATE products SET stock_quantity = stock_quantity + ?, is_synced = 0, updated_at = ? WHERE id = ?`,
-            [change, new Date().toISOString(), id]);
-        // persistDB is called inside upsert/delete, but here we do it manually or via a helper
+            [change, now, id]);
+
+        await persistDB();
+
+        // Background sync
+        if (navigator.onLine) {
+            syncEngine.push('products');
+        }
     }
 }
 

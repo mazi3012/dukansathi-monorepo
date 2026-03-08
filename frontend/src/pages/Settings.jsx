@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { syncEngine } from '../lib/db/syncEngine';
 
 const VOICE_OPTIONS = [
     {
@@ -546,7 +547,12 @@ const Settings = () => {
                                 </div>
                                 <div className="flex items-center gap-4 pt-6">
                                     <button
-                                        onClick={() => { setBusinessData({ ...businessData, sync_enabled: !businessData.sync_enabled }); markChange(); }}
+                                        onClick={() => {
+                                            const newState = !businessData.sync_enabled;
+                                            setBusinessData({ ...businessData, sync_enabled: newState });
+                                            syncEngine.setSyncEnabled(newState);
+                                            markChange();
+                                        }}
                                         className={`w-12 h-6 rounded-full transition-all relative ${businessData.sync_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                     >
                                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${businessData.sync_enabled ? 'left-7' : 'left-1'}`} />
