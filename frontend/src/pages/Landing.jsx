@@ -20,6 +20,7 @@ const itemVariants = {
 
 const Landing = () => {
     const { isInstallable, isInstalled, installApp } = usePWA();
+    const isElectron = !!window.electronAPI;
 
     return (
         <div className="min-h-screen bg-slate-950 text-white overflow-hidden relative selection:bg-indigo-500/30">
@@ -78,18 +79,33 @@ const Landing = () => {
 
                         {isInstallable && !isInstalled && (
                             <button
-                                onClick={installApp}
-                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)]"
+                                onClick={async () => {
+                                    try {
+                                        await installApp();
+                                    } catch (err) {
+                                        alert("Install failed. Please ensure you are in a secure context (HTTPS/localhost) and the browser supports PWA installation.");
+                                    }
+                                }}
+                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow"
                             >
                                 <Download className="inline mr-2" size={18} />
-                                Install App
+                                Install Web App (PWA)
                             </button>
                         )}
 
-                        <a href="#" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm group">
-                            <Download className="mr-2 group-hover:scale-110 transition-transform" size={18} />
-                            Download for Windows
-                        </a>
+                        <button
+                            onClick={() => {
+                                if (isElectron) {
+                                    alert("You are already running the Native Desktop version! 🚀");
+                                } else {
+                                    alert("Desktop App Setup:\n1. Open your terminal\n2. Open the project folder\n3. Run: npm run electron:dev\n\nThis will launch the native window with automated Ollama management.");
+                                }
+                            }}
+                            className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm group"
+                        >
+                            <Cpu className="mr-2 group-hover:scale-110 transition-transform" size={18} />
+                            {isElectron ? "App: Native Desktop" : "Connect Native App"}
+                        </button>
 
                         <Link to="/setup" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
                             Run Diagnostics

@@ -9,7 +9,7 @@ export const initSQLite = async () => {
     if (db) return db;
 
     SQL = await initSqlJs({
-        locateFile: file => file === 'sql-wasm.wasm' ? sqlWasm : `/${file}`
+        locateFile: () => "/sql-wasm.wasm"
     });
 
     // Strategy: Storage in OPFS (Origin Private File System) for persistence

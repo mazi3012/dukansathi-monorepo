@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && copy public\\sql-wasm.wasm dist\\",
     "lint": "eslint .",
     "preview": "vite preview"
   },
