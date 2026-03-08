@@ -117,66 +117,41 @@ const Dashboard = () => {
         try {
             setLoading(true);
 
-            // ── ONLINE MODE: Supabase ─────────────────────────────────────
+            // ── LOCAL-FIRST: SQLite Repositories ──────────────────────────
+            // 1. Sales & Orders
+            const allSales = await saleRepo.getAll();
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const todayISO = today.toISOString();
 
-            // 1. Sales & Orders (Filtered by Timeframe)
-            let salesQuery = supabase.from('sales').select('total_amount, created_at');
+            const filteredSales = timeframe === 'today'
+                ? allSales.filter(s => new Date(s.created_at) >= today)
+                : allSales;
 
-            if (timeframe === 'today') {
-                salesQuery = salesQuery.gte('created_at', todayISO);
-            }
-
-            const { data: salesDataResult, error: salesError } = await salesQuery;
-            if (salesError) {
-                console.error("Sales fetch error:", salesError);
-                setStats(prev => ({ ...prev, revenue: 0, ordersCount: 0 }));
-            } else {
-                const safeSales = salesDataResult || [];
-                const revenue = safeSales.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
-                const ordersCount = safeSales.length;
-                setStats(prev => ({ ...prev, revenue, ordersCount }));
-            }
+            const revenue = filteredSales.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
+            const ordersCount = filteredSales.length;
 
             // 2. Low Stock Count
-            const { count: lowStock, error: stockError } = await supabase
-                .from('products')
-                .select('*', { count: 'exact', head: true })
-                .lt('stock_quantity', 5);
+            const allProducts = await productRepo.getAll();
+            const lowStockCount = allProducts.filter(p => p.stock_quantity < 5).length;
 
             // 3. Total Unique Customers 
-            const { count: customersCount, error: custError } = await supabase
-                .from('customers')
-                .select('*', { count: 'exact', head: true });
+            const allCustomers = await customerRepo.getAll();
+            const totalCustomers = allCustomers.length;
 
-            // 4. Recent Activity
-            const { data: recent, error: recentError } = await supabase
-                .from('sales')
-                .select('*, customers(name)')
-                .order('created_at', { ascending: false })
-                .limit(4);
-
-            if (recentError) throw recentError;
+            // 4. Recent Activity (Already have allSales, just take first 4)
+            const recent = allSales.slice(0, 4);
+            // Note: In local SQLite, we'd need a join or separate fetch for customer names if not stored in sales.
+            // For now, we'll use the sales data we have.
 
             // 5. Weekly Sales Data for Chart (Last 7 Days)
             const lastWeek = new Date();
             lastWeek.setDate(lastWeek.getDate() - 6);
             lastWeek.setHours(0, 0, 0, 0);
 
-            const { data: weeklySales, error: weeklyError } = await supabase
-                .from('sales')
-                .select('total_amount, created_at')
-                .gte('created_at', lastWeek.toISOString())
-                .order('created_at', { ascending: true });
-
-            const safeWeeklySales = weeklySales || [];
-            if (weeklyError) console.error("Weekly sales fetch error:", weeklyError);
+            const weeklySales = allSales.filter(s => new Date(s.created_at) >= lastWeek);
 
             // Aggregate weekly sales by day
             const weeklyAggregated = {};
-            // Initialize last 7 days with 0
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
@@ -184,7 +159,7 @@ const Dashboard = () => {
                 weeklyAggregated[dateStr] = 0;
             }
 
-            safeWeeklySales.forEach(sale => {
+            weeklySales.forEach(sale => {
                 const dateStr = new Date(sale.created_at).toLocaleDateString('en-US', { weekday: 'short' });
                 if (weeklyAggregated[dateStr] !== undefined) {
                     weeklyAggregated[dateStr] += parseFloat(sale.total_amount) || 0;
@@ -192,13 +167,18 @@ const Dashboard = () => {
             });
 
             setSalesData(Object.values(weeklyAggregated));
+            setStats({
+                revenue,
+                ordersCount,
+                lowStockCount,
+                totalCustomers
+            });
+            setRecentSales(recent);
 
-            setStats(prev => ({
-                ...prev,
-                lowStockCount: lowStock || 0,
-                totalCustomers: customersCount || 0
-            }));
-            setRecentSales(recent || []);
+            // Background sync trigger if online
+            if (navigator.onLine) {
+                syncEngine.syncAll();
+            }
 
         } catch (error) {
             console.error("Dashboard Error:", error);

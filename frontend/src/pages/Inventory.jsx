@@ -219,12 +219,6 @@ const Inventory = () => {
         if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
             try {
                 await productRepo.delete(id);
-                // Also delete from Supabase if online (or let sync handle it if we add a 'deleted' flag)
-                // For simplicity now, we delete from local and cloud separately if online
-                if (navigator.onLine) {
-                    await supabase.from('products').delete().eq('id', id);
-                }
-
                 toast.success("Product deleted successfully");
                 fetchData();
             } catch (err) {

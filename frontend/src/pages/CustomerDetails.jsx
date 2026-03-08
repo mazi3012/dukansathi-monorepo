@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Phone, MapPin, Mail, FileText, ArrowDownLeft, ArrowUpRight, Loader, Edit2, X, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { customerRepo } from '../lib/db/customerRepository';
+import { syncEngine } from '../lib/db/syncEngine';
 import toast from 'react-hot-toast';
 
 const CustomerDetails = () => {
@@ -57,32 +59,22 @@ const CustomerDetails = () => {
         try {
             setLoading(true);
 
-            // 1. Fetch Customer Info
-            const { data: custData, error: custError } = await supabase
-                .from('customers')
-                .select('*')
-                .eq('id', id)
-                .single();
+            // 1. Fetch from Local SQLite
+            const custData = await customerRepo.getById(id);
+            if (custData) {
+                setCustomer(custData);
+                setEditData({
+                    name: custData.name || '',
+                    phone: custData.phone || '',
+                    email: custData.email || '',
+                    address: custData.address || '',
+                    gstin: custData.gstin || '',
+                    state: custData.state || ''
+                });
+            }
 
-            if (custError) throw custError;
-            setCustomer(custData);
-            setEditData({
-                name: custData.name || '',
-                phone: custData.phone || '',
-                email: custData.email || '',
-                address: custData.address || '',
-                gstin: custData.gstin || '',
-                state: custData.state || ''
-            });
-
-            // 2. Fetch Sales History & Ledger
-            const { data: ledgerData, error: ledgerError } = await supabase
-                .from('customer_ledger')
-                .select('*')
-                .eq('customer_id', id)
-                .order('created_at', { ascending: false });
-
-            if (ledgerError) throw ledgerError;
+            // 2. Fetch Ledger from SQLite
+            const ledgerData = await customerRepo.getAllFromTable('customer_ledger', `customer_id = ${id}`);
 
             // Map ledger to transactions
             const txns = ledgerData.map(item => ({
@@ -96,6 +88,14 @@ const CustomerDetails = () => {
 
             setTransactions(txns);
 
+            // 3. Trigger background sync if online
+            if (navigator.onLine) {
+                syncEngine.syncAll().then(() => {
+                    // Refetch from local after sync
+                    customerRepo.getById(id).then(c => c && setCustomer(c));
+                });
+            }
+
         } catch (error) {
             console.error("Error fetching customer details:", error);
             toast.error("Failed to load customer data.");
@@ -107,16 +107,13 @@ const CustomerDetails = () => {
     const handleUpdateProfile = async () => {
         try {
             setIsProcessing(true);
-            const { error } = await supabase
-                .from('customers')
-                .update(editData)
-                .eq('id', id);
-
-            if (error) throw error;
+            await customerRepo.upsert({ ...editData, id: id });
 
             toast.success("Profile updated successfully!");
             setIsEditModalOpen(false);
             fetchData();
+
+            if (navigator.onLine) syncEngine.syncAll();
         } catch (err) {
             toast.error("Update failed: " + err.message);
         } finally {
@@ -136,31 +133,15 @@ const CustomerDetails = () => {
             const { data: authData } = await supabase.auth.getUser();
             const user = authData.user;
 
-            // 1. Update Customer Balance
-            const newBalance = dueType === 'credit'
-                ? (customer.credit_balance || 0) + amount
-                : (customer.credit_balance || 0) - amount;
-
-            const { error: balanceError } = await supabase
-                .from('customers')
-                .update({ credit_balance: newBalance })
-                .eq('id', id);
-
-            if (balanceError) throw balanceError;
-
-            // 2. Insert into Ledger
-            const { error: ledgerError } = await supabase
-                .from('customer_ledger')
-                .insert([{
-                    user_id: user.id,
-                    customer_id: id,
-                    amount: amount,
-                    type: dueType,
-                    mode: dueType === 'payment' ? 'Cash' : 'Manual',
-                    note: dueNote || (dueType === 'credit' ? 'Manual Due Adjustment' : 'Manual Payment Entry')
-                }]);
-
-            if (ledgerError) throw ledgerError;
+            // Use Repository for local-first write and sync
+            await customerRepo.addLedgerEntry({
+                user_id: user.id,
+                customer_id: id,
+                amount: amount,
+                type: dueType,
+                mode: dueType === 'payment' ? 'Cash' : 'Manual',
+                note: dueNote || (dueType === 'credit' ? 'Manual Due Adjustment' : 'Manual Payment Entry')
+            });
 
             toast.success(dueType === 'credit' ? "Due added successfully" : "Payment recorded successfully");
             setIsDueModalOpen(false);

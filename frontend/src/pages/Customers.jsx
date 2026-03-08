@@ -153,9 +153,6 @@ const Customers = () => {
         if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
             try {
                 await customerRepo.delete(id);
-                if (navigator.onLine) {
-                    await supabase.from('customers').delete().eq('id', id);
-                }
                 toast.success("Customer deleted successfully");
                 fetchCustomers();
             } catch (err) {

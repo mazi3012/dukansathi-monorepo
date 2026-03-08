@@ -22,6 +22,37 @@ export class CustomerRepository extends BaseRepository {
         }
     }
 
+    async addLedgerEntry(entry) {
+        const db = getDB();
+        const now = new Date().toISOString();
+        const id = entry.id || Date.now();
+
+        const sql = `
+            INSERT INTO customer_ledger (id, user_id, customer_id, amount, type, mode, note, created_at, updated_at, is_synced)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        `;
+
+        db.run(sql, [
+            id,
+            entry.user_id,
+            entry.customer_id,
+            entry.amount,
+            entry.type,
+            entry.mode || 'Cash',
+            entry.note,
+            now, now
+        ]);
+
+        // Also update the customer balance locally
+        await this.updateBalance(entry.customer_id, entry.amount, entry.type);
+
+        await persistDB();
+
+        if (navigator.onLine) {
+            syncEngine.push('customer_ledger');
+        }
+    }
+
     async delete(id) {
         const db = getDB();
         db.run(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);

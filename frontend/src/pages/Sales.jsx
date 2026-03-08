@@ -219,8 +219,7 @@ const Sales = () => {
         e.stopPropagation();
         if (window.confirm("Are you sure? This delete cannot be undone. Data will be deleted permanently.")) {
             try {
-                const { error } = await supabase.from('sales').delete().eq('id', id);
-                if (error) throw error;
+                await saleRepo.delete(id);
                 toast.success("Sale deleted successfully");
                 fetchHistory(); // Refresh history list
             } catch (err) {
@@ -282,19 +281,16 @@ const Sales = () => {
             // Use Repository for double-write
             await saleRepo.createSale(saleData, saleItems);
 
-            // 3. Update Product Stock locally (Still doing here for now, but could be in Repo)
-            const db = getDB();
+            // 3. Update Product Stock locally
             for (const item of items) {
                 if (item.product_id) {
-                    await productRepo.updateStock(item.product_id, -(parseFloat(item.qty) || 0));
+                    await saleRepo.updateStock(item.product_id, -(parseFloat(item.qty) || 0));
                 }
             }
 
             // 4. Update Customer Balance locally
             if (selectedCustomerId) {
-                await customerRepo.update(selectedCustomerId, {
-                    credit_balance: (customers.find(c => c.id === selectedCustomerId)?.credit_balance || 0) + totals.balance
-                });
+                await customerRepo.updateBalance(selectedCustomerId, totals.balance, 'credit');
             }
 
             // Success

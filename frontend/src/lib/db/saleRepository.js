@@ -39,8 +39,8 @@ export class SaleRepository extends BaseRepository {
         // 2. Insert Items
         for (const item of items) {
             const itemSql = `
-                INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, is_synced)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, updated_at, is_synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             `;
             const itemId = Date.now() + Math.random();
             db.run(itemSql, [
@@ -51,7 +51,7 @@ export class SaleRepository extends BaseRepository {
                 item.quantity,
                 item.unit_price,
                 item.total_price,
-                now
+                now, now
             ]);
         }
 
@@ -64,6 +64,28 @@ export class SaleRepository extends BaseRepository {
         }
 
         return saleData.id;
+    }
+    async updateStock(productId, change) {
+        const db = getDB();
+        const now = new Date().toISOString();
+        db.run(`UPDATE products SET stock_quantity = stock_quantity + ?, is_synced = 0, updated_at = ? WHERE id = ?`,
+            [change, now, productId]);
+        await persistDB();
+        if (navigator.onLine) {
+            syncEngine.push('products');
+        }
+    }
+
+    async delete(id) {
+        const db = getDB();
+        db.run(`DELETE FROM sales WHERE id = ?`, [id]);
+        db.run(`DELETE FROM sale_items WHERE sale_id = ?`, [id]);
+        await persistDB();
+
+        if (navigator.onLine) {
+            syncEngine.push('sales');
+            syncEngine.push('sale_items');
+        }
     }
 }
 

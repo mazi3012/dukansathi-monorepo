@@ -20,6 +20,23 @@ export class BaseRepository {
         });
     }
 
+    async getAllFromTable(tableName, whereClause = '') {
+        const db = getDB();
+        let sql = `SELECT * FROM ${tableName}`;
+        if (whereClause) sql += ` WHERE ${whereClause}`;
+        sql += ` ORDER BY updated_at DESC`;
+
+        const result = db.exec(sql);
+        if (result.length === 0) return [];
+
+        const columns = result[0].columns;
+        return result[0].values.map(v => {
+            const obj = {};
+            columns.forEach((col, i) => obj[col] = v[i]);
+            return obj;
+        });
+    }
+
     async getById(id) {
         const db = getDB();
         const stmt = db.prepare(`SELECT * FROM ${this.tableName} WHERE id = ?`);

@@ -35,6 +35,16 @@ export class ProductRepository extends BaseRepository {
             syncEngine.push('products');
         }
     }
+
+    async delete(id) {
+        const db = getDB();
+        db.run(`DELETE FROM products WHERE id = ?`, [id]);
+        await persistDB();
+
+        if (navigator.onLine) {
+            syncEngine.push('products');
+        }
+    }
 }
 
 export const productRepo = new ProductRepository();
