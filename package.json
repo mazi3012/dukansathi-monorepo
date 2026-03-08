@@ -1,13 +1,36 @@
 {
     "name": "dukansathi-monorepo",
     "version": "1.0.0",
+    "main": "electron/main.js",
     "private": true,
     "scripts": {
         "build": "cd frontend && npm install && npm run build",
         "dev": "cd frontend && npm run dev",
+        "electron:dev": "concurrently \"npm run dev\" \"electron .\"",
+        "electron:build": "cd frontend && npm run build && electron-builder",
         "lint": "cd frontend && npm run lint"
     },
     "engines": {
         "node": ">=18.0.0"
+    },
+    "devDependencies": {
+        "concurrently": "^9.2.1",
+        "electron": "^40.8.0",
+        "electron-builder": "^26.8.1"
+    },
+    "build": {
+        "appId": "com.dukansathi.app",
+        "productName": "Dukan Sathi",
+        "directories": {
+            "output": "dist-electron"
+        },
+        "win": {
+            "target": "portable",
+            "icon": "frontend/public/pwa-512x512.png"
+        },
+        "files": [
+            "electron/**/*",
+            "frontend/dist/**/*"
+        ]
     }
 }

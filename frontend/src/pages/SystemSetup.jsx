@@ -302,13 +302,49 @@ const SystemSetup = () => {
                                                         : "Ollama is the core neural runtime for local AI. Please install it from ollama.com, set OLLAMA_ORIGINS=\"*\" (if using cloud backend), and ensure the service is active."}
                                                 </div>
                                                 {!ollamaReady && (
-                                                    <div className="flex flex-col gap-3 mt-4">
-                                                        <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-block px-6 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-amber-500 hover:text-white transition-all">
-                                                            Deploy Ollama Runtime
-                                                        </a>
-                                                        <p className="text-[9px] font-black opacity-60">
-                                                            PRO TIP: If backend is remote, run: <code className="bg-black/20 p-1 rounded">set OLLAMA_ORIGINS="*"</code> before starting Ollama.
-                                                        </p>
+                                                    <div className="flex flex-col gap-4 mt-6">
+                                                        <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/20 font-mono text-[10px] text-indigo-300 relative group">
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="opacity-50"># Command (CMD / PowerShell)</span>
+                                                                <div className="flex gap-3">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText('set OLLAMA_ORIGINS="*" && ollama serve');
+                                                                            toast.success("CMD command copied!");
+                                                                        }}
+                                                                        className="text-indigo-500 hover:text-indigo-400 font-black uppercase text-[8px]"
+                                                                    >
+                                                                        Copy CMD
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText('$env:OLLAMA_ORIGINS="*"; ollama serve');
+                                                                            toast.success("PowerShell command copied!");
+                                                                        }}
+                                                                        className="text-indigo-400 hover:text-indigo-300 font-black uppercase text-[8px]"
+                                                                    >
+                                                                        Copy PS
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <code>CMD: set OLLAMA_ORIGINS="*" && ollama serve</code>
+                                                                <code className="block opacity-60">PS: $env:OLLAMA_ORIGINS="*"; ollama serve</code>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            <p className="text-[10px] leading-relaxed opacity-70">
+                                                                Browser security (CORS) blocks direct communication unless origins are allowed. The command above starts Ollama with the correct multi-origin permissions.
+                                                            </p>
+                                                            <div className="flex gap-3">
+                                                                <a href="https://ollama.com" target="_blank" rel="noreferrer" className="flex-1 px-4 py-3 bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-amber-500 hover:text-white transition-all">
+                                                                    Ollama.com
+                                                                </a>
+                                                                <button onClick={checkOllama} className="px-6 py-3 bg-indigo-500/20 text-indigo-500 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-center hover:bg-indigo-500 hover:text-white transition-all">
+                                                                    Verify Connection
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>

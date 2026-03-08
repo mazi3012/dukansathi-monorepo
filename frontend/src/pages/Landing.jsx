@@ -86,6 +86,11 @@ const Landing = () => {
                             </button>
                         )}
 
+                        <a href="#" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm group">
+                            <Download className="mr-2 group-hover:scale-110 transition-transform" size={18} />
+                            Download for Windows
+                        </a>
+
                         <Link to="/setup" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
                             Run Diagnostics
                         </Link>

@@ -1,4 +1,5 @@
 import { ollamaProvider } from './ollamaProvider';
+import { webAiProvider } from './webAiProvider';
 import { getDB } from '../sqlite';
 
 const SYSTEM_PROMPT = `
@@ -34,6 +35,16 @@ export const localAgent = {
                 { role: 'user', content: text }
             ];
 
+            // Priority 1: Web AI
+            if (await webAiProvider.isAvailable()) {
+                try {
+                    return await webAiProvider.chat(messages);
+                } catch (err) {
+                    console.warn("Web AI failed, falling back to Ollama...");
+                }
+            }
+
+            // Priority 2: Ollama
             return await ollamaProvider.chat(messages, model);
         } catch (err) {
             console.error('❌ Local Agent Error:', err);
@@ -56,7 +67,21 @@ export const localAgent = {
         QUERY: "${text}"
         SQL:`;
 
-        const sql = await ollamaProvider.generate(sqlPrompt, model);
+        let sql = "";
+        // Priority 1: Web AI for SQL Gen
+        if (await webAiProvider.isAvailable()) {
+            try {
+                sql = await webAiProvider.generate(sqlPrompt);
+            } catch (err) {
+                console.warn("Web AI SQL Gen failed, falling back to Ollama...");
+            }
+        }
+
+        // Priority 2: Ollama for SQL Gen
+        if (!sql) {
+            sql = await ollamaProvider.generate(sqlPrompt, model);
+        }
+
         const cleanSql = sql.replace(/```sql|```/g, '').trim();
         console.log(`📜 Generated Local SQL: ${cleanSql}`);
 
@@ -79,6 +104,16 @@ export const localAgent = {
             USER QUESTION: ${text}
             Summarize this for the user:`;
 
+            // Priority 1: Web AI for Summary
+            if (await webAiProvider.isAvailable()) {
+                try {
+                    return await webAiProvider.generate(summaryPrompt);
+                } catch (err) {
+                    console.warn("Web AI summary failed, falling back to Ollama...");
+                }
+            }
+
+            // Priority 2: Ollama for Summary
             return await ollamaProvider.generate(summaryPrompt, model);
         } catch (dbErr) {
             console.error('DB Error:', dbErr);
