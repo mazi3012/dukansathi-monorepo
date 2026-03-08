@@ -308,8 +308,8 @@ export const ChatProvider = ({ children }) => {
         let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
         let activeModel = model;
 
-        // Force cloud for PWA/Mobile if online and current model is NOT a local one (missing ':')
-        if (!isOffline && (mobile || pwa) && !isLocalModel) {
+        // Force Cloud AI for Mobile/PWA when online to prevent Ollama errors
+        if (!isOffline && (mobile || pwa)) {
             activeMode = 'cloud';
             activeModel = 'llama-4-scout-17b-16e-instruct-maas';
         }
@@ -388,7 +388,8 @@ export const ChatProvider = ({ children }) => {
                         let activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
                         let activeModel = model;
 
-                        if (!isOffline && (mobile || pwa) && !isLocalModel) {
+                        // Force Cloud AI for Mobile/PWA when online
+                        if (!isOffline && (mobile || pwa)) {
                             activeMode = 'cloud';
                             activeModel = 'llama-4-scout-17b-16e-instruct-maas';
                         }

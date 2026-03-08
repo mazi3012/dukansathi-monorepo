@@ -27,7 +27,9 @@ except ImportError:
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from google.oauth2 import service_account
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
+# Define IST (Asia/Kolkata)
+IST = dt_timezone(timedelta(hours=5, minutes=30))
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import asyncio
@@ -335,7 +337,7 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     
     USER QUERY: "{user_query}"
     USER_ID: "{user_id}"
-    CURRENT DATE: {datetime.now().strftime('%A, %B %d, %Y')}
+    CURRENT DATE: {datetime.now(IST).strftime('%A, %B %d, %Y')} ({datetime.now(IST).strftime('%H:%M')} IST)
     
     RECENT CONVERSATION HISTORY (Use this to resolve pronouns like 'they', 'it', 'them', and time references like 'yesterday'):
     {history_context if history_context else "(No recent history)"}
@@ -1741,7 +1743,7 @@ async def chat_node(state: AgentState):
         f"PERSONA: Professional shop manager and assistant for {business_name}. "
         f"IMPORTANT: You are talking to the SHOP OWNER/BOSS. Do NOT assume the user is "
         f"one of the customers listed in the ledger. Address the user as 'Boss' or 'Sir'. "
-        f"DATE: {datetime.now().strftime('%d %b %Y')}. "
+        f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. "
         f"{VOICE_RULES} "
         f"Respond in {'Hinglish (Hindi written in English text)' if detected_lang == 'hinglish' else 'clear English'}."
     )
@@ -1749,7 +1751,7 @@ async def chat_node(state: AgentState):
         PERSONA_LOCK = (
             f"PERSONA: Welcoming customer-facing assistant for {business_name}. "
             f"No profit/cost prices. Say available/out instead of stock numbers. "
-            f"DATE: {datetime.now().strftime('%d %b %Y')}. {VOICE_RULES}"
+            f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. {VOICE_RULES}"
         )
 
     if category == "GREETING":
