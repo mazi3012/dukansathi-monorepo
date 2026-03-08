@@ -127,9 +127,14 @@ export const ChatProvider = ({ children }) => {
     const onMessageHandler = useCallback((event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'text') {
+            if (data.type === 'text' || data.type === 'error') {
                 setIsThinking(false);
-                const aiMessage = { type: 'ai', text: data.content };
+                const isError = data.type === 'error';
+                const aiMessage = {
+                    type: 'ai',
+                    text: data.content,
+                    isError: isError // Frontend can style this differently if needed
+                };
                 if (data.attachment) aiMessage.attachment = data.attachment;
 
                 // Parse AI messages that are JSON (Invoices)
@@ -206,6 +211,11 @@ export const ChatProvider = ({ children }) => {
                 reconnectAttemptRef.current += 1;
                 reconnectTimerRef.current = setTimeout(connectWebSocket, delay);
             }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket Error:', error);
+            setIsConnected(false);
         };
 
         socket.onmessage = (event) => onMessageHandlerRef.current?.(event);

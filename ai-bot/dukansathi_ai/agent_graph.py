@@ -1365,15 +1365,8 @@ async def action_node(state: AgentState):
                              
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
-                            db_prod = results[0] # Take first match
-                            price = float(db_prod.get("selling_price", 0))
-                            tax_percent = float(db_prod.get("tax_percent", 0))
-                            official_name = db_prod.get("name", prod_name)
-                            logger.info(f"DEBUG: [LocalDB] Found {official_name}: Price={price}")
-                    except Exception as local_err:
-                        logger.error(f"ERROR: Local DB Lookup failed: {local_err}")
                 
-                # Update item
+                 # Update item
                 item["product_id"] = db_prod.get("id") if db_prod else None
                 item["price"] = price
                 item["tax_percent"] = tax_percent
