@@ -1,6 +1,5 @@
-// file:///e:/dukanv22/frontend/src/lib/sqlite.js
 import initSqlJs from 'sql.js';
-import schemaSql from './db/schema.sql?raw';
+import { SCHEMA_SQL } from './db/schema';
 
 let db = null;
 let SQL = null;
@@ -18,7 +17,7 @@ export const initSQLite = async () => {
     // Real implementation would use: const opfsRoot = await navigator.storage.getDirectory();
 
     db = new SQL.Database();
-    db.run(schemaSql);
+    db.run(SCHEMA_SQL);
 
     console.log("SQLite Initialized with Schema");
     return db;
