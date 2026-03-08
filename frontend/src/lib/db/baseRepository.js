@@ -9,7 +9,8 @@ export class BaseRepository {
 
     async getAll() {
         const db = getDB();
-        const result = db.exec(`SELECT * FROM ${this.tableName} ORDER BY updated_at DESC`);
+        const orderCol = ['sale_items', 'customer_ledger'].includes(this.tableName) ? 'created_at' : 'updated_at';
+        const result = db.exec(`SELECT * FROM ${this.tableName} ORDER BY ${orderCol} DESC`);
         if (result.length === 0) return [];
 
         const columns = result[0].columns;
@@ -22,9 +23,10 @@ export class BaseRepository {
 
     async getAllFromTable(tableName, whereClause = '') {
         const db = getDB();
+        const orderCol = ['sale_items', 'customer_ledger'].includes(tableName) ? 'created_at' : 'updated_at';
         let sql = `SELECT * FROM ${tableName}`;
         if (whereClause) sql += ` WHERE ${whereClause}`;
-        sql += ` ORDER BY updated_at DESC`;
+        sql += ` ORDER BY ${orderCol} DESC`;
 
         const result = db.exec(sql);
         if (result.length === 0) return [];

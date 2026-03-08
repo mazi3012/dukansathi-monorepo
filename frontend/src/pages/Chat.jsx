@@ -720,17 +720,17 @@ const Chat = () => {
                     const rightAlignX = 200;
 
                     doc.text(`Taxable Value:`, 140, finalY);
-                    doc.text(`₹${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
+                    doc.text(`Rs. ${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
 
                     if (isGst) {
                         if (totalIgst > 0) {
                             doc.text(`IGST:`, 140, finalY + 6);
-                            doc.text(`₹${totalIgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                            doc.text(`Rs. ${totalIgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
                         } else {
                             doc.text(`CGST:`, 140, finalY + 6);
-                            doc.text(`₹${totalCgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                            doc.text(`Rs. ${totalCgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
                             doc.text(`SGST:`, 140, finalY + 12);
-                            doc.text(`₹${totalSgst.toFixed(2)}`, rightAlignX, finalY + 12, { align: 'right' });
+                            doc.text(`Rs. ${totalSgst.toFixed(2)}`, rightAlignX, finalY + 12, { align: 'right' });
                             finalY += 6; // Shift subsequent items down
                         }
                     }
@@ -739,18 +739,18 @@ const Chat = () => {
                     doc.setTextColor(79, 70, 229);
                     doc.setFont(undefined, 'bold');
                     doc.text(`Grand Total:`, 140, finalY + 15);
-                    doc.text(`₹${grandTotal.toFixed(2)}`, rightAlignX, finalY + 15, { align: 'right' });
+                    doc.text(`Rs. ${grandTotal.toFixed(2)}`, rightAlignX, finalY + 15, { align: 'right' });
 
                     doc.setFontSize(10);
                     doc.setTextColor(30, 41, 59);
                     doc.setFont(undefined, 'normal');
                     doc.text(`Amount Paid:`, 140, finalY + 24);
-                    doc.text(`₹${amtPaid.toFixed(2)}`, rightAlignX, finalY + 24, { align: 'right' });
+                    doc.text(`Rs. ${amtPaid.toFixed(2)}`, rightAlignX, finalY + 24, { align: 'right' });
 
                     if (balanceDue > 0) {
                         doc.setTextColor(220, 38, 38);
                         doc.text(`Balance Due:`, 140, finalY + 30);
-                        doc.text(`₹${balanceDue.toFixed(2)}`, rightAlignX, finalY + 30, { align: 'right' });
+                        doc.text(`Rs. ${balanceDue.toFixed(2)}`, rightAlignX, finalY + 30, { align: 'right' });
                     }
 
                     // Generate QR String (UPI for payment or Compliance for GST)
