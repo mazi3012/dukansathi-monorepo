@@ -1,6 +1,7 @@
 // file:///e:/dukanv22/frontend/src/lib/db/customerRepository.js
 import { BaseRepository } from './baseRepository';
-import { getDB } from '../sqlite';
+import { getDB, persistDB } from '../sqlite';
+import { syncEngine } from './syncEngine';
 
 export class CustomerRepository extends BaseRepository {
     constructor() {

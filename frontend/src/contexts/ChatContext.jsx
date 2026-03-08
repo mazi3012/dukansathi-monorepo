@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
 import { localAgent } from '../lib/ai/localAgent';
+import { syncEngine } from '../lib/db/syncEngine';
 
 export const ChatContext = createContext();
 
@@ -168,6 +169,11 @@ export const ChatProvider = ({ children }) => {
                 setMessages(prev => [...prev, aiMessage]);
                 if (data.audio) playAudio(data.audio);
                 else speakNative(data.content);
+
+                // Trigger sync immediately after AI action to refresh local DB
+                if (navigator.onLine) {
+                    syncEngine.syncAll();
+                }
             } else if (data.type === 'image_pending') {
                 setIsThinking(false);
                 setMessages(prev => [...prev, {

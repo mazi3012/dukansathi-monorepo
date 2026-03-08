@@ -1,6 +1,5 @@
 import initSqlJs from 'sql.js';
 import { SCHEMA_SQL } from './db/schema';
-import sqlWasm from 'sql.js/dist/sql-wasm.wasm?url';
 import localforage from 'localforage';
 
 let db = null;
@@ -10,7 +9,7 @@ export const initSQLite = async () => {
     if (db) return db;
 
     SQL = await initSqlJs({
-        locateFile: file => file === 'sql-wasm.wasm' ? sqlWasm : `/${file}`
+        locateFile: file => file === 'sql-wasm.wasm' ? '/sql-wasm.wasm' : `/${file}`
     });
 
     const savedDB = await localforage.getItem('dukan_sqlite_v1');

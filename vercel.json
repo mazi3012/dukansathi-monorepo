@@ -5,6 +5,10 @@
     "outputDirectory": "frontend/dist",
     "rewrites": [
         {
+            "source": "/(.*).wasm",
+            "destination": "/$1.wasm"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
