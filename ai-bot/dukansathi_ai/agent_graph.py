@@ -375,7 +375,7 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
         sql = sql[:-1]
     return sql
 
-async def generate_sql_local(user_query: str, model: str = "phi3:mini") -> str:
+async def generate_sql_local(user_query: str, model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
     """
     Enhanced SQL generation for Local AI (SQLite).
     Supports products, customers, and sales queries.
@@ -1772,12 +1772,32 @@ async def chat_node(state: AgentState):
             f"GOAL: Natural helpful reply. MAX 2 sentences."
         )
     else:  # BUSINESS / Fallback
-        # Data Retrieval
+        # Data Retrieval - SQLite First Strategy
+        local_results = "No local data found."
+        try:
+            # Generate SQLite-specific query
+            sql_local = await generate_sql_local(last_msg, model=selected_model)
+            local_results = execute_sql_local(sql_local)
+            logger.info(f"DEBUG: SQLite results: {local_results[:100]}...")
+        except Exception as e:
+            logger.error(f"SQLite lookup failed: {e}")
+
         if is_cloud_llm and not use_local_data:
-            sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
-            specialist_data = await execute_sql(sql_query)
+            # If cloud model, try Supabase too as fallback/enrichment
+            try:
+                sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
+                cloud_results = await execute_sql(sql_query)
+                # Combine: prioritize local if it has data
+                if local_results and "[]" not in local_results and "Error" not in local_results:
+                    specialist_data = f"LOCAL DATA: {local_results}\n(Cloud sync data also available if needed)"
+                else:
+                    specialist_data = cloud_results
+            except Exception as e:
+                logger.error(f"Cloud lookup failed: {e}")
+                specialist_data = local_results
         else:
-            specialist_data = local_db_context if local_db_context else "No local data available."
+            # For local models, only use local data
+            specialist_data = local_results if local_results and "[]" not in local_results else (local_db_context if local_db_context else "No local data available.")
 
         if role == "customer":
             input_prompt = (

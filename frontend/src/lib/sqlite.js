@@ -1,5 +1,6 @@
 import initSqlJs from 'sql.js';
 import { SCHEMA_SQL } from './db/schema';
+import sqlWasm from 'sql.js/dist/sql-wasm.wasm?url';
 
 let db = null;
 let SQL = null;
@@ -8,8 +9,7 @@ export const initSQLite = async () => {
     if (db) return db;
 
     SQL = await initSqlJs({
-        // Locate the wasm file in the public directory
-        locateFile: file => `/${file}`
+        locateFile: file => file === 'sql-wasm.wasm' ? sqlWasm : `/${file}`
     });
 
     // Strategy: Storage in OPFS (Origin Private File System) for persistence
