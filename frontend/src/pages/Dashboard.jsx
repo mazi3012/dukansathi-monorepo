@@ -4,6 +4,10 @@ import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSqua
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardSkeleton } from '../components/Skeleton';
 import { supabase } from '../lib/supabase';
+import { saleRepo } from '../lib/db/saleRepository';
+import { productRepo } from '../lib/db/productRepository';
+import { customerRepo } from '../lib/db/customerRepository';
+import { syncEngine } from '../lib/db/syncEngine';
 import {
     Chart as ChartJS,
     CategoryScale,

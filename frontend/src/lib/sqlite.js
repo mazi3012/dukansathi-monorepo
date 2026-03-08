@@ -9,7 +9,10 @@ export const initSQLite = async () => {
     if (db) return db;
 
     SQL = await initSqlJs({
-        locateFile: file => file === 'sql-wasm.wasm' ? '/sql-wasm.wasm' : `/${file}`
+        locateFile: file => {
+            if (file.endsWith('.wasm')) return '/sql-wasm.wasm';
+            return `/${file}`;
+        }
     });
 
     const savedDB = await localforage.getItem('dukan_sqlite_v1');
