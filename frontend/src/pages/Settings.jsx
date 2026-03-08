@@ -23,6 +23,7 @@ const VOICE_OPTIONS = [
 ];
 
 const MODEL_OPTIONS = [
+    { id: 'llama-4-scout-17b-16e-instruct-maas', label: 'Dukan Sathi Cloud (Default)', description: 'Fast, powerful, and always up-to-date. Requires internet.' },
     { id: 'phi3:mini', label: 'Phi-3 Mini (Local)', description: 'Runs offline on your computer. Requires Ollama.' },
     { id: 'gemma:2b', label: 'Gemma 2B (Local)', description: 'Lightweight Google model for low-spec PCs.' }
 ];
@@ -545,12 +546,15 @@ const Settings = () => {
                                 </div>
                                 <div className="flex items-center gap-4 pt-6">
                                     <button
-                                        onClick={() => { setBusinessData({ ...businessData, show_qr_on_invoice: !businessData.show_qr_on_invoice }); markChange(); }}
-                                        className={`w-12 h-6 rounded-full transition-all relative ${businessData.show_qr_on_invoice ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                        onClick={() => { setBusinessData({ ...businessData, sync_enabled: !businessData.sync_enabled }); markChange(); }}
+                                        className={`w-12 h-6 rounded-full transition-all relative ${businessData.sync_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                     >
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${businessData.show_qr_on_invoice ? 'left-7' : 'left-1'}`} />
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${businessData.sync_enabled ? 'left-7' : 'left-1'}`} />
                                     </button>
-                                    <span className="text-xs font-black text-text-main uppercase tracking-tighter">Show QR Code on Invoice</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-black text-text-main uppercase tracking-tighter">Enable Cloud Sync</span>
+                                        <span className="text-[10px] text-text-muted font-bold">Backup your data to the cloud automatically</span>
+                                    </div>
                                 </div>
                             </div>
                         </section>

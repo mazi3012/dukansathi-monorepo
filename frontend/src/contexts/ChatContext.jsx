@@ -267,8 +267,10 @@ export const ChatProvider = ({ children }) => {
         const { supabase } = await import('../lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
 
-        const activeModel = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'phi3:mini' : model;
-        const activeMode = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'local' : 'cloud';
+        const isOffline = !navigator.onLine;
+        const isLocalModel = model.includes(':');
+        const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+        const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;
 
         if (activeMode === 'local') {
             setMessages(prev => [...prev, { type: 'user', text }]);
@@ -332,8 +334,10 @@ export const ChatProvider = ({ children }) => {
                         const { supabase } = await import('../lib/supabase');
                         const { data: { session } } = await supabase.auth.getSession();
 
-                        const activeModel = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'phi3:mini' : model;
-                        const activeMode = (!navigator.onLine || localStorage.getItem('sync_enabled') === 'false') ? 'local' : 'cloud';
+                        const isOffline = !navigator.onLine;
+                        const isLocalModel = model.includes(':');
+                        const activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+                        const activeModel = (activeMode === 'local' && !isLocalModel) ? 'phi3:mini' : model;
 
                         const payload = {
                             type: 'voice',

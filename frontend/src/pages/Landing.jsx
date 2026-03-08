@@ -89,22 +89,22 @@ const Landing = () => {
                                 className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow"
                             >
                                 <Download className="inline mr-2" size={18} />
-                                Install Web App (PWA)
+                                Install App (Recommended)
                             </button>
                         )}
 
                         <button
                             onClick={() => {
                                 if (isElectron) {
-                                    alert("You are already running the Native Desktop version! 🚀");
+                                    alert("You are running the Native Desktop version! 🚀");
                                 } else {
-                                    alert("Desktop App Setup:\n1. Open your terminal\n2. Open the project folder\n3. Run: npm run electron:dev\n\nThis will launch the native window with automated Ollama management.");
+                                    alert("Native App Setup:\n\n1. Open your project terminal\n2. Run: npm run electron:dev\n\nThis launches the native window with automated local AI management.");
                                 }
                             }}
                             className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm group"
                         >
                             <Cpu className="mr-2 group-hover:scale-110 transition-transform" size={18} />
-                            {isElectron ? "App: Native Desktop" : "Connect Native App"}
+                            {isElectron ? "App: Native Mode" : "Native Desktop Mode"}
                         </button>
 
                         <Link to="/setup" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
