@@ -319,11 +319,12 @@ export const ChatProvider = ({ children }) => {
                 activeModel = 'phi3:mini'; // Fallback to lightest local model
             }
         } else {
-            // "auto" behavior: Default to cloud for mobile/PWA if online
-            activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+            // "auto" behavior: Prioritize Cloud for PWA/Mobile if online
             if (!isOffline && (mobile || pwa)) {
                 activeMode = 'cloud';
                 activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+            } else {
+                activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
             }
             if (activeMode === 'local' && !isLocalModel) {
                 activeModel = 'phi3:mini';
@@ -412,10 +413,12 @@ export const ChatProvider = ({ children }) => {
                                 activeModel = 'phi3:mini';
                             }
                         } else {
-                            activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
+                            // "auto" behavior: Prioritize Cloud for PWA/Mobile if online
                             if (!isOffline && (mobile || pwa)) {
                                 activeMode = 'cloud';
                                 activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+                            } else {
+                                activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
                             }
                             if (activeMode === 'local' && !isLocalModel) {
                                 activeModel = 'phi3:mini';

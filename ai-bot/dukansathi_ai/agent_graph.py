@@ -148,8 +148,9 @@ def number_to_hinglish_words(amount) -> str:
 # ─── Shared Voice + Language Rules (injected into every prompt) ──────────────
 VOICE_RULES = (
     "VOICE RULE: This response will be SPOKEN aloud. "
-    "Reply in MAX 2 short sentences. No bullet points, no markdown, no lists. "
-    "GIVE DIRECT ANSWERS. DO NOT INCLUDE ROLE NAMES LIKE 'USER:' OR 'ASSISTANT:'. "
+    "Be professional, conversational, and helpful. Keep responses to 1-2 natural sentences. "
+    "GIVE DIRECT ANSWERS but avoid being robotic. DO NOT INCLUDE ROLE NAMES LIKE 'USER:' OR 'ASSISTANT:'. "
+    "No markdown or bullet points. "
     "For large amounts (>= 1,00,000), use 'lakh' or 'crore'. For smaller amounts, just say the number followed by 'rupees'. "
     "LANGUAGE: Reply ONLY in English or Hinglish (Hindi words in Roman script). "
     "NEVER use Devanagari script."
@@ -1796,7 +1797,7 @@ async def chat_node(state: AgentState):
     if category == "GREETING":
         input_prompt = (
             f"SYSTEM: {PERSONA_LOCK}\n"
-            f"GOAL: Give a warm greeting in 1 sentence."
+            f"GOAL: Give a warm, conversational greeting in 1 short sentence. Avoid answering 'bla bla' for simple greetings."
         )
     elif category == "CAPABILITY":
         input_prompt = (
