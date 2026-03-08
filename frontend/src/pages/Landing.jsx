@@ -82,20 +82,21 @@ const Landing = () => {
                                 onClick={async () => {
                                     try {
                                         await installApp();
+                                        // Force reload after install if possible to get latest SW
+                                        if ('serviceWorker' in navigator) {
+                                            const registration = await navigator.serviceWorker.getRegistration();
+                                            if (registration) await registration.update();
+                                        }
                                     } catch (err) {
-                                        alert("Install failed. Please ensure you are in a secure context (HTTPS/localhost) and the browser supports PWA installation.");
+                                        alert("Install failed. Please ensure you are in a secure context (HTTPS/localhost).");
                                     }
                                 }}
                                 className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow active:scale-95"
                             >
                                 <Download className="inline mr-2" size={18} />
-                                Get Cloud AI App
+                                Install Latest Web AI App
                             </button>
                         )}
-
-                        <Link to="/login" className="px-8 py-4 bg-white/5 border border-white/10 text-white text-base font-bold rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center backdrop-blur-sm">
-                            Open Dashboard
-                        </Link>
                     </motion.div>
                 </motion.div>
 
@@ -215,10 +216,16 @@ const Landing = () => {
                             </p>
                         </div>
                         <button
-                            onClick={installApp}
+                            onClick={async () => {
+                                await installApp();
+                                if ('serviceWorker' in navigator) {
+                                    const registration = await navigator.serviceWorker.getRegistration();
+                                    if (registration) await registration.update();
+                                }
+                            }}
                             className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20"
                         >
-                            Download App
+                            Update & Download App
                         </button>
                     </motion.div>
                 )}
