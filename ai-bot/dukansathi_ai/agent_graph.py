@@ -361,9 +361,10 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     3. Return ONLY the SQL query. No markdown, no explanations.
     4. Cast UUIDs properly if needed, but usually 'string' works in Postgres text-to-uuid.
     5. Handle case-insensitive string matching using ILIKE for names.
-    6. If asking for "sales", join sales and sale_items and products if needed.
-    7. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
-    {f"8. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
+    6. For business questions (totals, revenue, counts), use aggregation functions like SUM, COUNT, AVG.
+    7. For "sales" or "revenue", use the `sales` table (total_amount). Example: "Total revenue" -> SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}'.
+    8. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
+    {f"9. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
     
     OPENCLAW SKILLS & RULES:
     {OPENCLAW_SKILLS}
@@ -1814,32 +1815,33 @@ async def chat_node(state: AgentState):
             f"GOAL: Natural helpful reply. MAX 2 sentences."
         )
     else:  # BUSINESS / Fallback
-        # Data Retrieval - SQLite First Strategy
-        local_results = "No local data found."
-        try:
-            # Generate SQLite-specific query
-            sql_local = await generate_sql_local(last_msg, model=selected_model)
-            local_results = execute_sql_local(sql_local)
-            logger.info(f"DEBUG: SQLite results: {local_results[:100]}...")
-        except Exception as e:
-            logger.error(f"SQLite lookup failed: {e}")
-
+        # Data Retrieval Strategy: Cloud = Supabase primary, Local = SQLite only
+        specialist_data = "No data found."
+        
         if is_cloud_llm and not use_local_data:
-            # If cloud model, try Supabase too as fallback/enrichment
+            # CLOUD PATH: Use Supabase (full real-time data)
             try:
                 sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
                 cloud_results = await execute_sql(sql_query)
-                # Combine: prioritize local if it has data
-                if local_results and "[]" not in local_results and "Error" not in local_results:
-                    specialist_data = f"LOCAL DATA: {local_results}\n(Cloud sync data also available if needed)"
-                else:
-                    specialist_data = cloud_results
+                specialist_data = cloud_results
+                
+                # Fallback to local context only if cloud is explicitly empty/errored
+                if not cloud_results or "[]" in cloud_results or "Error" in cloud_results or "unavailable" in cloud_results:
+                     if local_db_context:
+                         specialist_data = f"{cloud_results}\n\n[LOCAL CONTEXT]:\n{local_db_context}"
             except Exception as e:
                 logger.error(f"Cloud lookup failed: {e}")
-                specialist_data = local_results
+                specialist_data = local_db_context if local_db_context else "Data lookup failed."
         else:
-            # For local models, only use local data
-            specialist_data = local_results if local_results and "[]" not in local_results else (local_db_context if local_db_context else "No local data available.")
+            # LOCAL PATH: Use SQLite (offline data)
+            try:
+                sql_local = await generate_sql_local(last_msg, model=selected_model)
+                local_results = execute_sql_local(sql_local)
+                logger.info(f"DEBUG: SQLite results: {local_results[:100]}...")
+                specialist_data = local_results if local_results and "[]" not in local_results else (local_db_context if local_db_context else "No local data available.")
+            except Exception as e:
+                logger.error(f"SQLite lookup failed: {e}")
+                specialist_data = local_db_context if local_db_context else "Local data lookup failed."
 
         if role == "customer":
             input_prompt = (
