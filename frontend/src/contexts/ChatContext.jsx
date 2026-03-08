@@ -16,6 +16,7 @@ export const ChatProvider = ({ children }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
+    const [aiPreference, setAiPreference] = useState(localStorage.getItem('ai_preference') || 'cloud');
 
     let initialModel = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
     if (initialModel.includes('gemini')) {
@@ -62,6 +63,7 @@ export const ChatProvider = ({ children }) => {
             setVoice(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
             setVoiceSpeed(localStorage.getItem('voice_speed') || '+0%');
             setModel(localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas');
+            setAiPreference(localStorage.getItem('ai_preference') || 'cloud');
         };
         window.addEventListener('settings-changed', handleSettingsChange);
         window.addEventListener('storage', handleSettingsChange);
@@ -302,7 +304,6 @@ export const ChatProvider = ({ children }) => {
         const mobile = isMobile();
         const pwa = isPWA();
         const isLocalModel = model.includes(':');
-        const aiPreference = localStorage.getItem('ai_preference') || 'cloud';
 
         let activeMode;
         let activeModel = model;
@@ -397,7 +398,6 @@ export const ChatProvider = ({ children }) => {
                         const mobile = isMobile();
                         const pwa = isPWA();
                         const isLocalModel = model.includes(':');
-                        const aiPreference = localStorage.getItem('ai_preference') || 'cloud';
 
                         let activeMode;
                         let activeModel = model;
@@ -488,7 +488,7 @@ export const ChatProvider = ({ children }) => {
             messages, sendMessage, startRecording, stopRecording,
             isListening, isThinking, setMessages, voice, changeVoice,
             isMuted, toggleMute, unlockAudio, isPlaying, isConnected,
-            model, pendingAttachment, setPendingAttachment,
+            model, aiPreference, pendingAttachment, setPendingAttachment,
             sendImage: (file) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);

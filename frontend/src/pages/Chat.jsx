@@ -132,6 +132,7 @@ const Chat = () => {
         isPlaying,
         isConnected,
         model,
+        aiPreference,
         pendingAttachment,
         setPendingAttachment
     } = useChat();
