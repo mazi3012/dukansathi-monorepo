@@ -509,7 +509,7 @@ async def get_chat_history(user_id: str, limit: int = 10) -> list:
         List of message dicts with 'role' and 'message' keys
     """
     try:
-        time_threshold = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
+        time_threshold = (datetime.now(dt_timezone.utc) - timedelta(hours=12)).isoformat()
         
         response = supabase.table("chat_history")\
             .select("role, message, created_at")\
@@ -1922,7 +1922,7 @@ MEMORY_MAX_SESSIONS = 200  # Hard cap — evict oldest if exceeded
 
 def _evict_stale_sessions():
     """Remove sessions that have been idle past TTL, then cap total count."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(dt_timezone.utc)
     stale = [
         sid for sid, s in MEMORY_STORE.items()
         if (now - s["last_active"]).total_seconds() > MEMORY_TTL_HOURS * 3600
@@ -1946,7 +1946,7 @@ async def process_user_input(
     global MEMORY_STORE
 
     session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(dt_timezone.utc)
 
     # Evict stale / overflow sessions on each call
     _evict_stale_sessions()
@@ -1982,7 +1982,7 @@ async def process_user_input(
             ai_response = "Sorry, I am having trouble thinking right now."
 
         memory.append(AIMessage(content=ai_response))
-        session["last_active"] = datetime.now(timezone.utc)
+        session["last_active"] = datetime.now(dt_timezone.utc)
         return ai_response
 
     except Exception as e:

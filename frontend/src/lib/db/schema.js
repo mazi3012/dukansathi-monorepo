@@ -15,15 +15,24 @@ CREATE TABLE IF NOT EXISTS products (
     mrp NUMERIC,
     hsn_code TEXT,
     tax_percent NUMERIC DEFAULT 0,
+    cgst_percent NUMERIC DEFAULT 0,
+    sgst_percent NUMERIC DEFAULT 0,
+    igst_percent NUMERIC DEFAULT 0,
+    discount NUMERIC DEFAULT 0,
     stock_quantity INTEGER DEFAULT 0,
     min_stock_level INTEGER DEFAULT 5,
     unit TEXT DEFAULT 'pcs',
-    is_gst_applicable BOOLEAN DEFAULT FALSE,
+    supplier_id BIGINT,
+    expiry_date TEXT,
+    batch_number TEXT,
+    warranty_months INTEGER DEFAULT 0,
+    has_serial_tracking BOOLEAN DEFAULT 0,
+    is_gst_applicable BOOLEAN DEFAULT 0,
     tax_type TEXT CHECK(tax_type IN ('inclusive', 'exclusive')) DEFAULT 'exclusive',
     image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_synced BOOLEAN DEFAULT TRUE -- TRUE if matching cloud, FALSE if local-only change
+    is_synced BOOLEAN DEFAULT 1 -- 1 if matching cloud, 0 if local-only change
 );
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -34,11 +43,14 @@ CREATE TABLE IF NOT EXISTS customers (
     email TEXT,
     address TEXT,
     credit_balance NUMERIC DEFAULT 0.00,
+    total_spend NUMERIC DEFAULT 0.00,
     gstin TEXT,
     state TEXT,
+    last_visit TEXT,
+    notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_synced BOOLEAN DEFAULT TRUE
+    is_synced BOOLEAN DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS sales (
@@ -47,14 +59,22 @@ CREATE TABLE IF NOT EXISTS sales (
     customer_id BIGINT REFERENCES customers(id),
     invoice_number TEXT,
     invoice_type TEXT DEFAULT 'regular',
+    subtotal NUMERIC NOT NULL,
+    discount_amount NUMERIC DEFAULT 0.00,
+    taxable_amount NUMERIC DEFAULT 0.00,
+    cgst_amount NUMERIC DEFAULT 0.00,
+    sgst_amount NUMERIC DEFAULT 0.00,
+    igst_amount NUMERIC DEFAULT 0.00,
+    total_tax_amount NUMERIC DEFAULT 0.00,
     total_amount NUMERIC NOT NULL,
     payment_method TEXT DEFAULT 'cash',
     payment_status TEXT DEFAULT 'paid',
     amount_paid NUMERIC DEFAULT 0.00,
     balance_due NUMERIC DEFAULT 0.00,
+    notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_synced BOOLEAN DEFAULT TRUE
+    is_synced BOOLEAN DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS sale_items (
@@ -62,12 +82,22 @@ CREATE TABLE IF NOT EXISTS sale_items (
     user_id UUID,
     sale_id BIGINT REFERENCES sales(id),
     product_id BIGINT REFERENCES products(id),
+    product_serial_id BIGINT,
     quantity INTEGER NOT NULL,
     unit_price NUMERIC NOT NULL,
+    discount_amount NUMERIC DEFAULT 0.00,
+    hsn_code TEXT,
+    taxable_amount NUMERIC DEFAULT 0.00,
+    cgst_percent NUMERIC DEFAULT 0.00,
+    cgst_amount NUMERIC DEFAULT 0.00,
+    sgst_percent NUMERIC DEFAULT 0.00,
+    sgst_amount NUMERIC DEFAULT 0.00,
+    igst_percent NUMERIC DEFAULT 0.00,
+    igst_amount NUMERIC DEFAULT 0.00,
     total_price NUMERIC NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_synced BOOLEAN DEFAULT TRUE
+    is_synced BOOLEAN DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS customer_ledger (

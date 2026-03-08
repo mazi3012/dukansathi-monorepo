@@ -69,11 +69,13 @@ export class SyncEngine {
             lastPulledAt = metadataResult[0].values[0][0];
         }
 
+        const timeColumn = ['sale_items', 'customer_ledger'].includes(tableName) ? 'created_at' : 'updated_at';
+
         // Fetch from Supabase
         const { data: remoteData, error } = await supabase
             .from(tableName)
             .select('*')
-            .gt('updated_at', lastPulledAt);
+            .gt(timeColumn, lastPulledAt);
 
         if (error) throw error;
         if (!remoteData || remoteData.length === 0) return;

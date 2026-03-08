@@ -23,6 +23,8 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { syncEngine } from '../lib/db/syncEngine';
 import logo from '../assets/logo.svg';
+import { usePWA } from '../hooks/usePWA';
+import { Download } from 'lucide-react';
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -30,6 +32,7 @@ const Sidebar = () => {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
     const [isAutoSyncEnabled, setIsAutoSyncEnabled] = React.useState(true);
     const [syncStatus, setSyncStatus] = React.useState({ status: 'idle', message: '' });
+    const { isInstallable, installApp } = usePWA();
 
     React.useEffect(() => {
         const fetchUser = async () => {
@@ -172,6 +175,20 @@ const Sidebar = () => {
                         <RefreshCw size={14} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
                     </button>
                 </div>
+
+                {/* PWA Install Button */}
+                {isInstallable && (
+                    <button
+                        onClick={async () => {
+                            await installApp();
+                            window.location.reload();
+                        }}
+                        className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600 border border-indigo-500/20 hover:border-indigo-500 text-indigo-500 hover:text-white rounded-xl transition-all duration-300 text-xs font-bold font-heading shadow-sm"
+                    >
+                        <Download size={14} />
+                        Install Desktop App
+                    </button>
+                )}
             </div>
 
             {/* User Profile / Footer Area */}

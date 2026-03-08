@@ -86,15 +86,16 @@ const Landing = () => {
                                             const registration = await navigator.serviceWorker.getRegistration();
                                             if (registration) await registration.update();
                                         }
-                                        window.location.reload(); // Hard reload to ensure latest assets
+                                        window.location.reload();
                                     } catch (err) {
                                         console.error("Install failed:", err);
                                     }
                                 }}
-                                className="px-8 py-4 bg-indigo-600 text-white text-base font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(79,70,229,0.3)] animate-pulse-slow active:scale-95 border-2 border-white/20"
+                                className="group relative px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-base font-bold rounded-2xl hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] hover:shadow-[0_0_60px_-10px_rgba(99,102,241,0.7)] animate-pulse-slow active:scale-95 border-2 border-white/20 overflow-hidden"
                             >
-                                <Download className="inline mr-2" size={18} />
-                                Get Latest Web AI App
+                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                                <Download className="inline mr-2 relative z-10 group-hover:-translate-y-1 transition-transform" size={18} />
+                                <span className="relative z-10">Install App</span>
                             </button>
                         )}
                     </motion.div>
@@ -224,9 +225,11 @@ const Landing = () => {
                                 }
                                 window.location.reload();
                             }}
-                            className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20 border-2 border-white/10"
+                            className="group relative px-8 py-4 bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold rounded-2xl hover:from-indigo-600 hover:to-blue-700 transition-all shadow-xl shadow-indigo-600/30 border-2 border-white/20 overflow-hidden flex items-center gap-2"
                         >
-                            Get Latest AI Version
+                            <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
+                            <Download size={20} className="relative z-10 group-hover:scale-110 transition-transform" />
+                            <span className="relative z-10">Install Now</span>
                         </button>
                     </motion.div>
                 )}

@@ -4,6 +4,8 @@ import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.svg';
+import { usePWA } from '../hooks/usePWA';
+import { Download } from 'lucide-react';
 
 const NavItem = ({ to, icon: Icon, label, onClick }) => (
     <NavLink
@@ -26,6 +28,7 @@ const NavItem = ({ to, icon: Icon, label, onClick }) => (
 const NavigationDrawer = ({ isOpen, onClose, user }) => {
     const navigate = useNavigate();
     const [isSyncing, setIsSyncing] = React.useState(true);
+    const { isInstallable, installApp } = usePWA();
 
     React.useEffect(() => {
         const storedSyncState = localStorage.getItem('sync_enabled');
@@ -131,6 +134,20 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                     <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isSyncing ? 'translate-x-6' : 'translate-x-0'}`} />
                                 </button>
                             </div>
+
+                            {/* PWA Install Button */}
+                            {isInstallable && (
+                                <button
+                                    onClick={async () => {
+                                        await installApp();
+                                        window.location.reload();
+                                    }}
+                                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-2xl transition-all active:scale-95 shadow-lg shadow-indigo-600/30 border border-white/10 font-bold"
+                                >
+                                    <Download size={18} />
+                                    Install Mobile App
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 </div>
