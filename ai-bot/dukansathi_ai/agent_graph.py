@@ -156,6 +156,11 @@ VOICE_RULES = (
 )
 
 
+# Helper to check if a model should use Cloud logic
+def is_cloud_model(model_name: str) -> bool:
+    m = model_name.lower()
+    return "gemini" in m or "llama-4" in m or "maas" in m
+
 # Database schema for AI context - this helps Llama understand our data structure
 DATABASE_SCHEMA = """
 TABLES & COLUMNS:
@@ -174,7 +179,11 @@ TABLES & COLUMNS:
     stock_quantity INTEGER, 
     category TEXT,
     tax_percent NUMERIC,
+    cgst_percent NUMERIC,
+    sgst_percent NUMERIC,
+    igst_percent NUMERIC,
     discount NUMERIC,
+    unit TEXT,
     user_id UUID
 )
 3. customers (
@@ -191,9 +200,12 @@ TABLES & COLUMNS:
 4. sales (
     id BIGINT PRIMARY KEY, 
     customer_id BIGINT, 
+    invoice_number TEXT,
     total_amount NUMERIC, 
     payment_method TEXT,
     payment_status TEXT,
+    amount_paid NUMERIC,
+    balance_due NUMERIC,
     created_at TIMESTAMP,
     user_id UUID
 )
@@ -1261,7 +1273,7 @@ async def action_node(state: AgentState):
         print(f"DEBUG: FAST PARSE SUCCESS (action_node): {action_json_str}")
     else:
         # SLOW PATH: Fall back to LLM extraction (always for image/excel)
-        if "llama-4" in selected_model or "maas" in selected_model:
+        if is_cloud_model(selected_model):
             action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
         else:
             action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
@@ -1326,7 +1338,7 @@ async def action_node(state: AgentState):
                         logger.error(f"ERROR: Local DB Lookup failed: {local_err}")
 
                 # Fallback to Supabase for cloud models
-                if supabase and prod_name and is_cloud_llm:
+                if supabase and prod_name and is_cloud_model(selected_model):
                     try:
                         # FUZZY MATCH: Use pg_trgm RPC for typo-tolerant matching
                         # Falls back to ilike if RPC not yet created
@@ -1348,7 +1360,8 @@ async def action_node(state: AgentState):
                              # Fallback: ilike (exact case-insensitive)
                              if not res or not res.data:
                                  try:
-                                     res = supabase.table("products").select("selling_price, id, name, tax_percent, hsn_code").ilike("name", f"%{safe_name}%").eq("user_id", user_id_local).limit(1).execute()
+                                     # Select more columns for better hydration (stock, mrp, etc.)
+                                     res = supabase.table("products").select("selling_price, cost_price, id, name, tax_percent, hsn_code, stock_quantity, mrp").ilike("name", f"%{safe_name}%").eq("user_id", user_id_local).limit(1).execute()
                                  except Exception as fallback_err:
                                      logger.error(f"ERROR: fallback ilike failed for {safe_name}: {fallback_err}")
                                      res = None
@@ -1402,10 +1415,10 @@ async def action_node(state: AgentState):
                 item["action"] = "add"
                 item["existing_id"] = None
                 
-                is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
-                use_local_data = not is_cloud_llm
+                is_cl = is_cloud_model(selected_model)
+                use_ld = not is_cl
                 
-                if supabase and prod_name and is_cloud_llm and not use_local_data:
+                if supabase and prod_name and is_cl and not use_ld:
                     try:
                         safe_name = re.sub(r'[^\w\s]', '', prod_name).strip()
                         if safe_name:
@@ -1420,7 +1433,7 @@ async def action_node(state: AgentState):
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name} in bulk import: {db_err}")
                 
-                elif local_db and prod_name and use_local_data:
+                elif local_db and prod_name and use_ld:
                     try:
                         safe_name = re.sub(r'[^\w\s]', '', prod_name)
                         results = local_db.search_products_local(safe_name, user_id)
@@ -1439,6 +1452,30 @@ async def action_node(state: AgentState):
             action_data["items"] = updated_items
             updated_json_str = json.dumps(action_data)
             logger.info(f"DEBUG: Hydrated Bulk JSON: {updated_json_str}")
+
+        elif action_data.get("type") == "restock_draft":
+            pname = action_data.get("product_name", "")
+            user_id_local = user_id
+            
+            # Simple hydration for restock
+            db_prod = None
+            if is_cloud_model(selected_model) and supabase:
+                try:
+                    res = supabase.table("products").select("id, name").ilike("name", f"%{pname}%").eq("user_id", user_id_local).limit(1).execute()
+                    if res and res.data: db_prod = res.data[0]
+                except: pass
+            elif local_db:
+                try:
+                    results = local_db.search_products_local(pname, user_id_local)
+                    if results: db_prod = results[0]
+                except: pass
+                
+            if db_prod:
+                action_data["product_id"] = db_prod.get("id")
+                action_data["product_name"] = db_prod.get("name", pname)
+                logger.info(f"DEBUG: Hydrated restock_draft for {action_data['product_name']}")
+            
+            updated_json_str = json.dumps(action_data)
 
     except Exception as e:
         logger.error(f"ERROR hydrating action JSON: {e}")
@@ -1652,9 +1689,9 @@ async def chat_node(state: AgentState):
     detected_lang = detect_language(last_msg)
     print(f"DEBUG: Detected language: {detected_lang}")
 
-    # is_cloud_llm: True = use Vertex AI / Llama-4 for generation
+    # is_cloud_llm: True = use Vertex AI / Llama-4/Gemini for generation
     # use_local_data: True = read data from SQLite (local model)
-    is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
+    is_cloud_llm = is_cloud_model(selected_model)
     use_local_data = not is_cloud_llm
     
     # LOCAL MODEL FAST PATH: Hardcoded responses for predictable categories
