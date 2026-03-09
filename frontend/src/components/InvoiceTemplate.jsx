@@ -1,10 +1,10 @@
 import React, { forwardRef } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Building2 } from 'lucide-react';
 
 const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
     // Determine if GST is applicable
-    const isGst = sale.invoice_type === 'gst' || (businessProfile?.is_gst_registered && (sale.total_tax_amount > 0 || sale.invoice_type === 'gst'));
+    const isGst = sale.invoice_type === 'gst';
 
     // Determine if it's IGST (Inter-state) or CGST+SGST (Intra-state)
     const isIgst = parseFloat(sale.igst_amount) > 0;
@@ -316,7 +316,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
                     {showQr && (
                         <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3">
                             <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-100">
-                                <QRCodeCanvas value={qrValue} size={64} level="H" />
+                                <QRCodeSVG value={qrValue} size={64} level="H" />
                             </div>
                             <div className="flex-1">
                                 <p className="text-[9px] font-black text-slate-900 uppercase leading-tight tracking-tighter">

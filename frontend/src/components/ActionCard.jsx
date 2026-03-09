@@ -79,8 +79,12 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             });
 
             subtotal += taxCalc.taxable_value;
-            totalTaxAmount += (taxCalc.cgst_amount + taxCalc.sgst_amount + taxCalc.igst_amount);
-            grandTotal += taxCalc.grand_total;
+            if (isGstShop) {
+                totalTaxAmount += (taxCalc.cgst_amount + taxCalc.sgst_amount + taxCalc.igst_amount);
+                grandTotal += taxCalc.grand_total;
+            } else {
+                grandTotal += taxCalc.taxable_value;
+            }
 
             return {
                 ...item,
