@@ -5,7 +5,7 @@ import localforage from 'localforage';
 let db = null;
 let SQL = null;
 
-const DB_VERSION = 2; // Incremented for new GST schema columns
+const DB_VERSION = 3; // Incremented for deleted_records table
 
 export const initSQLite = async () => {
     if (db) return db;

@@ -49,6 +49,7 @@ export class SyncEngine {
                 this.notify({ status: 'syncing', message: `Syncing ${table}...` });
                 await this.pull(table);
                 await this.push(table);
+                await this.pushDeletions(table);
             }
             this.notify({ status: 'idle', message: 'Sync Completed' });
             console.log("Sync Process Completed Successfully");
@@ -131,6 +132,33 @@ export class SyncEngine {
             db.run(`UPDATE ${tableName} SET is_synced = 1 WHERE id = ?`, [item.id]);
         }
 
+        await persistDB();
+    }
+
+    async pushDeletions(tableName) {
+        if (this.isOffline() || !this.syncEnabled) return;
+
+        const db = getDB();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const result = db.exec(`SELECT id FROM deleted_records WHERE table_name = ?`, [tableName]);
+        if (result.length === 0) return;
+
+        const ids = result[0].values.map(v => v[0]);
+
+        const { error } = await supabase
+            .from(tableName)
+            .delete()
+            .in('id', ids);
+
+        if (error) {
+            console.error(`Failed to push deletions for ${tableName}:`, error);
+            return;
+        }
+
+        // Remove from local tracking table after successful cloud deletion
+        db.run(`DELETE FROM deleted_records WHERE table_name = ? AND id IN (${ids.map(() => '?').join(',')})`, [tableName, ...ids]);
         await persistDB();
     }
 }

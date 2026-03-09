@@ -80,7 +80,23 @@ export class BaseRepository {
 
     async delete(id) {
         const db = getDB();
+
+        // Try to get user_id before deleting to track who deleted it
+        const record = await this.getById(id);
+        const userId = record ? record.user_id : null;
+
+        // 1. Record the deletion for sync
+        db.run(`INSERT OR REPLACE INTO deleted_records (id, table_name, user_id, deleted_at) VALUES (?, ?, ?, ?)`,
+            [id.toString(), this.tableName, userId, new Date().toISOString()]);
+
+        // 2. Delete locally
         db.run(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+
         await persistDB();
+
+        // 3. Trigger instant sync if online
+        if (navigator.onLine) {
+            syncEngine.pushDeletions(this.tableName).catch(err => console.error("Instant deletion sync failed:", err));
+        }
     }
 }

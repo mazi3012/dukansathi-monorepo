@@ -54,16 +54,7 @@ export class CustomerRepository extends BaseRepository {
     }
 
     async delete(id) {
-        const db = getDB();
-        db.run(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
-        await persistDB();
-
-        if (navigator.onLine) {
-            syncEngine.push('customers');
-        }
-        // In local-first, the cloud delete should ideally be handled via a 'deleted' flag 
-        // for full sync, but for now we just push local state or handle separately.
-        // For simplicity here, we assume the cloud will sync the absence or we push.
+        await super.delete(id);
     }
 
     async findByPhone(phone) {

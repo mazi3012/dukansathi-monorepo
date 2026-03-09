@@ -37,13 +37,7 @@ export class ProductRepository extends BaseRepository {
     }
 
     async delete(id) {
-        const db = getDB();
-        db.run(`DELETE FROM products WHERE id = ?`, [id]);
-        await persistDB();
-
-        if (navigator.onLine) {
-            syncEngine.push('products');
-        }
+        await super.delete(id);
     }
 }
 
