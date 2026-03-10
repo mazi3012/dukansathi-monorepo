@@ -204,12 +204,21 @@ def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
         is_cloud_model = is_gemini or "llama-4" in model_name.lower() or "maas" in model_name.lower()
         
         if not is_cloud_model:
+            # Guard: Skip local LLM entirely in production
+            env = os.environ.get("ENV", "").lower()
+            if env != "development":
+                raise ValueError(f"Local LLM '{model_name}' not available in production. Use a cloud model.")
+            # Guard: Prevent NoneType model name
+            if not model_name or ChatOllama is None:
+                raise ValueError(f"ChatOllama not available or model_name is None (got: {model_name})")
+            # Dedicated Local configuration (Phi-3 Mini optimized)
             print(f"DEBUG: Using Local LLM (Ollama) -> {model_name}")
+            
             return ChatOllama(
                 model=model_name,
                 base_url="http://127.0.0.1:11434",
                 temperature=0.1,
-                num_predict=256,
+                num_predict=512,
             )
 
         # Load service account credentials
@@ -330,24 +339,32 @@ async def generate_sql_local(user_query: str, model: str = "llama-4-scout-17b-16
     """
     logger.info(f"DEBUG: Entering generate_sql_local with model={model}")
     prompt = f"""
-    SYSTEM: You are a SQLite expert. 
-    Output the SELECT query ONLY. No markdown, no prefixes like "SQL:".
+    SYSTEM: You are a SQLite expert for a shop management system. 
+    Output the SELECT query ONLY. No markdown, no explanations, no prefixes like "SQL:".
     
-    TABLES:
+    SCHEMA:
     - products (id, name, selling_price, cost_price, stock_quantity, category)
     - customers (id, name, phone, credit_balance)
-    - local_sales (id, customer_name, total_amount, created_at)
+    - local_sales (id, customer_name, items, total_amount, payment_method, payment_status, created_at)
+    - local_payments (id, customer_name, amount, payment_type, mode, note, created_at)
 
     RULES:
-    1. Only use SELECT.
+    1. Only use SELECT statements.
     2. REVENUE: SELECT SUM(total_amount) FROM local_sales.
-    3. TODAY: use `WHERE date(created_at) = date('now', 'localtime')`.
-    4. For products, show 'name' and 'selling_price'.
-    5. For stock, show 'name' and 'stock_quantity'.
-    6. For customers, show 'name' and 'phone'.
-    7. Use LIMIT 20.
+    3. COUNT: For "how many", use SELECT COUNT(*) FROM (customers|products|local_sales).
+    4. PROFIT: Not directly calculable in local_sales without item-level JOINs (available in cloud but list-based locally). Return a helpful estimate or total revenue if profit isn't possible.
+    5. TODAY: Use `WHERE date(created_at) = date('now', 'localtime')`.
+    6. YESTERDAY: Use `WHERE date(created_at) = date('now', '-1 day', 'localtime')`.
+    7. NAMES: Use `LIKE '%name%'` for fuzzy matching.
+    8. For products, show 'name' and 'selling_price'.
+    9. For stock, show 'name' and 'stock_quantity'.
+    10. For customers, show 'name' and 'phone'.
+    11. Use LIMIT 20.
 
-    QUERY: "{user_query}"
+    OPENCLAW SKILLS & RULES:
+    {OPENCLAW_SKILLS}
+
+    USER QUERY: "{user_query}"
     SQL:"""
     try:
         print(f"DEBUG: Generating SQL for query: {user_query}")
@@ -1720,11 +1737,13 @@ async def chat_node(state: AgentState):
                 ]
                 
                 local_db_context = f"\n\n[OFFLINE DATA SNAPSHOT]\n"
+                local_db_context += f"- Total Customers: {len(local_customers)}\n"
+                local_db_context += f"- Total Products: {len(local_products)}\n"
+                local_db_context += f"- Total Sales (All-time): {len(local_sales)} (Today: {len(today_sales)})\n"
                 local_db_context += f"- Revenue Today: ₹{today_rev} (Total All-time: ₹{total_rev})\n"
                 local_db_context += f"- Profit Today: ₹{today_profit} (Total All-time: ₹{total_profit})\n"
-                local_db_context += f"- Total Dues: ₹{total_dues}\n"
-                local_db_context += f"- Today's Sales: {len(today_sales)} (Archived: {len(local_sales)})\n"
-                local_db_context += f"- Customers: {', '.join([c.get('name') for c in local_customers[:20]]) if local_customers else 'None'}\n"
+                local_db_context += f"- Total Dues Outstanding: ₹{total_dues}\n"
+                local_db_context += f"- Customer Names: {', '.join([c.get('name') for c in local_customers[:15]]) if local_customers else 'None'}\n"
                 if low_stock:
                     local_db_context += f"- Low Stock: {', '.join(low_stock[:10])}\n"
                 
@@ -1820,8 +1839,12 @@ async def chat_node(state: AgentState):
 
     # For local/offline models, prepend a strict direct-answer prefix
     if not is_cloud_llm:
+        calc_hint = ""
+        if category == "BUSINESS":
+             calc_hint = "\nCALCULATION HINT: If asked for math (totals, taxes, change), perform step-by-step arithmetic. Use [CALCULATION SKILLS] from OpenClaw."
+        
         input_prompt = (
-            f"SYSTEM: Shop assistant. DIRECT ANSWER ONLY. NO ROLES. {VOICE_RULES}\n"
+            f"SYSTEM: Shop assistant. DIRECT ANSWER ONLY. NO ROLES.{calc_hint} {VOICE_RULES}\n"
             + input_prompt
         )
 

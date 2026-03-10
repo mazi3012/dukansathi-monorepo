@@ -14,6 +14,7 @@ It handles:
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -161,14 +162,32 @@ security = HTTPBearer()
 async def verify_local_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Validates the JWT token against Supabase for local API endpoints."""
     token = credentials.credentials
+    
+    # Detect Offline/Local Mode
+    # ENABLE_OFFLINE_STT is our signal that we expect local-first behavior
+    is_offline_mode = os.environ.get("ENABLE_OFFLINE_STT", "false").lower() == "true"
+
     if not supabase:
+        if is_offline_mode and token and len(token) >= 20:
+             # Allow direct user_id as token in local mode if DB is missing
+             return token
         raise HTTPException(status_code=503, detail="Database not connected")
+        
     try:
+        # Primary: Remote Valdiation
         auth_user = supabase.auth.get_user(token)
         if not auth_user or not auth_user.user:
             raise HTTPException(status_code=401, detail="Invalid token")
         return auth_user.user.id
     except Exception as e:
+        # Secondary: Offline Bypass for connection/network issues
+        err_str = str(e).lower()
+        network_errors = ["connection", "timeout", "dns", "unreachable", "name resolution", "getaddrinfo"]
+        
+        if any(err in err_str for err in network_errors) and token and len(token) >= 20:
+            logger.info(f"OFFLINE AUTH: Bypassing Supabase check due to connection error. Using token as UserID: {token[:8]}...")
+            return token
+            
         logger.warning(f"Failed local auth: {e}")
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -298,6 +317,19 @@ async def root():
 async def health_check():
     """Lightweight health check for Cloud Run"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+@app.options("/health")
+async def health_check_options():
+    """Handle OPTIONS preflight / bot probe for /health"""
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @app.on_event("startup")
 async def startup_event():
@@ -569,8 +601,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
     
     try:
         while True:
-            data = await websocket.receive_json()
-            
+            # 60-second idle timeout to prevent zombie Cloud Run billing
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=60)
+            except asyncio.TimeoutError:
+                logger.info(f"[WS] Idle timeout (60s) for {client_ip}. Closing connection.")
+                try:
+                    await websocket.send_json({"type": "info", "content": "Connection closed due to inactivity. Please reconnect."})
+                    await websocket.close(code=1000, reason="Idle timeout")
+                except Exception:
+                    pass
+                return
+
             # Parse incoming message
             message_type = data.get("type", "text")
             content = data.get("content", "")

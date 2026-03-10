@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = "http://localhost:11434"
+IS_DEV = os.environ.get("ENV", "").lower() == "development"
 
 # Global progress tracking
 pull_status = {
@@ -74,10 +75,8 @@ class LocalLLMService:
             logger.error(f"Hardware detection failed: {e}")
 
         # Recommendation Logic
-        if specs["vram_gb"] >= 4:
-            specs["recommended_model"] = "phi3:mini"
-        elif specs["vram_gb"] >= 2:
-            specs["recommended_model"] = "gemma:2b"
+        if specs["vram_gb"] >= 2:
+            specs["recommended_model"] = "phi3:mini" # Dedicated local choice
         else:
             specs["recommended_model"] = "tinyllama" # Very low resource fallback
 
@@ -85,6 +84,8 @@ class LocalLLMService:
 
     @staticmethod
     def check_ollama_status():
+        if not IS_DEV:
+            return False
         try:
             logger.info(f"Checking Ollama status at {OLLAMA_BASE_URL}/api/tags")
             response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=2)
@@ -96,6 +97,8 @@ class LocalLLMService:
 
     @staticmethod
     def list_models():
+        if not IS_DEV:
+            return []
         try:
             response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
             if response.status_code == 200:
@@ -174,6 +177,8 @@ class LocalLLMService:
 
     @staticmethod
     def generate_response(model: str, prompt: str, system_prompt: str = ""):
+        if not IS_DEV:
+            return "Error: Local AI is disabled in production."
         try:
             payload = {
                 "model": model,
