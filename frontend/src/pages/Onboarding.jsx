@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2, Store, FileText, Check, MapPin, CreditCard, ShieldCheck, ChevronRight, ChevronLeft, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getStateFromGSTIN } from '../utils/gstUtils';
+import { getStateFromGSTIN, validateGSTIN } from '../utils/gstUtils';
 
 const Onboarding = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1);
+    const [gstinError, setGstinError] = useState('');
 
     const [formData, setFormData] = useState({
         business_name: '',
@@ -262,11 +263,26 @@ const Onboarding = () => {
                                                             gstin: val,
                                                             state_code: detectedState ? val.substring(0, 2) : ''
                                                         });
+                                                        // Validate on change (only show error after 15 chars typed)
+                                                        if (val.length === 15) {
+                                                            const result = validateGSTIN(val);
+                                                            setGstinError(result.valid ? '' : result.error);
+                                                        } else if (val.length > 0 && val.length < 15) {
+                                                            setGstinError('');
+                                                        }
                                                     }}
                                                     placeholder="22AAAAA0000A1Z5"
                                                     maxLength={15}
-                                                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-mono font-bold text-lg uppercase tracking-wider"
+                                                    className={`w-full p-5 bg-slate-50 border rounded-2xl focus:bg-white outline-none font-mono font-bold text-lg uppercase tracking-wider ${gstinError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-indigo-500'}`}
                                                 />
+                                                {gstinError && (
+                                                    <p className="text-red-500 text-xs font-bold mt-1 ml-1">{gstinError}</p>
+                                                )}
+                                                {formData.gstin?.length === 15 && !gstinError && formData.state_name && getStateFromGSTIN(formData.gstin) && formData.state_name.toLowerCase() !== getStateFromGSTIN(formData.gstin).toLowerCase() && (
+                                                    <p className="text-amber-600 text-xs font-bold mt-1 ml-1 bg-amber-50 px-2 py-1 rounded-lg">
+                                                        ⚠️ State mismatch: GSTIN says "{getStateFromGSTIN(formData.gstin)}" but you entered "{formData.state_name}"
+                                                    </p>
+                                                )}
                                             </div>
                                         </motion.div>
                                     )}
@@ -287,7 +303,7 @@ const Onboarding = () => {
                                     </button>
                                     <button
                                         onClick={nextStep}
-                                        disabled={formData.is_gst_registered && !formData.gstin}
+                                        disabled={(formData.is_gst_registered && !formData.gstin) || gstinError}
                                         className="flex-[2] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-20"
                                     >
                                         Payment Setup <ChevronRight size={18} />

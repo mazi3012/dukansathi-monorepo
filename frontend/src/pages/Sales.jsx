@@ -4,12 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
+import { TaxCalculator, isInterState } from '../utils/gstUtils';
 import InvoiceTemplate from '../components/InvoiceTemplate';
 import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
 import { saleRepo } from '../lib/db/saleRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { getDB, persistDB } from '../lib/sqlite';
+import { authService } from '../lib/authService';
 import toast from 'react-hot-toast';
 
 
@@ -51,17 +53,40 @@ const Sales = () => {
     const totals = useMemo(() => {
         let subtotal = 0;
         let totalTax = 0;
+        let totalCgst = 0;
+        let totalSgst = 0;
+        let totalIgst = 0;
 
-        items.forEach(item => {
+        const computedItems = items.map(item => {
             const qty = parseFloat(item.qty) || 0;
             const price = parseFloat(item.price) || 0;
-            const taxRate = parseFloat(item.tax_percent) || 0;
+            const taxableValue = qty * price;
 
-            const itemTotal = qty * price;
-            const itemTax = billType === 'GST' ? (itemTotal * taxRate) / 100 : 0;
+            let itemCgst = 0, itemSgst = 0, itemIgst = 0, itemTaxTotal = 0, gstRate = 0;
 
-            subtotal += itemTotal;
-            totalTax += itemTax;
+            if (billType === 'GST' && userProfile?.gstin) {
+                const taxCalc = TaxCalculator.calculate({
+                    sellingPrice: price,
+                    quantity: qty,
+                    hsnCode: item.hsn || null,
+                    sellerGstin: userProfile.gstin,
+                    buyerGstin: null, // Customer GSTIN not tracked per-item in manual form
+                    placeOfSupply: isInterState ? null : null
+                });
+                itemCgst = taxCalc.cgst_amount;
+                itemSgst = taxCalc.sgst_amount;
+                itemIgst = taxCalc.igst_amount;
+                itemTaxTotal = itemCgst + itemSgst + itemIgst;
+                gstRate = taxCalc.gst_rate;
+            }
+
+            subtotal += taxableValue;
+            totalTax += itemTaxTotal;
+            totalCgst += itemCgst;
+            totalSgst += itemSgst;
+            totalIgst += itemIgst;
+
+            return { ...item, taxableValue, cgst: itemCgst, sgst: itemSgst, igst: itemIgst, taxTotal: itemTaxTotal, gstRate };
         });
 
         const discount = parseFloat(additionalDiscount) || 0;
@@ -70,12 +95,12 @@ const Sales = () => {
         const balance = grandTotal > 0 ? grandTotal - paid : 0;
 
         // Payment Status Logic
-        let status = 'credit'; // Default to credit (matches DB constraint 'paid', 'partial', 'credit')
+        let status = 'credit';
         if (grandTotal > 0 && paid >= grandTotal) status = 'paid';
         else if (paid > 0) status = 'partial';
 
-        return { subtotal, totalTax, grandTotal, balance, status };
-    }, [items, billType, additionalDiscount, amountPaid]);
+        return { subtotal, totalTax, totalCgst, totalSgst, totalIgst, grandTotal, balance, status, computedItems };
+    }, [items, billType, additionalDiscount, amountPaid, userProfile]);
 
 
     // Fetch Data
@@ -94,9 +119,9 @@ const Sales = () => {
 
     const fetchData = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await authService.getCurrentUser();
             if (user) {
-                const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+                const profile = await authService.getCurrentProfile(user.id);
                 setUserProfile(profile);
                 if (profile?.is_gst_registered) setBillType('GST');
             }
@@ -247,7 +272,7 @@ const Sales = () => {
 
     const handleGenerateInvoice = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await authService.getCurrentUser();
             const userId = user ? user.id : 'anon';
 
             if (!selectedCustomerId && !customerName) return alert("Please select a customer");
@@ -260,9 +285,13 @@ const Sales = () => {
                 id: saleId,
                 user_id: userId,
                 customer_id: selectedCustomerId,
-                invoice_type: billType === 'GST' ? 'gst' : 'regular',
+                invoice_type: billType === 'GST' ? 'gst' : 'non_gst',
                 subtotal: totals.subtotal,
                 discount_amount: parseFloat(additionalDiscount) || 0,
+                taxable_amount: billType === 'GST' ? totals.subtotal : 0,
+                cgst_amount: totals.totalCgst,
+                sgst_amount: totals.totalSgst,
+                igst_amount: totals.totalIgst,
                 total_tax_amount: totals.totalTax,
                 total_amount: totals.grandTotal,
                 payment_method: paymentMethod,
@@ -271,11 +300,19 @@ const Sales = () => {
                 balance_due: totals.balance
             };
 
-            const saleItems = items.map(item => ({
+            const saleItems = totals.computedItems.map(item => ({
                 product_id: item.product_id,
                 quantity: parseFloat(item.qty) || 0,
                 unit_price: parseFloat(item.price) || 0,
-                total_price: (parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)
+                hsn_code: item.hsn || null,
+                taxable_amount: item.taxableValue,
+                cgst_percent: item.gstRate ? item.gstRate / 2 : 0,
+                cgst_amount: item.cgst,
+                sgst_percent: item.gstRate ? item.gstRate / 2 : 0,
+                sgst_amount: item.sgst,
+                igst_percent: item.igst > 0 ? item.gstRate : 0,
+                igst_amount: item.igst,
+                total_price: item.taxableValue + item.taxTotal
             }));
 
             // Use Repository for double-write
@@ -645,6 +682,7 @@ const Sales = () => {
                                         sale={receiptSale}
                                         items={receiptItems}
                                         businessProfile={userProfile}
+                                        theme={userProfile?.invoice_theme || 'classic'}
                                     />
                                 </div>
                             </div>

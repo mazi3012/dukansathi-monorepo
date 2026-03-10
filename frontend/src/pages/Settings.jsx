@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2 } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { syncEngine } from '../lib/db/syncEngine';
@@ -63,6 +63,7 @@ const Settings = () => {
         bank_ifsc: '',
         upi_id: '',
         show_qr_on_invoice: true,
+        invoice_theme: 'classic',
         sync_enabled: localStorage.getItem('sync_enabled') !== 'false'
     });
 
@@ -133,7 +134,8 @@ const Settings = () => {
                             bank_account_no: data.bank_account_no || '',
                             bank_ifsc: data.bank_ifsc || '',
                             upi_id: data.upi_id || '',
-                            show_qr_on_invoice: data.show_qr_on_invoice !== false
+                            show_qr_on_invoice: data.show_qr_on_invoice !== false,
+                            invoice_theme: data.invoice_theme || 'classic'
                         });
                     }
                 }
@@ -664,6 +666,46 @@ const Settings = () => {
                                         Dark
                                     </button>
                                 </div>
+                            </div>
+                        </section>
+
+                        {/* Invoice Theme */}
+                        <section className="glass-card rounded-3xl p-6 border-amber-500/10 bg-amber-500/[0.01]">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5">
+                                    <FileText size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">Invoice Template</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">PDF Style for GST & Non-GST Bills</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {[
+                                    { id: 'classic', label: 'Classic', desc: 'Dark header, indigo accents, rounded cards', color: 'indigo' },
+                                    { id: 'minimal', label: 'Minimal', desc: 'Clean white, thin borders, serif font', color: 'gray' },
+                                    { id: 'thermal', label: 'Thermal', desc: '80mm receipt, mono font, compact', color: 'slate' }
+                                ].map(opt => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => { setBusinessData({ ...businessData, invoice_theme: opt.id }); markChange(); }}
+                                        className={`p-4 rounded-2xl border text-left transition-all ${
+                                            businessData.invoice_theme === opt.id
+                                                ? 'border-indigo-500 bg-indigo-500/10 shadow-lg ring-1 ring-indigo-500/50'
+                                                : 'border-card-border hover:border-indigo-500/30 hover:bg-card-bg'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-black text-text-main text-sm uppercase tracking-wider">{opt.label}</span>
+                                            {businessData.invoice_theme === opt.id && (
+                                                <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                                                    <Check size={12} className="text-white" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-text-muted font-bold leading-relaxed">{opt.desc}</p>
+                                    </button>
+                                ))}
                             </div>
                         </section>
 

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import { customerRepo } from '../lib/db/customerRepository';
 import { syncEngine } from '../lib/db/syncEngine';
+import { authService } from '../lib/authService';
 import toast from 'react-hot-toast';
 
 const Customers = () => {
@@ -75,13 +76,10 @@ const Customers = () => {
 
     const handleSave = async () => {
         try {
-            let user = null;
-            const { data: authData } = await supabase.auth.getUser();
-            user = authData.user;
-            if (!user) {
-                toast.error("Please login to proceed.");
-                return;
-            }
+            const user = await authService.getCurrentUser();
+            // Removed strict return if !user to allow offline usage if cached user exists
+            // But we still need a user_id for the record. 
+            // authService handles the fallback.
 
             if (!formData.name) {
                 toast.error("Name is required.");

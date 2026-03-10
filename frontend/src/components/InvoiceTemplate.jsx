@@ -2,8 +2,42 @@ import React, { forwardRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Building2 } from 'lucide-react';
 
-const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
-    // Determine if GST is applicable
+const THEMES = {
+    classic: {
+        container: 'bg-white p-4 sm:p-8 max-w-4xl mx-auto text-slate-800 font-sans print:p-0 print:max-w-none text-xs sm:text-sm shadow-2xl rounded-sm border border-slate-200',
+        headerBorder: 'border-b-2 border-slate-900',
+        titleColor: 'text-slate-900',
+        accentColor: 'text-indigo-600',
+        tableHeader: 'bg-slate-900 text-white',
+        tableHeaderBorder: 'border-slate-700',
+        summaryBg: 'bg-slate-900',
+        footerBorder: 'border-t-2 border-slate-900',
+    },
+    minimal: {
+        container: 'bg-white p-6 sm:p-10 max-w-4xl mx-auto text-gray-700 font-serif print:p-0 print:max-w-none text-xs sm:text-sm border border-gray-200',
+        headerBorder: 'border-b border-gray-300',
+        titleColor: 'text-gray-900',
+        accentColor: 'text-gray-600',
+        tableHeader: 'bg-gray-100 text-gray-800',
+        tableHeaderBorder: 'border-gray-300',
+        summaryBg: 'bg-gray-800',
+        footerBorder: 'border-t border-gray-300',
+    },
+    thermal: {
+        container: 'bg-white p-2 max-w-[80mm] mx-auto text-black font-mono print:p-0 print:max-w-none text-[10px] border border-dashed border-black',
+        headerBorder: 'border-b border-dashed border-black',
+        titleColor: 'text-black',
+        accentColor: 'text-black',
+        tableHeader: 'bg-black text-white',
+        tableHeaderBorder: 'border-gray-600',
+        summaryBg: 'bg-black',
+        footerBorder: 'border-t border-dashed border-black',
+    }
+};
+
+const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'classic' }, ref) => {
+    const t = THEMES[theme] || THEMES.classic;
+    // Determine if GST is applicable (support both 'regular' legacy and 'non_gst' new format)
     const isGst = sale.invoice_type === 'gst';
 
     // Determine if it's IGST (Inter-state) or CGST+SGST (Intra-state)
@@ -54,23 +88,26 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
     };
 
     // Generate QR String (UPI for payment or Compliance for GST)
-    let qrValue = `GSTIN: ${businessProfile?.gstin || 'N/A'}\nInvoice: ${sale.id}\nAmount: ${sale.total_amount}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
-
+    let qrValue;
     if (businessProfile?.upi_id) {
         const name = encodeURIComponent(businessProfile.business_name || 'Business');
         const amount = sale.total_amount;
         const note = encodeURIComponent(`Inv ${sale.id}`);
         qrValue = `upi://pay?pa=${businessProfile.upi_id}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
+    } else if (isGst && businessProfile?.gstin) {
+        qrValue = `GSTIN: ${businessProfile.gstin}\nInvoice: ${sale.id}\nAmount: ${sale.total_amount}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
+    } else {
+        qrValue = `Invoice: ${sale.id}\nAmount: ${sale.total_amount}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
     }
 
     const showQr = businessProfile?.show_qr_on_invoice !== false;
 
     return (
-        <div ref={ref} className="bg-white p-4 sm:p-8 max-w-4xl mx-auto text-slate-800 font-sans print:p-0 print:max-w-none text-xs sm:text-sm shadow-2xl rounded-sm border border-slate-200">
+        <div ref={ref} className={t.container}>
             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-900 pb-4 sm:pb-6 mb-4 sm:mb-6 gap-4">
+            <div className={`flex flex-col sm:flex-row justify-between items-start ${t.headerBorder} pb-4 sm:pb-6 mb-4 sm:mb-6 gap-4`}>
                 <div className="flex-1">
-                    <h1 className="text-xl sm:text-3xl font-black text-slate-900 mb-1 sm:mb-2 uppercase tracking-tight">
+                    <h1 className={`text-xl sm:text-3xl font-black ${t.titleColor} mb-1 sm:mb-2 uppercase tracking-tight`}>
                         {businessProfile?.business_name || "My Shop"}
                     </h1>
                     <div className="text-[10px] sm:text-xs text-slate-600 space-y-0.5 sm:space-y-1">
@@ -86,7 +123,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
                     </div>
                 </div>
                 <div className="text-left sm:text-right w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-2">
-                    <h2 className={`text-2xl sm:text-3xl font-black uppercase leading-tight italic ${isGst ? 'text-indigo-600' : 'text-slate-400'}`}>
+                    <h2 className={`text-2xl sm:text-3xl font-black uppercase leading-tight italic ${isGst ? t.accentColor : 'text-slate-400'}`}>
                         {isGst ? "Tax Invoice" : "Bill of Supply"}
                     </h2>
                     <div className="text-right">
@@ -153,7 +190,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
             <div className="mb-4 sm:mb-6 border-x border-t border-slate-900 rounded-xl overflow-hidden shadow-lg">
                 <table className="w-full text-left border-collapse min-w-full">
                     <thead>
-                        <tr className="bg-slate-900 text-white text-[9px] sm:text-[10px]">
+                        <tr className={`${t.tableHeader} text-[9px] sm:text-[10px]`}>
                             <th className="py-2.5 px-2 font-black border-r border-slate-700 w-8 text-center uppercase">#</th>
                             <th className="py-2.5 px-3 font-black border-r border-slate-700 uppercase">Product Description</th>
                             {isGst && <th className="py-2.5 px-2 font-black border-r border-slate-700 text-center w-16 uppercase">HSN/SAC</th>}
@@ -268,7 +305,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
 
                 {/* Right: Grand Totals & QR */}
                 <div className="w-full sm:w-[32%] space-y-4">
-                    <div className="bg-slate-900 p-6 rounded-[32px] text-white shadow-2xl relative overflow-hidden group">
+                    <div className={`${t.summaryBg} p-6 rounded-[32px] text-white shadow-2xl relative overflow-hidden group`}>
                         {/* Interactive Sparkle Effect Placeholder */}
                         <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-12 translate-x-12 blur-2xl group-hover:bg-white/10 transition-all"></div>
 
@@ -320,10 +357,10 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
                             </div>
                             <div className="flex-1">
                                 <p className="text-[9px] font-black text-slate-900 uppercase leading-tight tracking-tighter">
-                                    {businessProfile?.upi_id ? 'Pay via UPI' : 'Digital Compliance Verified'}
+                                    {businessProfile?.upi_id ? 'Pay via UPI' : (isGst ? 'Digital Compliance Verified' : 'Scan for Invoice Details')}
                                 </p>
                                 <p className="text-[8px] text-slate-400 font-bold mt-1 leading-none uppercase">
-                                    {businessProfile?.upi_id ? businessProfile.upi_id : 'Scanner protocol: GST-IN-2026-V1'}
+                                    {businessProfile?.upi_id ? businessProfile.upi_id : (isGst ? 'Scanner protocol: GST-IN-2026-V1' : `Invoice #${sale.id}`)}
                                 </p>
                             </div>
                         </div>
@@ -332,7 +369,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile }, ref) => {
             </div>
 
             {/* Footer */}
-            <div className="mt-10 pt-8 border-t-2 border-slate-900 grid grid-cols-2 gap-8 items-end">
+            <div className={`mt-10 pt-8 ${t.footerBorder} grid grid-cols-2 gap-8 items-end`}>
                 <div className="space-y-4">
                     <div className="space-y-1">
                         <p className="text-[9px] font-bold text-slate-400 uppercase">Terms & Protocols:</p>

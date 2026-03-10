@@ -14,10 +14,11 @@ export class SaleRepository extends BaseRepository {
 
         // 1. Insert Sale
         const saleSql = `
-            INSERT INTO sales (id, user_id, customer_id, invoice_type, subtotal, discount_amount, 
-                             total_tax_amount, total_amount, payment_method, payment_status, 
+            INSERT INTO sales (id, user_id, customer_id, invoice_type, subtotal, discount_amount,
+                             taxable_amount, cgst_amount, sgst_amount, igst_amount,
+                             total_tax_amount, total_amount, payment_method, payment_status,
                              amount_paid, balance_due, created_at, updated_at, is_synced)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         `;
 
         db.run(saleSql, [
@@ -27,6 +28,10 @@ export class SaleRepository extends BaseRepository {
             saleData.invoice_type,
             saleData.subtotal,
             saleData.discount_amount || 0,
+            saleData.taxable_amount || 0,
+            saleData.cgst_amount || 0,
+            saleData.sgst_amount || 0,
+            saleData.igst_amount || 0,
             saleData.total_tax_amount || 0,
             saleData.total_amount,
             saleData.payment_method,
@@ -39,8 +44,12 @@ export class SaleRepository extends BaseRepository {
         // 2. Insert Items
         for (const item of items) {
             const itemSql = `
-                INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price, total_price, created_at, updated_at, is_synced)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO sale_items (id, user_id, sale_id, product_id, quantity, unit_price,
+                                       hsn_code, taxable_amount,
+                                       cgst_percent, cgst_amount, sgst_percent, sgst_amount,
+                                       igst_percent, igst_amount,
+                                       total_price, created_at, updated_at, is_synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             `;
             const itemId = Date.now() + Math.random();
             db.run(itemSql, [
@@ -50,6 +59,14 @@ export class SaleRepository extends BaseRepository {
                 item.product_id,
                 item.quantity,
                 item.unit_price,
+                item.hsn_code || null,
+                item.taxable_amount || 0,
+                item.cgst_percent || 0,
+                item.cgst_amount || 0,
+                item.sgst_percent || 0,
+                item.sgst_amount || 0,
+                item.igst_percent || 0,
+                item.igst_amount || 0,
                 item.total_price,
                 now, now
             ]);

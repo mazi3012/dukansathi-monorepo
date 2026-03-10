@@ -55,13 +55,97 @@ export const getStateFromGSTIN = (gstin) => {
 
 /**
  * HSN Mapping with corresponding GST Rates
+ * Covers common kirana, medical, hardware items across all 5 GST slabs
  */
 export const HSN_TAX_RATES = {
+    // 0% GST — Essential items
+    "0401": 0,    // Fresh milk
+    "0713": 0,    // Dried leguminous vegetables (dal)
+    "1001": 0,    // Wheat
+    "1006": 0,    // Rice
+    "0702": 0,    // Fresh tomatoes
+    "0703": 0,    // Onions
     "2501": 0,    // Salt
-    "1512": 5,    // Oil
-    "0405": 5,    // Butter
-    "1904": 5,    // Noodles
-    "1905": 18    // Biscuits
+    "0805": 0,    // Fresh fruits
+
+    // 5% GST
+    "0402": 5,    // Milk powder / condensed
+    "0405": 5,    // Butter / ghee
+    "1101": 5,    // Wheat flour (atta)
+    "1512": 5,    // Edible oils
+    "1701": 5,    // Sugar
+    "1704": 5,    // Sugar confectionery
+    "1904": 5,    // Noodles / pasta
+    "0901": 5,    // Coffee / tea
+    "2106": 5,    // Food preparations (masala mixes)
+    "3004": 5,    // Medicines / pharma
+    "4901": 5,    // Books / printed matter
+
+    // 12% GST
+    "1902": 12,   // Pasta / couscous
+    "2009": 12,   // Fruit juices
+    "2201": 12,   // Mineral water
+    "3401": 12,   // Soap
+    "3402": 12,   // Detergents
+    "6810": 12,   // Cement articles
+
+    // 18% GST
+    "1905": 18,   // Biscuits / cakes / pastry
+    "2103": 18,   // Sauces / ketchup
+    "2104": 18,   // Soups
+    "2202": 18,   // Flavoured drinks
+    "3305": 18,   // Hair care (shampoo)
+    "3306": 18,   // Oral care (toothpaste)
+    "3307": 18,   // Deodorants
+    "7318": 18,   // Screws / bolts / nuts (hardware)
+    "7326": 18,   // Iron / steel articles
+    "8544": 18,   // Wires / cables (electrical)
+    "8536": 18,   // Switches / plugs (electrical)
+    "3926": 18,   // Plastic articles
+    "6109": 18,   // T-shirts / vests
+
+    // 28% GST
+    "2402": 28,   // Tobacco / cigarettes
+    "2711": 28,   // LPG
+    "8703": 28,   // Motor cars (luxury)
+    "3303": 28,   // Perfumes
+    "3304": 28,   // Beauty / cosmetics
+    "2101": 28,   // Instant coffee / tea extracts
+};
+
+/**
+ * Valid GST Slabs in India
+ */
+export const GST_SLABS = [0, 5, 12, 18, 28];
+
+/**
+ * Get the nearest valid GST slab from a given rate
+ */
+export const getGSTSlabFromRate = (rate) => {
+    const numRate = parseFloat(rate) || 0;
+    return GST_SLABS.reduce((prev, curr) =>
+        Math.abs(curr - numRate) < Math.abs(prev - numRate) ? curr : prev
+    );
+};
+
+/**
+ * Validate Indian GSTIN format
+ * Format: 2-digit state code + 10-char PAN + 1 entity number + Z + 1 check digit
+ * Example: 22AAAAA0000A1Z5
+ * @param {string} gstin
+ * @returns {{ valid: boolean, error?: string }}
+ */
+export const validateGSTIN = (gstin) => {
+    if (!gstin) return { valid: false, error: 'GSTIN is required' };
+    if (gstin.length !== 15) return { valid: false, error: 'GSTIN must be exactly 15 characters' };
+
+    const pattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!pattern.test(gstin)) return { valid: false, error: 'Invalid GSTIN format' };
+
+    const stateCode = gstin.substring(0, 2);
+    if (!GST_STATE_CODES[stateCode]) return { valid: false, error: `Invalid state code: ${stateCode}` };
+
+    return { valid: true };
 };
 
 /**

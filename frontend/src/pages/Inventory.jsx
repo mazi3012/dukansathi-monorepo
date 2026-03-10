@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { productRepo } from '../lib/db/productRepository';
 import { syncEngine } from '../lib/db/syncEngine';
+import { authService } from '../lib/authService';
 import toast from 'react-hot-toast';
 
 const Inventory = () => {
@@ -34,10 +35,10 @@ const Inventory = () => {
         try {
             setLoading(true);
 
-            // 1. Get User Profile for GST Strategy (Keep Supabase for Auth/Profile)
-            const { data: { user } } = await supabase.auth.getUser();
+            // 1. Get User Profile for GST Strategy
+            const user = await authService.getCurrentUser();
             if (user) {
-                const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+                const profile = await authService.getCurrentProfile(user.id);
                 setUserProfile(profile);
             }
 
@@ -135,10 +136,8 @@ const Inventory = () => {
 
     const handleSave = async () => {
         try {
-            let user = null;
-            const { data: authData } = await supabase.auth.getUser();
-            user = authData.user;
-            if (!user) return alert("Please login first");
+            const user = await authService.getCurrentUser();
+            // Removed strict alert if !user to allow offline usage
 
             const payload = {
                 user_id: user ? user.id : 'anon',

@@ -67,7 +67,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         const templateItems = itemsList.map(item => {
             const qty = parseFloat(item.quantity) || 0;
             const rate = parseFloat(item.price) || 0;
-            const hsn = item.hsn_code || "1905"; // Default to Biscuits (18%) for demo if missing, or use actual
+            const hsn = item.hsn_code || null; // Default to null (0% tax) when HSN is missing
 
             const taxCalc = TaxCalculator.calculate({
                 sellingPrice: rate,

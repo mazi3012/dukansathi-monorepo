@@ -21,7 +21,15 @@ from groq import AsyncGroq
 from google.cloud import texttospeech
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env explicitly from the backend directory
+env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+else:
+    load_dotenv() # Fallback
+
+import logging
+logger = logging.getLogger(__name__)
 
 # Initialize Async Groq Client for STT
 groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
@@ -32,38 +40,21 @@ _whisper_model = None
 _whisper_ready = _threading.Event()  # Set ONLY when loading has fully finished
 
 def _load_whisper_in_background():
-    """Load faster-whisper model. Tries GPU (CUDA) first, auto-falls back to CPU on DLL errors."""
+    """Load faster-whisper model. Forced to CPU to leave GPU free for Ollama LLM."""
     global _whisper_model
     try:
         from faster_whisper import WhisperModel
 
-        # Try GPU first
-        try:
-            import ctranslate2
-            cuda_types = ctranslate2.get_supported_compute_types("cuda")
-            if cuda_types:
-                print("[OK] Trying Whisper on CUDA GPU (float16)...")
-                _whisper_model = WhisperModel("small", device="cuda", compute_type="float16")
-                print("[OK] Whisper Small running on GPU — Offline STT Ready")
-                return
-        except Exception as gpu_err:
-            # Catches cublas64_12.dll / cudnn not found errors
-            if "cublas" in str(gpu_err).lower() or "cudnn" in str(gpu_err).lower() or "cuda" in str(gpu_err).lower():
-                print(f"[WARN] GPU not available ({gpu_err.__class__.__name__}: {gpu_err})")
-                print("[INFO] CUDA 12 libraries missing. Falling back to CPU (int8).")
-                print("[TIP]  To enable GPU: install CUDA Toolkit 12 from https://developer.nvidia.com/cuda-downloads")
-            else:
-                print(f"[WARN] GPU init failed: {gpu_err}")
-
-        # Fallback: CPU with int8 (still fast for Whisper Small)
-        print("[OK] Loading Whisper 'small' on CPU (int8)...")
+        # Force CPU with int8 (Very fast for Whisper Small, leaves GPU for Phi-3)
+        logger.info("[OK] Loading Whisper 'small' on CPU (int8)...")
+        # Note: If no internet, this will fail if model not previously downloaded to ~/.cache/huggingface/hub
         _whisper_model = WhisperModel("small", device="cpu", compute_type="int8", cpu_threads=4)
-        print("[OK] Whisper Small loaded on CPU — Offline STT Ready")
+        logger.info("[OK] Whisper Small loaded on CPU — Offline STT Ready")
 
     except ImportError:
-        print("[ERR] faster-whisper not installed. Run: pip install faster-whisper")
+        logger.error("[ERR] faster-whisper not installed. Run: pip install faster-whisper")
     except Exception as e:
-        print(f"[ERR] Failed to load Whisper model: {e}")
+        logger.error(f"[ERR] Failed to load Whisper model: {e}")
     finally:
         _whisper_ready.set()  # Always unblock callers
 
@@ -72,12 +63,15 @@ def _get_whisper_model(timeout: float = 90.0):
     _whisper_ready.wait(timeout=timeout)
     return _whisper_model
 
-# Start background loading ONLY if enabled (Saves 1GB+ RAM in production Cloud Run)
-if os.getenv("ENABLE_OFFLINE_STT", "false").lower() == "true":
-    print("[INFO] ENABLE_OFFLINE_STT is true. Starting Whisper background loader...")
+# Start background loading ONLY if enabled
+raw_val = str(os.getenv("ENABLE_OFFLINE_STT", "false")).strip().lower()
+logger.info(f"[DEBUG] Raw ENABLE_OFFLINE_STT value: '{raw_val}'")
+
+if raw_val == "true":
+    logger.info("[INFO] ENABLE_OFFLINE_STT is true. Starting Whisper background loader...")
     _threading.Thread(target=_load_whisper_in_background, daemon=True).start()
 else:
-    print("[INFO] ENABLE_OFFLINE_STT is false. Skipping Whisper loading to save memory.")
+    logger.info(f"[INFO] ENABLE_OFFLINE_STT is {raw_val}. Skipping Whisper loading.")
     _whisper_ready.set() # Unblock any accidental callers
 
 # Initialize Google Cloud TTS Client
