@@ -273,37 +273,72 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                     </div>
 
                     {isGst && (
-                        <div className="border border-slate-300 rounded-xl overflow-hidden">
+                        <div className="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
                             <table className="w-full text-left text-[9px] border-collapse">
                                 <thead className="bg-slate-100 font-black text-slate-900 uppercase">
                                     <tr>
-                                        <th className="px-2 py-2 border-r border-slate-300">GST Breakdown</th>
-                                        <th className="px-2 py-2 border-r border-slate-300 text-right">Taxable</th>
-                                        <th className="px-2 py-2 text-right">Computed Tax</th>
+                                        <th className="px-2 py-2 border-r border-slate-300">Tax Type (%)</th>
+                                        <th className="px-2 py-2 border-r border-slate-300 text-right">Taxable Amount</th>
+                                        {isIgst ? (
+                                            <th className="px-2 py-2 text-right">IGST Amt</th>
+                                        ) : (
+                                            <>
+                                                <th className="px-2 py-2 border-r border-slate-300 text-right">CGST Amt</th>
+                                                <th className="px-2 py-2 text-right">SGST Amt</th>
+                                            </>
+                                        )}
+                                        <th className="px-2 py-2 text-right bg-slate-50">Total Tax</th>
                                     </tr>
                                 </thead>
                                 <tbody className="font-bold text-slate-700">
-                                    {isIgst ? (
-                                        <tr>
-                                            <td className="px-2 py-1.5 border-r border-slate-200">IGST Output Protocol</td>
-                                            <td className="px-2 py-1.5 border-r border-slate-200 text-right">{formatCurrency(sale.subtotal)}</td>
-                                            <td className="px-2 py-1.5 text-right text-indigo-700">{formatCurrency(sale.igst_amount)}</td>
-                                        </tr>
-                                    ) : (
-                                        <>
-                                            <tr className="border-b border-slate-100">
-                                                <td className="px-2 py-1.5 border-r border-slate-200">CGST Output Protocol</td>
-                                                <td className="px-2 py-1.5 border-r border-slate-200 text-right">{formatCurrency(sale.subtotal)}</td>
-                                                <td className="px-2 py-1.5 text-right text-indigo-700">{formatCurrency(sale.cgst_amount)}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="px-2 py-1.5 border-r border-slate-200">SGST Output Protocol</td>
-                                                <td className="px-2 py-1.5 border-r border-slate-200 text-right">{formatCurrency(sale.subtotal)}</td>
-                                                <td className="px-2 py-1.5 text-right text-indigo-700">{formatCurrency(sale.sgst_amount)}</td>
-                                            </tr>
-                                        </>
-                                    )}
+                                    {/* Consolidated tax rows */}
+                                    {(() => {
+                                        const taxGroups = {};
+                                        items.forEach(item => {
+                                            const rate = parseFloat(item.tax_percent) || 0;
+                                            if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+                                            taxGroups[rate].taxable += parseFloat(item.taxable_amount || 0);
+                                            taxGroups[rate].cgst += parseFloat(item.cgst_amount || 0);
+                                            taxGroups[rate].sgst += parseFloat(item.sgst_amount || 0);
+                                            taxGroups[rate].igst += parseFloat(item.igst_amount || 0);
+                                        });
+
+                                        return Object.entries(taxGroups)
+                                            .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
+                                            .map(([rate, vals]) => (
+                                                <tr key={rate} className="border-b border-slate-100 last:border-0">
+                                                    <td className="px-2 py-1.5 border-r border-slate-200">GST @ {rate}%</td>
+                                                    <td className="px-2 py-1.5 border-r border-slate-200 text-right">{formatCurrency(vals.taxable)}</td>
+                                                    {isIgst ? (
+                                                        <td className="px-2 py-1.5 text-right text-indigo-700">{formatCurrency(vals.igst)}</td>
+                                                    ) : (
+                                                        <>
+                                                            <td className="px-2 py-1.5 border-r border-slate-200 text-right text-indigo-700">{formatCurrency(vals.cgst)}</td>
+                                                            <td className="px-2 py-1.5 text-right text-indigo-700">{formatCurrency(vals.sgst)}</td>
+                                                        </>
+                                                    )}
+                                                    <td className="px-2 py-1.5 text-right font-black bg-slate-50/50">
+                                                        {formatCurrency(isIgst ? vals.igst : (vals.cgst + vals.sgst))}
+                                                    </td>
+                                                </tr>
+                                            ));
+                                    })()}
                                 </tbody>
+                                <tfoot className="bg-slate-50 font-black text-slate-900 border-t border-slate-300">
+                                    <tr>
+                                        <td className="px-2 py-2 border-r border-slate-300 uppercase">Totals</td>
+                                        <td className="px-2 py-2 border-r border-slate-300 text-right">{formatCurrency(sale.subtotal)}</td>
+                                        {isIgst ? (
+                                            <td className="px-2 py-2 text-right">{formatCurrency(sale.igst_amount)}</td>
+                                        ) : (
+                                            <>
+                                                <td className="px-2 py-2 border-r border-slate-300 text-right">{formatCurrency(sale.cgst_amount)}</td>
+                                                <td className="px-2 py-2 text-right">{formatCurrency(sale.sgst_amount)}</td>
+                                            </>
+                                        )}
+                                        <td className="px-2 py-2 text-right bg-slate-100">{formatCurrency(sale.total_tax_amount)}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     )}
@@ -375,8 +410,14 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                     {/* QR Code Validation */}
                     {showQr && (
                         <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3">
-                            <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-100">
-                                <QRCodeSVG value={qrValue} size={64} level="H" />
+                            <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-100 print:shadow-none">
+                                <QRCodeSVG 
+                                    value={qrValue} 
+                                    size={64} 
+                                    level="M" 
+                                    includeMargin={false}
+                                    style={{ shapeRendering: 'crispEdges' }}
+                                />
                             </div>
                             <div className="flex-1">
                                 <p className="text-[9px] font-black text-slate-900 uppercase leading-tight tracking-tighter">

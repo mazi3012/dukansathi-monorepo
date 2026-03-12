@@ -316,9 +316,19 @@ const Sales = () => {
                 }
             }
 
-            // 4. Update Customer Balance locally
-            if (selectedCustomerId) {
-                await customerRepo.updateBalance(selectedCustomerId, totals.balance, 'credit');
+            // 4. Update Customer Balance locally via Ledger for audit trail
+            if (selectedCustomerId && totals.balance > 0) {
+                const note = isGst 
+                    ? `Credit Sale: Inv #${saleData.id.toString().slice(-4)} (Taxable: ₹${totals.subtotal.toFixed(2)}, Tax: ₹${totals.tax.toFixed(2)})`
+                    : `Credit Sale: Inv #${saleData.id.toString().slice(-4)}`;
+                
+                await customerRepo.addLedgerEntry({
+                    customer_id: selectedCustomerId,
+                    amount: totals.balance,
+                    type: 'credit',
+                    mode: 'Sale',
+                    note: note
+                });
             }
 
             // Success

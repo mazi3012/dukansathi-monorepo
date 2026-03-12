@@ -8,6 +8,15 @@ export class SyncEngine {
         this.isSyncing = false;
         this.listeners = [];
         this.syncEnabled = localStorage.getItem('sync_enabled') !== 'false';
+        
+        // Broadcast Channel for sync status across tabs
+        this.channel = new BroadcastChannel('dukan_sync_bus');
+        this.channel.onmessage = (event) => {
+            if (event.data?.type === 'SYNC_COMPLETE' && !this.isSyncing) {
+                console.log("🔄 Sync signal received from another tab. Refreshing local listeners...");
+                this.notify({ status: 'idle', message: 'Sync Updated' });
+            }
+        };
     }
 
     setSyncEnabled(enabled) {
@@ -52,6 +61,10 @@ export class SyncEngine {
                 await this.pushDeletions(table);
             }
             this.notify({ status: 'idle', message: 'Sync Completed' });
+            
+            // Notify other tabs
+            this.channel.postMessage({ type: 'SYNC_COMPLETE' });
+            
             console.log("Sync Process Completed Successfully");
         } catch (error) {
             this.notify({ status: 'error', message: 'Sync Failed' });

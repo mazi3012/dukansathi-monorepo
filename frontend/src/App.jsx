@@ -23,8 +23,8 @@ import { registerSW } from 'virtual:pwa-register';
 registerSW({ immediate: true });
 
 function App() {
-  // Initialize SQLite and Sync Engine
   useEffect(() => {
+    // Initial sync and network status listeners
     const init = async () => {
       try {
         await initSQLite();
@@ -38,12 +38,23 @@ function App() {
     };
     init();
 
+    const handleOnline = () => {
+      console.log("App back online, triggering sync...");
+      syncEngine.syncAll();
+    };
+
+    window.addEventListener('online', handleOnline);
+
     // Ping backend to wake up Cloud Run instance (Cold Start Fix)
     try {
       const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
       const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
       fetch(`${API_URL}/health`).catch(() => { });
     } catch (e) { }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   return (
