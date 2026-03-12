@@ -32,7 +32,7 @@ const Sales = () => {
 
     // Form State
     const [billType, setBillType] = useState('NON_GST'); // NON_GST | GST
-    const [isInterState, setIsInterState] = useState(false);
+    const [isInterStateSale, setIsInterStateSale] = useState(false);
     const [selectedCustomerId, setSelectedCustomerId] = useState(null); // ID for linking
     const [customerName, setCustomerName] = useState(''); // Text for display/input
 
@@ -51,18 +51,12 @@ const Sales = () => {
 
     // Calculations
     const totals = useMemo(() => {
-        let subtotal = 0;
-        let totalTax = 0;
-        let totalCgst = 0;
-        let totalSgst = 0;
-        let totalIgst = 0;
-
         const computedItems = items.map(item => {
             const qty = parseFloat(item.qty) || 0;
             const price = parseFloat(item.price) || 0;
             const taxableValue = qty * price;
 
-            let itemCgst = 0, itemSgst = 0, itemIgst = 0, itemTaxTotal = 0, gstRate = 0;
+            let cgst = 0, sgst = 0, igst = 0, taxTotal = 0, gstRate = 0;
 
             if (billType === 'GST' && userProfile?.gstin) {
                 const taxCalc = TaxCalculator.calculate({
@@ -70,37 +64,34 @@ const Sales = () => {
                     quantity: qty,
                     hsnCode: item.hsn || null,
                     sellerGstin: userProfile.gstin,
-                    buyerGstin: null, // Customer GSTIN not tracked per-item in manual form
-                    placeOfSupply: isInterState ? null : null
+                    buyerGstin: null,
+                    placeOfSupply: isInterStateSale ? 'IGST' : null
                 });
-                itemCgst = taxCalc.cgst_amount;
-                itemSgst = taxCalc.sgst_amount;
-                itemIgst = taxCalc.igst_amount;
-                itemTaxTotal = itemCgst + itemSgst + itemIgst;
+                cgst = taxCalc.cgst_amount;
+                sgst = taxCalc.sgst_amount;
+                igst = taxCalc.igst_amount;
+                taxTotal = cgst + sgst + igst;
                 gstRate = taxCalc.gst_rate;
             }
 
-            subtotal += taxableValue;
-            totalTax += itemTaxTotal;
-            totalCgst += itemCgst;
-            totalSgst += itemSgst;
-            totalIgst += itemIgst;
-
-            return { ...item, taxableValue, cgst: itemCgst, sgst: itemSgst, igst: itemIgst, taxTotal: itemTaxTotal, gstRate };
+            return { ...item, taxableValue, cgst, sgst, igst, taxTotal, gstRate };
         });
+
+        const subtotal = computedItems.reduce((sum, i) => sum + i.taxableValue, 0);
+        const totalTax = computedItems.reduce((sum, i) => sum + i.taxTotal, 0);
+        const totalCgst = computedItems.reduce((sum, i) => sum + i.cgst, 0);
+        const totalSgst = computedItems.reduce((sum, i) => sum + i.sgst, 0);
+        const totalIgst = computedItems.reduce((sum, i) => sum + i.igst, 0);
 
         const discount = parseFloat(additionalDiscount) || 0;
         const grandTotal = subtotal + totalTax - discount;
         const paid = parseFloat(amountPaid) || 0;
         const balance = grandTotal > 0 ? grandTotal - paid : 0;
 
-        // Payment Status Logic
-        let status = 'credit';
-        if (grandTotal > 0 && paid >= grandTotal) status = 'paid';
-        else if (paid > 0) status = 'partial';
+        const status = grandTotal <= 0 ? 'paid' : (paid >= grandTotal ? 'paid' : (paid > 0 ? 'partial' : 'credit'));
 
         return { subtotal, totalTax, totalCgst, totalSgst, totalIgst, grandTotal, balance, status, computedItems };
-    }, [items, billType, additionalDiscount, amountPaid, userProfile]);
+    }, [items, billType, additionalDiscount, amountPaid, userProfile, isInterStateSale]);
 
 
     // Fetch Data

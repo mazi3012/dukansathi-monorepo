@@ -35,6 +35,56 @@ const THEMES = {
     }
 };
 
+// --- OPTIMIZED UTILITIES (Moved outside component to avoid recreation) ---
+
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2
+});
+
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const formatDate = (dateString) => {
+    if (!dateString) return '---';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+};
+
+const calcTotalItemTax = (item) => {
+    return (parseFloat(item.cgst_amount || 0) + parseFloat(item.sgst_amount || 0) + parseFloat(item.igst_amount || 0));
+};
+
+const numberToWords = (num) => {
+    const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+    const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+    const convert = (n) => {
+        if (n === 0) return '';
+        if (n < 20) return a[n];
+        if (n < 100) return b[Math.floor(n / 10)] + ' ' + a[n % 10];
+        if (n < 1000) return a[Math.floor(n / 100)] + 'hundred ' + convert(n % 100);
+        if (n < 100000) return convert(Math.floor(n / 1000)) + 'thousand ' + convert(n % 1000);
+        if (n < 10000000) return convert(Math.floor(n / 100000)) + 'lakh ' + convert(n % 100000);
+        return convert(Math.floor(n / 10000000)) + 'crore ' + convert(n % 10000000);
+    };
+
+    const amountArr = parseFloat(num || 0).toFixed(2).split('.');
+    const whole = parseInt(amountArr[0]);
+    const fraction = parseInt(amountArr[1]);
+
+    let res = convert(whole) + 'Rupees ';
+    if (fraction > 0) {
+        res += 'and ' + convert(fraction) + 'Paise ';
+    }
+    return res.trim() + ' Only';
+};
+
+// --- END UTILITIES ---
+
 const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'classic' }, ref) => {
     const t = THEMES[theme] || THEMES.classic;
     // Determine if GST is applicable (support both 'regular' legacy and 'non_gst' new format)
@@ -50,61 +100,19 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
         ? (parseFloat(sale.total_amount) || 0)
         : Math.max(0, subtotalNum - discount);
 
-    // Helper to format currency
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 2
-        }).format(amount || 0);
-    };
 
-    // Helper to format date
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        });
-    };
-
-    // Improved Number to words (handles paise)
-    const numberToWords = (num) => {
-        const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
-        const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-
-        const convert = (n) => {
-            if (n === 0) return '';
-            if (n < 20) return a[n];
-            if (n < 100) return b[Math.floor(n / 10)] + ' ' + a[n % 10];
-            if (n < 1000) return a[Math.floor(n / 100)] + 'hundred ' + convert(n % 100);
-            if (n < 100000) return convert(Math.floor(n / 1000)) + 'thousand ' + convert(n % 1000);
-            if (n < 10000000) return convert(Math.floor(n / 100000)) + 'lakh ' + convert(n % 100000);
-            return convert(Math.floor(n / 10000000)) + 'crore ' + convert(n % 10000000);
-        };
-
-        const amountArr = parseFloat(num).toFixed(2).split('.');
-        const whole = parseInt(amountArr[0]);
-        const fraction = parseInt(amountArr[1]);
-
-        let res = convert(whole) + 'Rupees ';
-        if (fraction > 0) {
-            res += 'and ' + convert(fraction) + 'Paise ';
-        }
-        return res.trim() + ' Only';
-    };
 
     // Generate QR String (UPI for payment or Compliance for GST)
     let qrValue;
     if (businessProfile?.upi_id) {
         const name = encodeURIComponent(businessProfile.business_name || 'Business');
-        const amount = sale.total_amount;
+        const amount = displayTotal; // Use displayTotal instead of sale.total_amount for accuracy
         const note = encodeURIComponent(`Inv ${sale.id}`);
         qrValue = `upi://pay?pa=${businessProfile.upi_id}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
     } else if (isGst && businessProfile?.gstin) {
-        qrValue = `GSTIN: ${businessProfile.gstin}\nInvoice: ${sale.id}\nAmount: ${sale.total_amount}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
+        qrValue = `GSTIN: ${businessProfile.gstin}\nInvoice: ${sale.id}\nAmount: ${displayTotal}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
     } else {
-        qrValue = `Invoice: ${sale.id}\nAmount: ${sale.total_amount}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
+        qrValue = `Invoice: ${sale.id}\nAmount: ${displayTotal}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
     }
 
     const showQr = businessProfile?.show_qr_on_invoice !== false;
@@ -218,9 +226,13 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                             const rate = parseFloat(item.unit_price) || 0;
                             const taxableValue = qty * rate;
                             // For non-GST (Bill of Supply), NEVER add tax — item total is just qty × rate
-                            const totalTax = isGst ? parseFloat(item.total_tax_amount || 0) : 0;
+                            const totalTax = isGst ? calcTotalItemTax(item) : 0;
                             const totalAmount = taxableValue + totalTax;
-                            const gstPct = item.tax_percent || (taxableValue > 0 ? ((parseFloat(item.total_tax_amount || 0) / taxableValue) * 100).toFixed(0) : 0);
+                            
+                            // Fixed: gstPct should be 0 for non-GST bills, even if product has a tax rate
+                            const gstPct = isGst 
+                                ? (item.tax_percent || (taxableValue > 0 ? ((totalTax / taxableValue) * 100).toFixed(0) : 0))
+                                : 0;
 
                             return (
                                 <tr key={index} className="border-b border-slate-200 last:border-0 hover:bg-slate-50 transition-colors">
@@ -387,7 +399,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                         <ul className="text-[8px] text-slate-500 font-bold list-disc pl-3 space-y-0.5 uppercase tracking-tighter">
                             <li>Goods once sold represent final asset transfer.</li>
                             <li>Electronic document: Digital signature authenticated.</li>
-                            <li>Interest at 18% p.a applied on overdue settlements.</li>
+                            <li>Late payment interest: 18% p.a. applies on overdue settlements.</li>
                         </ul>
                     </div>
                     <p className="text-xs text-slate-900 font-black italic tracking-tight">Gratitude for choosing {businessProfile?.business_name || "us"}!</p>

@@ -55,19 +55,13 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 1. INVOICE DRAFT CARD
     if (type === 'invoice_draft') {
         const itemsList = localData.items || [];
-
-        // Smart Context: Use Business Profile to determine template type (GST vs Regular)
         const isGstShop = businessProfile?.is_gst_registered || false;
 
-        // PREPARE ITEMS FOR TEMPLATE (Field Mapping & Calculation)
-        let subtotal = 0;
-        let totalTaxAmount = 0;
-        let grandTotal = 0;
-
+        // PREPARE ITEMS FOR TEMPLATE
         const templateItems = itemsList.map(item => {
             const qty = parseFloat(item.quantity) || 0;
             const rate = parseFloat(item.price) || 0;
-            const hsn = item.hsn_code || null; // Default to null (0% tax) when HSN is missing
+            const hsn = item.hsn_code || null;
 
             const taxCalc = TaxCalculator.calculate({
                 sellingPrice: rate,
@@ -75,16 +69,8 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 hsnCode: hsn,
                 sellerGstin: businessProfile?.gstin,
                 buyerGstin: localData.gstin,
-                placeOfSupply: localData.state_code // Use state_code if available
+                placeOfSupply: localData.state_code
             });
-
-            subtotal += taxCalc.taxable_value;
-            if (isGstShop) {
-                totalTaxAmount += (taxCalc.cgst_amount + taxCalc.sgst_amount + taxCalc.igst_amount);
-                grandTotal += taxCalc.grand_total;
-            } else {
-                grandTotal += taxCalc.taxable_value;
-            }
 
             return {
                 ...item,
@@ -92,19 +78,25 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 products: { name: item.product_name },
                 unit_price: rate,
                 quantity: qty,
-                hsn_code: hsn,
+                hsn_code: isGstShop ? hsn : null,
                 taxable_amount: taxCalc.taxable_value,
-                cgst_amount: taxCalc.cgst_amount,
-                sgst_amount: taxCalc.sgst_amount,
-                igst_amount: taxCalc.igst_amount,
-                tax_percent: taxCalc.gst_rate
+                cgst_amount: isGstShop ? taxCalc.cgst_amount : 0,
+                sgst_amount: isGstShop ? taxCalc.sgst_amount : 0,
+                igst_amount: isGstShop ? taxCalc.igst_amount : 0,
+                tax_percent: isGstShop ? taxCalc.gst_rate : 0,
+                total_amount: isGstShop ? taxCalc.grand_total : taxCalc.taxable_value
             };
         });
+
+        // Calculate Totals efficiently from templateItems
+        const subtotal = templateItems.reduce((sum, item) => sum + item.taxable_amount, 0);
+        const totalTaxAmount = templateItems.reduce((sum, item) => sum + (item.cgst_amount + item.sgst_amount + item.igst_amount), 0);
+        const grandTotal = subtotal + totalTaxAmount;
 
         const mockSale = {
             id: "DRAFT",
             created_at: new Date().toISOString(),
-            invoice_type: isGstShop ? "gst" : "regular",
+            invoice_type: isGstShop ? "gst" : "non_gst",
             customer_name: localData.customer_name,
             customers: {
                 name: localData.customer_name,
@@ -112,9 +104,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 phone: localData.phone || "TBD",
                 gstin: localData.gstin
             },
-
-            // Calculated Totals
-            subtotal: subtotal,
+            subtotal,
             total_tax_amount: totalTaxAmount,
             total_amount: grandTotal,
             cgst_amount: templateItems.reduce((sum, i) => sum + i.cgst_amount, 0),
