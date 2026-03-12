@@ -43,6 +43,13 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
     // Determine if it's IGST (Inter-state) or CGST+SGST (Intra-state)
     const isIgst = parseFloat(sale.igst_amount) > 0;
 
+    // For Bill of Supply (non-GST), the correct total is subtotal minus discount — NO TAX
+    const discount = parseFloat(sale.discount_amount) || 0;
+    const subtotalNum = parseFloat(sale.subtotal) || 0;
+    const displayTotal = isGst
+        ? (parseFloat(sale.total_amount) || 0)
+        : Math.max(0, subtotalNum - discount);
+
     // Helper to format currency
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-IN', {
@@ -210,9 +217,10 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                             const qty = parseFloat(item.quantity) || 0;
                             const rate = parseFloat(item.unit_price) || 0;
                             const taxableValue = qty * rate;
-                            const totalTax = parseFloat(item.total_tax_amount || 0);
-                            const totalAmount = taxableValue + (isGst ? totalTax : 0);
-                            const gstPct = item.tax_percent || ((totalTax / taxableValue) * 100).toFixed(0);
+                            // For non-GST (Bill of Supply), NEVER add tax — item total is just qty × rate
+                            const totalTax = isGst ? parseFloat(item.total_tax_amount || 0) : 0;
+                            const totalAmount = taxableValue + totalTax;
+                            const gstPct = item.tax_percent || (taxableValue > 0 ? ((parseFloat(item.total_tax_amount || 0) / taxableValue) * 100).toFixed(0) : 0);
 
                             return (
                                 <tr key={index} className="border-b border-slate-200 last:border-0 hover:bg-slate-50 transition-colors">
@@ -248,7 +256,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fiscal Declaration in Words</p>
                         <p className="text-xs font-black capitalize italic text-slate-900 leading-relaxed tracking-tight">
-                            {numberToWords(sale.total_amount)}
+                            {numberToWords(displayTotal)}
                         </p>
                     </div>
 
@@ -310,13 +318,16 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                         <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-12 translate-x-12 blur-2xl group-hover:bg-white/10 transition-all"></div>
 
                         <div className="space-y-2.5 relative z-10">
-                            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
-                                <span>Net Asset Value</span>
-                                <span>{formatCurrency(sale.subtotal)}</span>
-                            </div>
+                            {/* Show subtotal row only for GST invoices; for Bill of Supply it is the same as grand total */}
+                            {isGst && (
+                                <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                    <span>Taxable Value</span>
+                                    <span>{formatCurrency(sale.subtotal)}</span>
+                                </div>
+                            )}
 
                             {isGst && (
-                                <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-indigo-400">
+                                <div className="flex justify-between text-[9px] font-black uppercase tracking-widests text-indigo-400">
                                     <span>Cumulative Tax</span>
                                     <span>{formatCurrency(sale.total_tax_amount)}</span>
                                 </div>
@@ -330,8 +341,8 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                             )}
 
                             <div className="border-t border-slate-700 pt-4 flex flex-col items-end">
-                                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 opacity-60">Grand Payable Aggregate</span>
-                                <span className="text-3xl font-black font-mono tracking-tighter text-indigo-50">{formatCurrency(sale.total_amount)}</span>
+                                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1 opacity-60">{isGst ? 'Grand Total (incl. GST)' : 'Grand Total'}</span>
+                                <span className="text-3xl font-black font-mono tracking-tighter text-indigo-50">{formatCurrency(displayTotal)}</span>
                             </div>
 
                             <div className="border-t border-slate-700 pt-3 mt-1 flex flex-col gap-1.5 text-[10px] font-bold">

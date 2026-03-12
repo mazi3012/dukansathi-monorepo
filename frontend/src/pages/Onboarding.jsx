@@ -65,7 +65,7 @@ const Onboarding = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 md:p-8 font-sans">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 md:p-8 font-sans" style={{colorScheme:'light'}}>
             <div className="max-w-xl w-full">
                 {/* Progress Header */}
                 <div className="mb-12">
@@ -176,7 +176,7 @@ const Onboarding = () => {
                                                 value={formData.city}
                                                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                                                 placeholder="City"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -186,7 +186,7 @@ const Onboarding = () => {
                                                 onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
                                                 placeholder="6 Digits"
                                                 maxLength={6}
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800"
                                             />
                                         </div>
                                     </div>
@@ -197,7 +197,7 @@ const Onboarding = () => {
                                             value={formData.state_name}
                                             onChange={(e) => setFormData({ ...formData, state_name: e.target.value })}
                                             placeholder="Ex: Maharashtra"
-                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800"
                                         />
                                     </div>
                                 </div>
@@ -333,7 +333,7 @@ const Onboarding = () => {
                                                 value={formData.upi_id}
                                                 onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
                                                 placeholder="mobile@upi (Linked to bank)"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800"
                                             />
                                         </div>
 
@@ -343,7 +343,7 @@ const Onboarding = () => {
                                                 value={formData.bank_name}
                                                 onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
                                                 placeholder="Ex: HDFC Bank"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-800"
                                             />
                                         </div>
 
@@ -354,7 +354,7 @@ const Onboarding = () => {
                                                     value={formData.bank_account_no}
                                                     onChange={(e) => setFormData({ ...formData, bank_account_no: e.target.value })}
                                                     placeholder="A/c ID"
-                                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold font-mono"
+                                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold font-mono text-slate-800"
                                                 />
                                             </div>
                                             <div className="space-y-2">
@@ -363,7 +363,7 @@ const Onboarding = () => {
                                                     value={formData.bank_ifsc}
                                                     onChange={(e) => setFormData({ ...formData, bank_ifsc: e.target.value.toUpperCase() })}
                                                     placeholder="IFSC"
-                                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold font-mono uppercase"
+                                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-indigo-500 outline-none font-bold font-mono uppercase text-slate-800"
                                                 />
                                             </div>
                                         </div>

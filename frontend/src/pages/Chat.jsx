@@ -1508,9 +1508,9 @@ const Chat = () => {
                                     if (isOnline || localAIReady) handleSend();
                                 }
                             }}
-                            placeholder={!isConnected ? "AI connecting, please hold on..." : (isThinking ? "Wait for AI to finish..." : (isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."))}
-                            disabled={(!isOnline && !localAIReady) || isThinking || !isConnected}
-                            className="w-full bg-transparent text-text-main text-sm md:text-base placeholder-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl disabled:opacity-50"
+                            placeholder={!isConnected ? "AI connecting..." : (isThinking ? "Wait for AI to finish..." : (isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."))}
+                            disabled={(!isOnline && !localAIReady) || isThinking}
+                            className="w-full bg-transparent text-text-main caret-indigo-500 text-sm md:text-base placeholder:text-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl disabled:opacity-50"
                             rows={1}
                             style={{ height: input ? 'auto' : '44px' }}
                         />
@@ -1521,7 +1521,7 @@ const Chat = () => {
                         {input.trim() || pendingAttachment ? (
                             <button
                                 onClick={handleSend}
-                                disabled={isThinking || !isConnected}
+                                disabled={isThinking}
                                 className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                             >
                                 <Send size={18} className="translate-x-[2px]" />
@@ -1532,7 +1532,7 @@ const Chat = () => {
                                     if (isListening) stopRecording();
                                     else startRecording();
                                 }}
-                                disabled={isThinking || !isConnected}
+                                disabled={isThinking}
                                 className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
                                     ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse'
                                     : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'
