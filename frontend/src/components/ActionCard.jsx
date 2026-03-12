@@ -56,6 +56,10 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     if (type === 'invoice_draft') {
         const itemsList = localData.items || [];
         const isGstShop = businessProfile?.is_gst_registered || false;
+        
+        // Use a local state for bill type if it's a GST shop, allowing toggle to Non-GST
+        const [billType, setBillType] = useState(localData.invoice_type || (isGstShop ? 'GST' : 'NON_GST'));
+        const activeIsGst = billType === 'GST';
 
         // PREPARE ITEMS FOR TEMPLATE
         const templateItems = itemsList.map(item => {
@@ -72,19 +76,25 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 placeOfSupply: localData.state_code
             });
 
+            // IMPORTANT: If billType is NON_GST, we force all taxes to 0
+            const cgst = activeIsGst ? taxCalc.cgst_amount : 0;
+            const sgst = activeIsGst ? taxCalc.sgst_amount : 0;
+            const igst = activeIsGst ? taxCalc.igst_amount : 0;
+            const taxTotal = cgst + sgst + igst;
+
             return {
                 ...item,
                 name: item.product_name,
                 products: { name: item.product_name },
                 unit_price: rate,
                 quantity: qty,
-                hsn_code: isGstShop ? hsn : null,
+                hsn_code: activeIsGst ? hsn : null,
                 taxable_amount: taxCalc.taxable_value,
-                cgst_amount: isGstShop ? taxCalc.cgst_amount : 0,
-                sgst_amount: isGstShop ? taxCalc.sgst_amount : 0,
-                igst_amount: isGstShop ? taxCalc.igst_amount : 0,
-                tax_percent: isGstShop ? taxCalc.gst_rate : 0,
-                total_amount: isGstShop ? taxCalc.grand_total : taxCalc.taxable_value
+                cgst_amount: cgst,
+                sgst_amount: sgst,
+                igst_amount: igst,
+                tax_percent: activeIsGst ? taxCalc.gst_rate : 0,
+                total_amount: taxCalc.taxable_value + taxTotal
             };
         });
 
@@ -96,7 +106,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         const mockSale = {
             id: "DRAFT",
             created_at: new Date().toISOString(),
-            invoice_type: isGstShop ? "gst" : "non_gst",
+            invoice_type: activeIsGst ? "gst" : "non_gst",
             customer_name: localData.customer_name,
             customers: {
                 name: localData.customer_name,
@@ -126,14 +136,29 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             <div className="glass-card rounded-[28px] shadow-xl border border-card-border/50 overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 transition-all">
                 {/* Header Toolbar */}
                 <div className="bg-indigo-600 px-4 py-3 flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-white">
-                        <FileText size={18} />
-                        <span className="font-bold text-sm">
-                            {isGstShop ? "Draft Tax Invoice" : "Draft Bill of Supply"}
-                        </span>
-                        {isEditing && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full animate-pulse tracking-wider">EDITING</span>}
+                    <div className="flex flex-col text-white">
+                        <div className="flex items-center gap-2">
+                            <FileText size={18} />
+                            <span className="font-bold text-sm">
+                                {activeIsGst ? "Draft Tax Invoice" : "Draft Bill of Supply"}
+                            </span>
+                            {isEditing && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full animate-pulse tracking-wider">EDITING</span>}
+                        </div>
                     </div>
-                    <div className="flex gap-2 text-white">
+                    <div className="flex gap-4 text-white items-center">
+                        {isGstShop && !isEditing && (
+                            <div className="flex items-center gap-2 pr-2 border-r border-white/20">
+                                <span className="text-[9px] font-black uppercase tracking-tighter opacity-80">
+                                    GST
+                                </span>
+                                <div 
+                                    onClick={() => setBillType(activeIsGst ? 'NON_GST' : 'GST')}
+                                    className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${activeIsGst ? 'bg-indigo-400' : 'bg-white/20'}`}
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${activeIsGst ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+                        )}
                         <button
                             onClick={() => setIsEditing(!isEditing)}
                             className="p-1.5 rounded-lg transition-colors hover:bg-white/20"
@@ -281,7 +306,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
                     {/* Grand Total Area (Always visible) */}
                     <div className={`mt-2 flex justify-between items-center p-4 border-y border-card-border/50 ${isEditing ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : 'bg-transparent'}`}>
-                        <span className="font-bold text-text-muted text-sm uppercase tracking-wider">{isGstShop ? 'Invoice Total' : 'Total Amount'}</span>
+                        <span className="font-bold text-text-muted text-sm uppercase tracking-wider">{activeIsGst ? 'Invoice Total' : 'Total Amount'}</span>
                         <span className="font-black text-2xl text-indigo-600">₹{grandTotal.toFixed(2)}</span>
                     </div>
 
@@ -338,6 +363,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <button
                         onClick={() => onApprove({
                             ...localData,
+                            invoice_type: activeIsGst ? 'gst' : 'non_gst', // Pass chosen type
                             payment_status: paymentStatus,
                             amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
                         })}

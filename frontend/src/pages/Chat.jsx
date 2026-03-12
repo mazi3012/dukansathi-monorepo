@@ -430,7 +430,8 @@ const Chat = () => {
                 // Tax totals will be calculated after enrichedItems
 
                 // Determine tax split & state logic
-                const isGstSession = businessProfile?.is_gst_registered;
+                // Respect actionData.invoice_type if it came from the Draft Card toggle
+                const isGstSession = actionData.invoice_type === 'gst' || (businessProfile?.is_gst_registered && actionData.invoice_type !== 'non_gst');
                 const sellerGstin = businessProfile?.gstin;
                 const buyerGstin = actionData.gstin;
                 const placeOfSupply = actionData.state_code; // If specific state code provided
@@ -448,6 +449,12 @@ const Chat = () => {
                         buyerGstin: buyerGstin,
                         placeOfSupply: placeOfSupply
                     });
+
+                    // Force 0 tax if not a GST session
+                    const cgst = isGstSession ? taxCalc.cgst_amount : 0;
+                    const sgst = isGstSession ? taxCalc.sgst_amount : 0;
+                    const igst = isGstSession ? taxCalc.igst_amount : 0;
+                    const taxTotal = cgst + sgst + igst;
 
                     // Find product_id
                     let prodId = null;
@@ -468,13 +475,13 @@ const Chat = () => {
                         product_id: prodId,
                         unit_price: rawRate,
                         quantity: qty,
-                        hsn_code: hsn,
+                        hsn_code: isGstSession ? hsn : null,
                         taxable_amount: taxCalc.taxable_value,
-                        cgst_amount: taxCalc.cgst_amount,
-                        sgst_amount: taxCalc.sgst_amount,
-                        igst_amount: taxCalc.igst_amount,
-                        tax_percent: taxCalc.gst_rate,
-                        total_amount: taxCalc.grand_total
+                        cgst_amount: cgst,
+                        sgst_amount: sgst,
+                        igst_amount: igst,
+                        tax_percent: isGstSession ? taxCalc.gst_rate : 0,
+                        total_amount: taxCalc.taxable_value + taxTotal
                     };
                 }));
 
@@ -494,7 +501,7 @@ const Chat = () => {
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
                     customer_id: customerId,
-                    invoice_type: isGstSession ? 'gst' : 'regular',
+                    invoice_type: isGstSession ? 'gst' : 'non_gst',
                     subtotal: totalSubtotal,
                     total_tax_amount: totalTax,
                     cgst_amount: totalCgst,
