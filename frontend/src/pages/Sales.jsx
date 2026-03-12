@@ -276,7 +276,7 @@ const Sales = () => {
                 id: saleId,
                 user_id: userId,
                 customer_id: selectedCustomerId,
-                invoice_type: billType === 'GST' ? 'gst' : 'non_gst',
+                invoice_type: billType === 'GST' ? 'gst' : 'regular',
                 subtotal: totals.subtotal,
                 discount_amount: parseFloat(additionalDiscount) || 0,
                 taxable_amount: billType === 'GST' ? totals.subtotal : 0,

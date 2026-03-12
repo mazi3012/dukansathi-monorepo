@@ -431,7 +431,7 @@ const Chat = () => {
 
                 // Determine tax split & state logic
                 // Respect actionData.invoice_type if it came from the Draft Card toggle
-                const isGstSession = actionData.invoice_type === 'gst' || (businessProfile?.is_gst_registered && actionData.invoice_type !== 'non_gst');
+                const isGstSession = actionData.invoice_type === 'gst' || (businessProfile?.is_gst_registered && actionData.invoice_type !== 'regular');
                 const sellerGstin = businessProfile?.gstin;
                 const buyerGstin = actionData.gstin;
                 const placeOfSupply = actionData.state_code; // If specific state code provided
@@ -501,7 +501,7 @@ const Chat = () => {
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
                     customer_id: customerId,
-                    invoice_type: isGstSession ? 'gst' : 'non_gst',
+                    invoice_type: isGstSession ? 'gst' : 'regular',
                     subtotal: totalSubtotal,
                     total_tax_amount: totalTax,
                     cgst_amount: totalCgst,

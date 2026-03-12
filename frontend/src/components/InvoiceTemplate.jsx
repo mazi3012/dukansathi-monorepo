@@ -87,7 +87,7 @@ const numberToWords = (num) => {
 
 const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'classic' }, ref) => {
     const t = THEMES[theme] || THEMES.classic;
-    // Determine if GST is applicable (support both 'regular' legacy and 'non_gst' new format)
+    // Determine if GST is applicable (support both 'regular' standard and 'gst' tax format)
     const isGst = sale.invoice_type === 'gst';
 
     // Determine if it's IGST (Inter-state) or CGST+SGST (Intra-state)

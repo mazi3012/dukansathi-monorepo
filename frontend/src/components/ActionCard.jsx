@@ -106,7 +106,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         const mockSale = {
             id: "DRAFT",
             created_at: new Date().toISOString(),
-            invoice_type: activeIsGst ? "gst" : "non_gst",
+            invoice_type: activeIsGst ? "gst" : "regular",
             customer_name: localData.customer_name,
             customers: {
                 name: localData.customer_name,
@@ -363,7 +363,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <button
                         onClick={() => onApprove({
                             ...localData,
-                            invoice_type: activeIsGst ? 'gst' : 'non_gst', // Pass chosen type
+                            invoice_type: activeIsGst ? 'gst' : 'regular', // Pass chosen type
                             payment_status: paymentStatus,
                             amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
                         })}
