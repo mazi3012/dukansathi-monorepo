@@ -68,7 +68,7 @@ const AnimatedRoutes = () => {
 
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="chat" element={<Chat />} />
+          <Route path="chat" element={<div />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="customers" element={<Customers />} />
           <Route path="customers/:id" element={<CustomerDetails />} />

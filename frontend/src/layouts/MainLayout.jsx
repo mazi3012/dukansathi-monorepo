@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
 import NavigationDrawer from '../components/NavigationDrawer';
+import Chat from '../pages/Chat';
 import { DashboardSkeleton } from '../components/Skeleton';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -136,20 +137,20 @@ const MainLayout = () => {
             )}
 
             {/* Main Content Area */}
-            {/* Adjusted classes for better mobile/desktop layout. Added pt-16 on mobile non-chat to clear the header. */}
             <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-14 md:pt-0'}`}>
+                {/* Persistent Chat Layer */}
+                <div 
+                    className={`h-[100dvh] flex flex-col w-full pb-0 ${location.pathname === '/chat' ? 'block' : 'hidden'}`}
+                    aria-hidden={location.pathname !== '/chat'}
+                >
+                    <Chat />
+                </div>
 
-
-                <div className={`${location.pathname === '/chat' ? 'h-[100dvh] flex flex-col w-full pb-0' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
-                    {location.pathname === '/chat' ? (
+                {/* Other Pages */}
+                <div className={`${location.pathname === '/chat' ? 'hidden' : 'p-4 pb-24 md:pb-8 max-w-7xl mx-auto'}`}>
+                    <PageTransition key={location.pathname}>
                         <Outlet context={{ user }} />
-                    ) : (
-                        <PageTransition
-                            key={location.pathname}
-                        >
-                            <Outlet context={{ user }} />
-                        </PageTransition>
-                    )}
+                    </PageTransition>
                 </div>
             </main>
 
