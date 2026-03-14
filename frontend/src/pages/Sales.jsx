@@ -84,9 +84,9 @@ const Sales = () => {
         const totalIgst = computedItems.reduce((sum, i) => sum + i.igst, 0);
 
         const discount = parseFloat(additionalDiscount) || 0;
-        const grandTotal = subtotal + totalTax - discount;
+        const grandTotal = Math.round((subtotal + totalTax - discount + Number.EPSILON) * 100) / 100;
         const paid = parseFloat(amountPaid) || 0;
-        const balance = grandTotal > 0 ? grandTotal - paid : 0;
+        const balance = Math.round((Math.max(0, grandTotal - paid) + Number.EPSILON) * 100) / 100;
 
         const status = grandTotal <= 0 ? 'paid' : (paid >= grandTotal ? 'paid' : (paid > 0 ? 'partial' : 'credit'));
 

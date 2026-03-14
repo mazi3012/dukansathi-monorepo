@@ -486,7 +486,7 @@ const Chat = () => {
                 }));
 
                 // Calculate Totals
-                let grandTotal = enrichedItems.reduce((sum, i) => sum + i.total_amount, 0);
+                let grandTotal = Math.round((enrichedItems.reduce((sum, i) => sum + i.total_amount, 0) + Number.EPSILON) * 100) / 100;
                 let totalSubtotal = enrichedItems.reduce((sum, i) => sum + i.taxable_amount, 0);
                 let totalCgst = enrichedItems.reduce((sum, i) => sum + i.cgst_amount, 0);
                 let totalSgst = enrichedItems.reduce((sum, i) => sum + i.sgst_amount, 0);
@@ -495,7 +495,7 @@ const Chat = () => {
 
                 const status = actionData.payment_status || 'paid';
                 const amtPaid = actionData.amount_paid || 0;
-                const balanceDue = actionData.balance_due ?? (grandTotal - amtPaid);
+                const balanceDue = Math.round((Math.max(0, grandTotal - amtPaid) + Number.EPSILON) * 100) / 100;
 
                 // Create Sale Header
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
@@ -699,7 +699,13 @@ const Chat = () => {
                     });
 
                     // Totals
-                    let finalY = doc.lastAutoTable.finalY + 15;
+                    let finalY = doc.lastAutoTable.finalY + 12;
+
+                    // Support for long invoices without adding pages where possible
+                    // But if table ends too low (A4 is 297mm), we might need to nudge things
+                    if (finalY > 240) {
+                        finalY = doc.lastAutoTable.finalY + 5; // Compact if tight
+                    }
 
                     // Left Side: In Words & Bank Info
                     doc.setFontSize(8);
@@ -713,13 +719,12 @@ const Chat = () => {
                     if (businessProfile?.bank_name) {
                         doc.setFontSize(8);
                         doc.setTextColor(148, 163, 184);
-                        doc.text("BANK DETAILS", 14, finalY + 20);
+                        doc.text("BANK DETAILS", 14, finalY + 15);
                         doc.setFontSize(9);
                         doc.setTextColor(71, 85, 105);
                         doc.setFont(undefined, 'normal');
-                        doc.text(`Bank: ${businessProfile.bank_name}`, 14, finalY + 25);
-                        doc.text(`A/c No: ${businessProfile.bank_account_no}`, 14, finalY + 30);
-                        doc.text(`IFSC: ${businessProfile.bank_ifsc}`, 14, finalY + 35);
+                        doc.text(`Bank: ${businessProfile.bank_name} | A/c No: ${businessProfile.bank_account_no}`, 14, finalY + 20);
+                        doc.text(`IFSC: ${businessProfile.bank_ifsc}`, 14, finalY + 25);
                     }
 
                     // Right Side: Summary
@@ -752,13 +757,13 @@ const Chat = () => {
                     doc.setFontSize(10);
                     doc.setTextColor(30, 41, 59);
                     doc.setFont(undefined, 'normal');
-                    doc.text(`Amount Paid:`, 140, finalY + 24);
-                    doc.text(`Rs. ${amtPaid.toFixed(2)}`, rightAlignX, finalY + 24, { align: 'right' });
+                    doc.text(`Amount Paid:`, 140, finalY + 22);
+                    doc.text(`Rs. ${amtPaid.toFixed(2)}`, rightAlignX, finalY + 22, { align: 'right' });
 
                     if (balanceDue > 0) {
                         doc.setTextColor(220, 38, 38);
-                        doc.text(`Balance Due:`, 140, finalY + 30);
-                        doc.text(`Rs. ${balanceDue.toFixed(2)}`, rightAlignX, finalY + 30, { align: 'right' });
+                        doc.text(`Balance Due:`, 140, finalY + 28);
+                        doc.text(`Rs. ${balanceDue.toFixed(2)}`, rightAlignX, finalY + 28, { align: 'right' });
                     }
 
                     // Generate QR String (UPI for payment or Compliance for GST)
@@ -773,9 +778,12 @@ const Chat = () => {
 
                     const showQr = businessProfile?.show_qr_on_invoice !== false;
 
+                    let qrY = finalY + 35;
+                    if (qrY > 260) qrY = 250; // Force overlap slightly if desperate for space
+
                     if (showQr) {
                         try {
-                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrValue)}`;
+                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrValue)}`;
                             const img = new Image();
                             img.crossOrigin = "anonymous";
                             img.src = qrImageUrl;
@@ -784,27 +792,28 @@ const Chat = () => {
                                 img.onerror = reject;
                                 setTimeout(() => reject(new Error('QR Timeout')), 5000);
                             });
-                            doc.addImage(img, 'PNG', 160, finalY + 40, 30, 30);
+                            // Smaller QR: 20x20
+                            doc.addImage(img, 'PNG', 175, qrY, 20, 20);
                         } catch (qrErr) {
-                            console.warn("QR Code generation failed, falling back to box:", qrErr);
+                            console.warn("QR Code generation failed:", qrErr);
                             doc.setDrawColor(226, 232, 240);
-                            doc.rect(160, finalY + 40, 30, 30);
-                            doc.setFontSize(6);
+                            doc.rect(175, qrY, 20, 20);
+                            doc.setFontSize(5);
                             doc.setTextColor(148, 163, 184);
-                            doc.text("SECURE QR", 175, finalY + 55, { align: 'center' });
+                            doc.text("SECURE QR", 185, qrY + 12, { align: 'center' });
                         }
                     }
 
                     // Footer / Signature
                     doc.setFontSize(10);
                     doc.setTextColor(30, 41, 59);
-                    doc.text(`For ${businessProfile?.business_name || "Authorized Firm"}`, 200, 260, { align: 'right' });
-                    doc.line(140, 275, 200, 275);
+                    doc.text(`For ${businessProfile?.business_name || "Authorized Firm"}`, 200, qrY + 25, { align: 'right' });
+                    doc.line(140, qrY + 38, 200, qrY + 38);
                     doc.setFontSize(8);
-                    doc.text("Authorized Signatory", 200, 280, { align: 'right' });
+                    doc.text("Authorized Signatory", 200, qrY + 43, { align: 'right' });
 
                     doc.setTextColor(150, 150, 150);
-                    doc.text("This is a computer generated invoice.", 14, 280);
+                    doc.text("This is a computer generated invoice.", 14, qrY + 43);
 
                     // Output to blob
                     const pdfBlob = doc.output('blob');

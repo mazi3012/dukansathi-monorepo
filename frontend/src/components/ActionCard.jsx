@@ -101,7 +101,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // Calculate Totals efficiently from templateItems
         const subtotal = templateItems.reduce((sum, item) => sum + item.taxable_amount, 0);
         const totalTaxAmount = templateItems.reduce((sum, item) => sum + (item.cgst_amount + item.sgst_amount + item.igst_amount), 0);
-        const grandTotal = subtotal + totalTaxAmount;
+        const grandTotal = Math.round((subtotal + totalTaxAmount + Number.EPSILON) * 100) / 100;
 
         const mockSale = {
             id: "DRAFT",
@@ -122,7 +122,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             igst_amount: templateItems.reduce((sum, i) => sum + i.igst_amount, 0),
             payment_status: paymentStatus,
             amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0),
-            balance_due: grandTotal - (parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)),
+            balance_due: Math.round((Math.max(0, grandTotal - (parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0))) + Number.EPSILON) * 100) / 100,
             discount_amount: 0
         };
 
