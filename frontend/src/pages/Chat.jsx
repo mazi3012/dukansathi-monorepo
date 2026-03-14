@@ -784,24 +784,33 @@ const Chat = () => {
 
                     if (showQr) {
                         try {
-                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrValue)}`;
+                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrValue)}`;
                             const img = new Image();
                             img.crossOrigin = "anonymous";
                             img.src = qrImageUrl;
-                            await new Promise((resolve, reject) => {
-                                img.onload = resolve;
-                                img.onerror = reject;
+                            
+                            const qrBase64 = await new Promise((resolve, reject) => {
+                                img.onload = () => {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = img.width;
+                                    canvas.height = img.height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0);
+                                    resolve(canvas.toDataURL('image/png'));
+                                };
+                                img.onerror = () => reject(new Error('QR Load Failed'));
                                 setTimeout(() => reject(new Error('QR Timeout')), 5000);
                             });
-                            // Smaller QR: 20x20
-                            doc.addImage(img, 'PNG', 175, qrY, 20, 20);
+
+                            // Slightly larger QR: 25x25 for better readability
+                            doc.addImage(qrBase64, 'PNG', 170, qrY, 25, 25);
                         } catch (qrErr) {
                             console.warn("QR Code generation failed:", qrErr);
                             doc.setDrawColor(226, 232, 240);
-                            doc.rect(175, qrY, 20, 20);
-                            doc.setFontSize(5);
+                            doc.rect(170, qrY, 25, 25);
+                            doc.setFontSize(6);
                             doc.setTextColor(148, 163, 184);
-                            doc.text("SECURE QR", 185, qrY + 12, { align: 'center' });
+                            doc.text("SCAN IN APP", 182.5, qrY + 14, { align: 'center' });
                         }
                     }
 
