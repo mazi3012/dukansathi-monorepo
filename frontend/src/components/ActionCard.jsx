@@ -9,6 +9,44 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     const [paymentStatus, setPaymentStatus] = useState('paid');
     const [amountPaid, setAmountPaid] = useState('');
 
+    // --- GST Calculation Helper for Draft ---
+    const getTemplateItems = (itemsList, activeIsGst) => {
+        return itemsList.map(item => {
+            const qty = parseFloat(item.quantity) || 0;
+            const rate = parseFloat(item.price) || 0;
+            const hsn = item.hsn_code || "1905"; // Fallback to 18% slab (e.g. Biscuits) if AI missed it
+
+            const taxCalc = TaxCalculator.calculate({
+                sellingPrice: rate,
+                quantity: qty,
+                hsnCode: hsn,
+                sellerGstin: businessProfile?.gstin,
+                buyerGstin: localData.gstin,
+                placeOfSupply: localData.state_code
+            });
+
+            const cgst = activeIsGst ? taxCalc.cgst_amount : 0;
+            const sgst = activeIsGst ? taxCalc.sgst_amount : 0;
+            const igst = activeIsGst ? taxCalc.igst_amount : 0;
+            const taxTotal = cgst + sgst + igst;
+
+            return {
+                ...item,
+                name: item.product_name,
+                products: { name: item.product_name },
+                unit_price: rate,
+                quantity: qty,
+                hsn_code: activeIsGst ? hsn : null,
+                taxable_amount: taxCalc.taxable_value,
+                cgst_amount: cgst,
+                sgst_amount: sgst,
+                igst_amount: igst,
+                tax_percent: activeIsGst ? taxCalc.gst_rate : 0,
+                total_amount: taxCalc.taxable_value + taxTotal
+            };
+        });
+    };
+
     // Sync with prop if it changes
     useEffect(() => {
         let updatedData = { ...actionData };
@@ -62,46 +100,20 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         const activeIsGst = billType === 'GST';
 
         // PREPARE ITEMS FOR TEMPLATE
-        const templateItems = itemsList.map(item => {
-            const qty = parseFloat(item.quantity) || 0;
-            const rate = parseFloat(item.price) || 0;
-            const hsn = item.hsn_code || null;
+        const templateItems = getTemplateItems(itemsList, activeIsGst);
 
-            const taxCalc = TaxCalculator.calculate({
-                sellingPrice: rate,
-                quantity: qty,
-                hsnCode: hsn,
-                sellerGstin: businessProfile?.gstin,
-                buyerGstin: localData.gstin,
-                placeOfSupply: localData.state_code
-            });
-
-            // IMPORTANT: If billType is NON_GST, we force all taxes to 0
-            const cgst = activeIsGst ? taxCalc.cgst_amount : 0;
-            const sgst = activeIsGst ? taxCalc.sgst_amount : 0;
-            const igst = activeIsGst ? taxCalc.igst_amount : 0;
-            const taxTotal = cgst + sgst + igst;
-
-            return {
-                ...item,
-                name: item.product_name,
-                products: { name: item.product_name },
-                unit_price: rate,
-                quantity: qty,
-                hsn_code: activeIsGst ? hsn : null,
-                taxable_amount: taxCalc.taxable_value,
-                cgst_amount: cgst,
-                sgst_amount: sgst,
-                igst_amount: igst,
-                tax_percent: activeIsGst ? taxCalc.gst_rate : 0,
-                total_amount: taxCalc.taxable_value + taxTotal
-            };
-        });
-
-        // Calculate Totals efficiently from templateItems
+        // Calculate Totals
         const subtotal = templateItems.reduce((sum, item) => sum + item.taxable_amount, 0);
         const totalTaxAmount = templateItems.reduce((sum, item) => sum + (item.cgst_amount + item.sgst_amount + item.igst_amount), 0);
         const grandTotal = Math.round((subtotal + totalTaxAmount + Number.EPSILON) * 100) / 100;
+
+        // SYNC PAYMENT: If user has 'paid' selected, and the total changes (e.g. toggling GST), update amountPaid
+        useEffect(() => {
+            if (paymentStatus === 'paid') {
+                setAmountPaid(grandTotal.toString());
+            }
+        }, [grandTotal, paymentStatus]);
+
 
         const mockSale = {
             id: "DRAFT",
@@ -139,10 +151,15 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     <div className="flex flex-col text-white">
                         <div className="flex items-center gap-2">
                             <FileText size={18} />
-                            <span className="font-bold text-sm">
-                                {activeIsGst ? "Draft Tax Invoice" : "Draft Bill of Supply"}
+                            <span className="font-bold text-sm tracking-tight">
+                                {activeIsGst ? "Tax Invoice Draft" : "Bill of Supply Draft"}
                             </span>
                             {isEditing && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full animate-pulse tracking-wider">EDITING</span>}
+                            {!isEditing && activeIsGst && (
+                                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-sm">
+                                    TAX COMPLIANT
+                                </span>
+                            )}
                         </div>
                     </div>
                     <div className="flex gap-4 text-white items-center">
@@ -304,8 +321,22 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         </div>
                     )}
 
+                    {/* Tax Breakdown for GST drafts */}
+                    {activeIsGst && totalTaxAmount > 0 && (
+                        <div className="px-4 py-2 bg-indigo-50/30 border-b border-card-border/30 space-y-1">
+                            <div className="flex justify-between text-[10px] font-bold text-text-muted">
+                                <span>TAXABLE VALUE</span>
+                                <span>₹{subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] font-bold text-indigo-500">
+                                <span>TOTAL TAX (GST)</span>
+                                <span>+ ₹{totalTaxAmount.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Grand Total Area (Always visible) */}
-                    <div className={`mt-2 flex justify-between items-center p-4 border-y border-card-border/50 ${isEditing ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : 'bg-transparent'}`}>
+                    <div className={`flex justify-between items-center p-4 border-b border-card-border/50 ${isEditing ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : 'bg-transparent'}`}>
                         <span className="font-bold text-text-muted text-sm uppercase tracking-wider">{activeIsGst ? 'Invoice Total' : 'Total Amount'}</span>
                         <span className="font-black text-2xl text-indigo-600">₹{grandTotal.toFixed(2)}</span>
                     </div>

@@ -430,8 +430,8 @@ const Chat = () => {
                 // Tax totals will be calculated after enrichedItems
 
                 // Determine tax split & state logic
-                // Respect actionData.invoice_type if it came from the Draft Card toggle
-                const isGstSession = actionData.invoice_type === 'gst' || (businessProfile?.is_gst_registered && actionData.invoice_type !== 'regular');
+                // Prioritize the toggle from the ActionCard
+                const isGstSession = actionData.invoice_type === 'gst' || (actionData.invoice_type !== 'regular' && businessProfile?.is_gst_registered);
                 const sellerGstin = businessProfile?.gstin;
                 const buyerGstin = actionData.gstin;
                 const placeOfSupply = actionData.state_code; // If specific state code provided
@@ -494,7 +494,8 @@ const Chat = () => {
                 let totalTax = totalCgst + totalSgst + totalIgst;
 
                 const status = actionData.payment_status || 'paid';
-                const amtPaid = actionData.amount_paid || 0;
+                // Use amount_paid from ActionCard if provided, otherwise default to full grandTotal if paid
+                const amtPaid = actionData.amount_paid !== undefined ? parseFloat(actionData.amount_paid) : (status === 'paid' ? grandTotal : 0);
                 const balanceDue = Math.round((Math.max(0, grandTotal - amtPaid) + Number.EPSILON) * 100) / 100;
 
                 // Create Sale Header
