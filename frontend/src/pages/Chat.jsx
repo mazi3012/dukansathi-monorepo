@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle, Eye, X } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
@@ -9,7 +8,6 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import logo from '../assets/logo.svg';
 import PDFViewer from '../components/PDFViewer';
 import { TaxCalculator } from '../utils/gstUtils';
-import { generateInvoicePDF } from '../utils/pdfGenerator';
 
 const formatWhatsAppNumber = (phone) => {
     if (!phone) return '';
@@ -57,7 +55,7 @@ const ChatInvoiceCard = ({ msg }) => {
                     </div>
                     <div className="text-right">
                         <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">Date:</p>
-                        <p className="text-sm font-semibold text-text-main">{msg.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                        <p className="text-sm font-semibold text-text-main">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                     </div>
                 </div>
 
@@ -140,7 +138,6 @@ const Chat = () => {
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
-    const [viewingPdfUrl, setViewingPdfUrl] = useState(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -569,16 +566,255 @@ const Chat = () => {
                 // --- PDF GENERATION & UPLOAD ---
                 setIsGeneratingPDF(true);
                 try {
-                    const doc = await generateInvoicePDF({
-                        sale,
-                        items: enrichedItems,
-                        businessProfile,
-                        customerName: actionData.customer_name,
-                        customerPhone: actionData.customer_phone,
-                        customerGstin: actionData.gstin,
-                        customerState: actionData.customer_state || sale.customers?.state,
-                        isGst
+                    const { jsPDF } = await import('jspdf');
+                    const autoTable = (await import('jspdf-autotable')).default;
+                    const doc = new jsPDF();
+                    const isGst = sale.invoice_type === 'gst';
+
+                    // Helper for Number to Words
+                    const numberToWords = (num) => {
+                        const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+                        const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+                        const convert = (n) => {
+                            if (n === 0) return '';
+                            if (n < 20) return a[n];
+                            if (n < 100) return b[Math.floor(n / 10)] + ' ' + a[n % 10];
+                            if (n < 1000) return a[Math.floor(n / 100)] + 'hundred ' + convert(n % 100);
+                            if (n < 100000) return convert(Math.floor(n / 1000)) + 'thousand ' + convert(n % 1000);
+                            if (n < 10000000) return convert(Math.floor(n / 100000)) + 'lakh ' + convert(n % 100000);
+                            return convert(Math.floor(n / 10000000)) + 'crore ' + convert(n % 10000000);
+                        };
+
+                        const amountArr = parseFloat(num).toFixed(2).split('.');
+                        const whole = parseInt(amountArr[0]);
+                        const fraction = parseInt(amountArr[1]);
+
+                        let res = convert(whole) + 'Rupees ';
+                        if (fraction > 0) {
+                            res += 'and ' + convert(fraction) + 'Paise ';
+                        }
+                        return res.trim() + ' Only';
+                    };
+
+                    // Header
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(24);
+                    doc.setTextColor(30, 41, 59); // slate-800
+                    doc.text(businessProfile?.business_name || "My Shop", 14, 22);
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139); // slate-500
+                    let yPos = 30;
+                    if (businessProfile?.business_address || businessProfile?.address) {
+                        doc.text(businessProfile.business_address || businessProfile.address, 14, yPos);
+                        yPos += 5;
+                    }
+                    doc.text(`${businessProfile?.city || ''}, ${businessProfile?.state_name || businessProfile?.state || ''} ${businessProfile?.pincode || ''}`, 14, yPos);
+                    yPos += 5;
+                    if (businessProfile?.phone) { doc.text(`Phone: ${businessProfile.phone}`, 14, yPos); yPos += 5; }
+                    if (isGst && businessProfile?.gstin) {
+                        doc.setFont(undefined, 'bold');
+                        doc.setTextColor(79, 70, 229); // indigo-600
+                        doc.text(`GSTIN: ${businessProfile.gstin}`, 14, yPos); yPos += 5;
+                        doc.setFont(undefined, 'normal');
+                        doc.setTextColor(100, 116, 139);
+                    }
+
+                    // Invoice Meta
+                    doc.setFontSize(18);
+                    doc.setTextColor(79, 70, 229);
+                    doc.text(isGst ? "TAX INVOICE" : "BILL OF SUPPLY", 200, 22, { align: 'right' });
+                    doc.setFontSize(10);
+                    doc.setTextColor(148, 163, 184); // slate-400
+                    doc.text(`Document ID: #${sale.id}`, 200, 30, { align: 'right' });
+                    doc.text(`Date: ${new Date(sale.created_at).toLocaleDateString('en-IN')}`, 200, 36, { align: 'right' });
+                    if (isGst) {
+                        const placeOfSupply = actionData.customer_state || sale.customers?.state || businessProfile?.state_name || 'Local';
+                        doc.text(`Place of Supply: ${placeOfSupply}`, 200, 42, { align: 'right' });
+                    }
+
+                    // Bill To
+                    yPos = 55;
+                    doc.setFontSize(10);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text("BILLED TO", 14, yPos);
+                    yPos += 6;
+                    doc.setFontSize(12);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(actionData.customer_name || "Walk-in Customer", 14, yPos);
+                    yPos += 5;
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.setTextColor(71, 85, 105);
+                    if (actionData.customer_phone) { doc.text(actionData.customer_phone, 14, yPos); yPos += 5; }
+                    if (isGst && actionData.gstin) { doc.text(`GSTIN: ${actionData.gstin}`, 14, yPos); yPos += 5; }
+
+                    // Table
+                    const tableHead = isGst
+                        ? [['#', 'Description of Goods', 'HSN/SAC', 'Qty', 'Unit Rate', 'Taxable', 'GST Amt', 'Total']]
+                        : [['#', 'Description of Goods', 'Qty', 'Unit Rate', 'Total']];
+
+                    const tableBody = enrichedItems.map((item, idx) => {
+                        const q = parseFloat(item.quantity) || 0;
+                        const taxable = item.taxable_amount || 0;
+                        const cgst = item.cgst_amount || 0;
+                        const sgst = item.sgst_amount || 0;
+                        const igst = item.igst_amount || 0;
+                        const totalTaxAmt = cgst + sgst + igst;
+                        const total = item.total_amount || 0;
+
+                        if (isGst) {
+                            return [
+                                idx + 1,
+                                item.product_name || item.name || "Item",
+                                item.hsn_code || '---',
+                                q,
+                                item.unit_price.toFixed(2),
+                                taxable.toFixed(2),
+                                totalTaxAmt.toFixed(2),
+                                total.toFixed(2)
+                            ];
+                        } else {
+                            return [
+                                idx + 1,
+                                item.product_name || item.name || "Item",
+                                q,
+                                item.unit_price.toFixed(2),
+                                total.toFixed(2)
+                            ];
+                        }
                     });
+
+                    autoTable(doc, {
+                        startY: yPos + 5,
+                        head: tableHead,
+                        body: tableBody,
+                        theme: 'striped',
+                        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+                        bodyStyles: { textColor: [30, 41, 59] },
+                        alternateRowStyles: { fillColor: [248, 250, 252] },
+                        margin: { left: 14, right: 14 }
+                    });
+
+                    // Totals
+                    let finalY = doc.lastAutoTable.finalY + 12;
+
+                    // Support for long invoices without adding pages where possible
+                    // But if table ends too low (A4 is 297mm), we might need to nudge things
+                    if (finalY > 240) {
+                        finalY = doc.lastAutoTable.finalY + 5; // Compact if tight
+                    }
+
+                    // Left Side: In Words & Bank Info
+                    doc.setFontSize(8);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text("AMOUNT IN WORDS", 14, finalY);
+                    doc.setFontSize(9);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(numberToWords(sale.total_amount), 14, finalY + 5, { maxWidth: 100 });
+
+                    if (businessProfile?.bank_name) {
+                        doc.setFontSize(8);
+                        doc.setTextColor(148, 163, 184);
+                        doc.text("BANK DETAILS", 14, finalY + 15);
+                        doc.setFontSize(9);
+                        doc.setTextColor(71, 85, 105);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(`Bank: ${businessProfile.bank_name} | A/c No: ${businessProfile.bank_account_no}`, 14, finalY + 20);
+                        doc.text(`IFSC: ${businessProfile.bank_ifsc}`, 14, finalY + 25);
+                    }
+
+                    // Right Side: Summary
+                    doc.setFontSize(10);
+                    doc.setTextColor(71, 85, 105);
+                    const rightAlignX = 200;
+
+                    doc.text(`Taxable Value:`, 140, finalY);
+                    doc.text(`Rs. ${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
+
+                    if (isGst) {
+                        if (totalIgst > 0) {
+                            doc.text(`IGST:`, 140, finalY + 6);
+                            doc.text(`Rs. ${totalIgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                        } else {
+                            doc.text(`CGST:`, 140, finalY + 6);
+                            doc.text(`Rs. ${totalCgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                            doc.text(`SGST:`, 140, finalY + 12);
+                            doc.text(`Rs. ${totalSgst.toFixed(2)}`, rightAlignX, finalY + 12, { align: 'right' });
+                            finalY += 6; // Shift subsequent items down
+                        }
+                    }
+
+                    doc.setFontSize(14);
+                    doc.setTextColor(79, 70, 229);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Grand Total:`, 140, finalY + 15);
+                    doc.text(`Rs. ${grandTotal.toFixed(2)}`, rightAlignX, finalY + 15, { align: 'right' });
+
+                    doc.setFontSize(10);
+                    doc.setTextColor(30, 41, 59);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Amount Paid:`, 140, finalY + 22);
+                    doc.text(`Rs. ${amtPaid.toFixed(2)}`, rightAlignX, finalY + 22, { align: 'right' });
+
+                    if (balanceDue > 0) {
+                        doc.setTextColor(220, 38, 38);
+                        doc.text(`Balance Due:`, 140, finalY + 28);
+                        doc.text(`Rs. ${balanceDue.toFixed(2)}`, rightAlignX, finalY + 28, { align: 'right' });
+                    }
+
+                    // Generate QR String (UPI for payment or Compliance for GST)
+                    let qrValue = `GSTIN: ${businessProfile?.gstin || 'N/A'}\nInvoice: ${sale.id}\nAmount: ${grandTotal}\nDate: ${new Date(sale.created_at).toLocaleDateString()}`;
+
+                    if (businessProfile?.upi_id) {
+                        const name = encodeURIComponent(businessProfile.business_name || 'Business');
+                        const amount = grandTotal;
+                        const note = encodeURIComponent(`Inv ${sale.id}`);
+                        qrValue = `upi://pay?pa=${businessProfile.upi_id}&pn=${name}&am=${amount}&cu=INR&tn=${note}`;
+                    }
+
+                    const showQr = businessProfile?.show_qr_on_invoice !== false;
+
+                    let qrY = finalY + 35;
+                    if (qrY > 260) qrY = 250; // Force overlap slightly if desperate for space
+
+                    if (showQr) {
+                        try {
+                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrValue)}`;
+                            const img = new Image();
+                            img.crossOrigin = "anonymous";
+                            img.src = qrImageUrl;
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = reject;
+                                setTimeout(() => reject(new Error('QR Timeout')), 5000);
+                            });
+                            // Smaller QR: 20x20
+                            doc.addImage(img, 'PNG', 175, qrY, 20, 20);
+                        } catch (qrErr) {
+                            console.warn("QR Code generation failed:", qrErr);
+                            doc.setDrawColor(226, 232, 240);
+                            doc.rect(175, qrY, 20, 20);
+                            doc.setFontSize(5);
+                            doc.setTextColor(148, 163, 184);
+                            doc.text("SECURE QR", 185, qrY + 12, { align: 'center' });
+                        }
+                    }
+
+                    // Footer / Signature
+                    doc.setFontSize(10);
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(`For ${businessProfile?.business_name || "Authorized Firm"}`, 200, qrY + 25, { align: 'right' });
+                    doc.line(140, qrY + 38, 200, qrY + 38);
+                    doc.setFontSize(8);
+                    doc.text("Authorized Signatory", 200, qrY + 43, { align: 'right' });
+
+                    doc.setTextColor(150, 150, 150);
+                    doc.text("This is a computer generated invoice.", 14, qrY + 43);
 
                     // Output to blob
                     const pdfBlob = doc.output('blob');
@@ -613,9 +849,7 @@ const Chat = () => {
                         customer_phone: customerPhone,
                         customer_name: actionData.customer_name || 'Customer',
                         invoice_id: sale.id,
-                        invoice_type: sale.invoice_type,
                         grand_total: grandTotal.toFixed(2),
-                        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
                         payment_status: status,
                         amount_paid: amtPaid.toFixed(2),
                         balance_due: balanceDue.toFixed(2),
@@ -1042,12 +1276,6 @@ const Chat = () => {
                                                 <MessageCircle size={16} /> <span className="whitespace-nowrap">WhatsApp</span>
                                             </button>
                                             <button
-                                                onClick={() => setViewingPdfUrl(msg.pdf_url)}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-purple-500/10 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
-                                            >
-                                                <Eye size={16} /> <span className="whitespace-nowrap">View</span>
-                                            </button>
-                                            <button
                                                 onClick={async () => {
                                                     try {
                                                         try {
@@ -1080,7 +1308,7 @@ const Chat = () => {
                                                         console.log('Error sharing:', err);
                                                     }
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-4 sm:order-none mt-2 sm:mt-0"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
                                             >
                                                 <Share2 size={16} /> <span className="whitespace-nowrap">Share</span>
                                             </button>
@@ -1334,44 +1562,6 @@ const Chat = () => {
 
                 </div>
             </footer>
-
-            {/* View PDF Modal */}
-            <AnimatePresence>
-                {viewingPdfUrl && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                            onClick={() => setViewingPdfUrl(null)}
-                        />
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl relative z-10 flex flex-col border border-white/20"
-                        >
-                            <div className="flex justify-between items-center p-5 border-b border-indigo-50/50 bg-indigo-50/30 backdrop-blur-md">
-                                <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
-                                    <FileSpreadsheet className="text-indigo-600" size={20} />
-                                    Invoice Preview
-                                </h2>
-                                <button onClick={() => setViewingPdfUrl(null)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-100/50 rounded-full transition-all">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
-                                <PDFViewer url={viewingPdfUrl} />
-                            </div>
-                            <div className="p-5 border-t border-indigo-50/50 bg-white flex justify-end">
-                                <button
-                                    onClick={() => setViewingPdfUrl(null)}
-                                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all"
-                                >
-                                    Done
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };

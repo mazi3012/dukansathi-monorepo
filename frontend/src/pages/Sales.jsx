@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp, Download } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
@@ -13,8 +13,6 @@ import { syncEngine } from '../lib/db/syncEngine';
 import { getDB, persistDB } from '../lib/sqlite';
 import { authService } from '../lib/authService';
 import toast from 'react-hot-toast';
-import { generateInvoicePDF } from '../utils/pdfGenerator';
-import PDFViewer from '../components/PDFViewer';
 
 
 const Sales = () => {
@@ -49,7 +47,6 @@ const Sales = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptSale, setReceiptSale] = useState(null);
     const [receiptItems, setReceiptItems] = useState([]);
-    const [receiptPdfUrl, setReceiptPdfUrl] = useState(null);
     const invoiceRef = useRef();
 
     // Calculations
@@ -205,27 +202,6 @@ const Sales = () => {
             }
 
             setReceiptSale(sale);
-
-            // Generate the PDF and create a blob URL for preview
-            try {
-                const doc = await generateInvoicePDF({
-                    sale,
-                    items: items,
-                    businessProfile: userProfile,
-                    customerName: sale.customers?.name || sale.customer_name,
-                    customerPhone: sale.customer_phone,
-                    customerGstin: sale.customer_gstin,
-                    customerState: sale.customer_state,
-                    isGst: sale.invoice_type === 'gst'
-                });
-                const blob = doc.output('blob');
-                if (receiptPdfUrl) URL.revokeObjectURL(receiptPdfUrl);
-                const url = URL.createObjectURL(blob);
-                setReceiptPdfUrl(url);
-            } catch (pdfErr) {
-                console.warn("Failed to generate PDF preview:", pdfErr);
-            }
-
             setShowReceiptModal(true);
         } catch (error) {
             console.error("Error fetching items:", error);
@@ -236,51 +212,22 @@ const Sales = () => {
     };
 
     const handlePrint = () => {
-        if (receiptPdfUrl) {
-            // Opening PDF in a new window for printing
-            const printWin = window.open(receiptPdfUrl, '_blank');
-            if (printWin) {
-                printWin.focus();
-            }
-            return;
-        }
         if (invoiceRef.current) {
+            // Basic print: window.print() with CSS hiding others
+            // Ideally we'd stick a style tag, but relying on 'print:hidden' on main wrapper is cleaner if we can specificy it.
+            // But we can't easily wrap the whole app.
+            // Alternative: Open new window
             const content = invoiceRef.current.innerHTML;
             const style = `
-    <script src="https://cdn.tailwindcss.com"></script>
+    < script src = "https://cdn.tailwindcss.com" ></script >
         <style>
-            body {background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 20px; }
-            @media print {
-                body { padding: 0; }
-            }
+            body {background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         </style>
 `;
             const win = window.open('', '', 'height=700,width=800');
             win.document.write('<html><head>' + style + '</head><body>' + content + '</body></html>');
             win.document.close();
             win.print();
-        }
-    };
-
-    const handleDownloadPDF = async () => {
-        if (!receiptSale || !receiptItems) return;
-        try {
-            toast.loading("Generating high-quality PDF...", { id: 'pdf-gen' });
-            const doc = await generateInvoicePDF({
-                sale: receiptSale,
-                items: receiptItems,
-                businessProfile: userProfile,
-                customerName: receiptSale.customers?.name || receiptSale.customer_name,
-                customerPhone: receiptSale.customer_phone,
-                customerGstin: receiptSale.customer_gstin,
-                customerState: receiptSale.customer_state,
-                isGst: receiptSale.invoice_type === 'gst'
-            });
-            doc.save(`invoice_${receiptSale.id}.pdf`);
-            toast.success("PDF Downloaded", { id: 'pdf-gen' });
-        } catch (err) {
-            console.error("PDF Error:", err);
-            toast.error("Failed to generate PDF", { id: 'pdf-gen' });
         }
     };
 
@@ -718,14 +665,8 @@ const Sales = () => {
                                 </h2>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={handleDownloadPDF}
-                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all"
-                                    >
-                                        <Download size={16} /> Download PDF
-                                    </button>
-                                    <button
                                         onClick={handlePrint}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 transition-all"
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700"
                                     >
                                         <Printer size={16} /> Print
                                     </button>
@@ -735,20 +676,16 @@ const Sales = () => {
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto bg-slate-500/10 p-4 sm:p-6">
-                                {receiptPdfUrl ? (
-                                    <PDFViewer url={receiptPdfUrl} />
-                                ) : (
-                                    <div className="shadow-lg">
-                                        <InvoiceTemplate
-                                            ref={invoiceRef}
-                                            sale={receiptSale}
-                                            items={receiptItems}
-                                            businessProfile={userProfile}
-                                            theme={userProfile?.invoice_theme || 'classic'}
-                                        />
-                                    </div>
-                                )}
+                            <div className="flex-1 overflow-y-auto bg-slate-500/20 p-4 sm:p-8">
+                                <div className="shadow-lg">
+                                    <InvoiceTemplate
+                                        ref={invoiceRef}
+                                        sale={receiptSale}
+                                        items={receiptItems}
+                                        businessProfile={userProfile}
+                                        theme={userProfile?.invoice_theme || 'classic'}
+                                    />
+                                </div>
                             </div>
                         </motion.div>
                     </div>
