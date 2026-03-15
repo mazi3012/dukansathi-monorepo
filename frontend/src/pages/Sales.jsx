@@ -14,6 +14,7 @@ import { getDB, persistDB } from '../lib/sqlite';
 import { authService } from '../lib/authService';
 import toast from 'react-hot-toast';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
+import PDFViewer from '../components/PDFViewer';
 
 
 const Sales = () => {
@@ -48,6 +49,7 @@ const Sales = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptSale, setReceiptSale] = useState(null);
     const [receiptItems, setReceiptItems] = useState([]);
+    const [receiptPdfUrl, setReceiptPdfUrl] = useState(null);
     const invoiceRef = useRef();
 
     // Calculations
@@ -203,6 +205,27 @@ const Sales = () => {
             }
 
             setReceiptSale(sale);
+
+            // Generate the PDF and create a blob URL for preview
+            try {
+                const doc = await generateInvoicePDF({
+                    sale,
+                    items: items,
+                    businessProfile: userProfile,
+                    customerName: sale.customers?.name || sale.customer_name,
+                    customerPhone: sale.customer_phone,
+                    customerGstin: sale.customer_gstin,
+                    customerState: sale.customer_state,
+                    isGst: sale.invoice_type === 'gst'
+                });
+                const blob = doc.output('blob');
+                if (receiptPdfUrl) URL.revokeObjectURL(receiptPdfUrl);
+                const url = URL.createObjectURL(blob);
+                setReceiptPdfUrl(url);
+            } catch (pdfErr) {
+                console.warn("Failed to generate PDF preview:", pdfErr);
+            }
+
             setShowReceiptModal(true);
         } catch (error) {
             console.error("Error fetching items:", error);
@@ -213,6 +236,14 @@ const Sales = () => {
     };
 
     const handlePrint = () => {
+        if (receiptPdfUrl) {
+            // Opening PDF in a new window for printing
+            const printWin = window.open(receiptPdfUrl, '_blank');
+            if (printWin) {
+                printWin.focus();
+            }
+            return;
+        }
         if (invoiceRef.current) {
             const content = invoiceRef.current.innerHTML;
             const style = `
@@ -704,16 +735,20 @@ const Sales = () => {
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto bg-slate-500/20 p-4 sm:p-8">
-                                <div className="shadow-lg">
-                                    <InvoiceTemplate
-                                        ref={invoiceRef}
-                                        sale={receiptSale}
-                                        items={receiptItems}
-                                        businessProfile={userProfile}
-                                        theme={userProfile?.invoice_theme || 'classic'}
-                                    />
-                                </div>
+                            <div className="flex-1 overflow-y-auto bg-slate-500/10 p-4 sm:p-6">
+                                {receiptPdfUrl ? (
+                                    <PDFViewer url={receiptPdfUrl} />
+                                ) : (
+                                    <div className="shadow-lg">
+                                        <InvoiceTemplate
+                                            ref={invoiceRef}
+                                            sale={receiptSale}
+                                            items={receiptItems}
+                                            businessProfile={userProfile}
+                                            theme={userProfile?.invoice_theme || 'classic'}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle, Eye, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
@@ -56,7 +56,7 @@ const ChatInvoiceCard = ({ msg }) => {
                     </div>
                     <div className="text-right">
                         <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">Date:</p>
-                        <p className="text-sm font-semibold text-text-main">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                        <p className="text-sm font-semibold text-text-main">{msg.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                     </div>
                 </div>
 
@@ -139,6 +139,7 @@ const Chat = () => {
     } = useChat();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
+    const [viewingPdfUrl, setViewingPdfUrl] = useState(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -611,7 +612,9 @@ const Chat = () => {
                         customer_phone: customerPhone,
                         customer_name: actionData.customer_name || 'Customer',
                         invoice_id: sale.id,
+                        invoice_type: sale.invoice_type,
                         grand_total: grandTotal.toFixed(2),
+                        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
                         payment_status: status,
                         amount_paid: amtPaid.toFixed(2),
                         balance_due: balanceDue.toFixed(2),
@@ -1038,6 +1041,12 @@ const Chat = () => {
                                                 <MessageCircle size={16} /> <span className="whitespace-nowrap">WhatsApp</span>
                                             </button>
                                             <button
+                                                onClick={() => setViewingPdfUrl(msg.pdf_url)}
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-purple-500/10 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-500/20 transition-colors border border-purple-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
+                                            >
+                                                <Eye size={16} /> <span className="whitespace-nowrap">View</span>
+                                            </button>
+                                            <button
                                                 onClick={async () => {
                                                     try {
                                                         try {
@@ -1070,7 +1079,7 @@ const Chat = () => {
                                                         console.log('Error sharing:', err);
                                                     }
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-4 sm:order-none mt-2 sm:mt-0"
                                             >
                                                 <Share2 size={16} /> <span className="whitespace-nowrap">Share</span>
                                             </button>
@@ -1324,6 +1333,44 @@ const Chat = () => {
 
                 </div>
             </footer>
+
+            {/* View PDF Modal */}
+            <AnimatePresence>
+                {viewingPdfUrl && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                            onClick={() => setViewingPdfUrl(null)}
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl relative z-10 flex flex-col border border-white/20"
+                        >
+                            <div className="flex justify-between items-center p-5 border-b border-indigo-50/50 bg-indigo-50/30 backdrop-blur-md">
+                                <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                                    <FileSpreadsheet className="text-indigo-600" size={20} />
+                                    Invoice Preview
+                                </h2>
+                                <button onClick={() => setViewingPdfUrl(null)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-100/50 rounded-full transition-all">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
+                                <PDFViewer url={viewingPdfUrl} />
+                            </div>
+                            <div className="p-5 border-t border-indigo-50/50 bg-white flex justify-end">
+                                <button
+                                    onClick={() => setViewingPdfUrl(null)}
+                                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
