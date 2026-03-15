@@ -1,33 +1,30 @@
-import React from 'react';
-import { jsPDF } from "jspdf";
-import QRCode from 'qrcode';
+import qrcode from 'qrcode';
 
-const Chat = () => {
-    const generateQRCode = async (text) => {
-        try {
-            const qrCodeDataURL = await QRCode.toDataURL(text);
-            return qrCodeDataURL;
-        } catch (err) {
-            console.error(err);
-        }
-    };
+// ... other imports
 
-    const downloadPDF = async () => {
-        const doc = new jsPDF();
-        const qrCodeDataURL = await generateQRCode('upi://pay?pa=your_upi_id&pn=your_name&mc=your_mc&tid=your_tid&am=amount&tn=your_note&am=amount&cu=INR&url=https://yourlink.com');
-
-        doc.text("Your QR Code for UPI Payment:", 10, 10);
-        doc.addImage(qrCodeDataURL, 'PNG', 10, 20, 50, 50);
-        doc.save("upi_qr_payment.pdf");
-    };
-
-    return (
-        <div>
-            <h1>Chat Page</h1>
-            <button onClick={downloadPDF}>Download UPI QR</button>
-            {/* Other Chat functionalities */}
-        </div>
-    );
+const generateQRCode = async (data) => {
+  try {
+    const qrDataUrl = await qrcode.toDataURL(data);
+    return qrDataUrl;
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    return null; // return null if QR generation fails
+  }
 };
 
-export default Chat;
+const generatePDF = async () => {
+  const doc = new jsPDF();
+  const qrData = 'Your QR data';
+  const qrCode = await generateQRCode(qrData);
+
+  if (qrCode) {
+    doc.addImage(qrCode, 'PNG', 15, 40, 180, 160);
+  } else {
+    doc.text('QR code could not be generated', 15, 40);
+  }
+
+  // ... rest of PDF generation logic
+  doc.save('document.pdf');
+};
+
+// ... other code for the Chat component
