@@ -206,7 +206,8 @@ const Customers = () => {
                 </header>
             )}
 
-            <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-10">
+            {/* List - Bar Type Unified */}
+            <div className="p-4 md:p-6 flex flex-col gap-4 relative z-10">
                 {loading && customers.length === 0 ? (
                     [1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                         <div key={i} className="glass-card rounded-[32px] p-6 h-48 border border-card-border/50 animate-pulse">
@@ -241,7 +242,7 @@ const Customers = () => {
                                 initial={{ opacity: 0, y: 15 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.02, duration: 0.4 }}
-                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 sm:hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
+                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
                             >
                                 <div className="flex items-center gap-3 sm:gap-5 relative z-10">
                                     {/* Avatar */}
@@ -322,7 +323,7 @@ const Customers = () => {
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
                                     </div>
                                 </div>
-                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-12 h-12 rounded-2xl bg-card-bg/80 border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
+                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-12 h-12 rounded-2xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
                                     <Plus className="rotate-45" size={24} />
                                 </button>
                             </div>

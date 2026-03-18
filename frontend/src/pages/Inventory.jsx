@@ -272,8 +272,8 @@ const Inventory = () => {
                 </header>
             )}
 
-            {/* List */}
-            <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-10">
+            {/* List - Bar Type Unified */}
+            <div className="p-4 md:p-6 flex flex-col gap-4 relative z-10">
                 {loading && products.length === 0 ? (
                     [1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                         <div key={i} className="glass-card rounded-[40px] p-7 h-64 border border-card-border/50 animate-pulse">
@@ -313,7 +313,8 @@ const Inventory = () => {
                                 initial={{ opacity: 0, y: 15 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.02, duration: 0.4 }}
-                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 sm:hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
+                                onClick={() => handleEdit(product)}
+                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 transition-all duration-500 group relative overflow-hidden active:scale-[0.98] cursor-pointer"
                             >
                                 <div className="flex items-center gap-3 sm:gap-5 relative z-10">
                                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-card-bg/50 backdrop-blur-xl rounded-xl sm:rounded-2xl flex items-center justify-center border border-card-border/50 shadow-lg overflow-hidden shrink-0">

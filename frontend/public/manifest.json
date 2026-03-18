@@ -1,7 +1,7 @@
 {
     "name": "Dukan Sathi - Smart Dukan Management",
     "short_name": "Dukan Sathi",
-    "description": "Awaaz se billing karo. Udhaar track karo. Dukan chalana ab hua aasaan.",
+    "description": "Smart Voice-first inventory & billing assistant for Indian shopkeepers. Manage stock and sales effortlessly.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0a0a0c",

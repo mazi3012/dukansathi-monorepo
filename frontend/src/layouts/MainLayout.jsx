@@ -18,7 +18,7 @@ const MainLayout = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
@@ -26,7 +26,7 @@ const MainLayout = () => {
 
     useEffect(() => {
         const handleThemeChange = () => {
-            const newTheme = localStorage.getItem('theme') || 'light';
+            const newTheme = localStorage.getItem('theme') || 'dark';
             setTheme(newTheme);
         };
         const handleStorageChange = (e) => {

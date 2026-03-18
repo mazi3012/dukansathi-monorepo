@@ -56,7 +56,7 @@
   --bg-main: #f8fafc;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: rgba(255, 255, 255, 0.2);
   --accent-glow: rgba(79, 70, 229, 0.1);
   --glass-blur: blur(12px);
@@ -71,7 +71,7 @@
   --bg-main: #020617;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --card-bg: rgba(15, 23, 42, 0.3);
+  --card-bg: rgba(15, 23, 42, 0.9);
   --card-border: rgba(255, 255, 255, 0.05);
   --accent-glow: rgba(99, 102, 241, 0.15);
   --glass-blur: blur(16px);

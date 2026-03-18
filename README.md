@@ -1,11 +1,10 @@
 # 🏪 DukanSathi AI
 
-> **Voice-first shop management platform for Indian small businesses**  
-> Say it in Hindi, Hinglish, or English — the AI understands.
+> **Smart Voice-first inventory & billing assistant for Indian shopkeepers.**  
+> Say it in Hindi, Hinglish, or English — manage your dukan effortlessly.
 
 [![Deploy Status](https://img.shields.io/badge/Frontend-Vercel-black?logo=vercel)](https://dukansathi.vercel.app)
 [![Backend](https://img.shields.io/badge/Backend-Cloud_Run-blue?logo=google-cloud)](https://dukansathi.com)
-[![AMD NPU](https://img.shields.io/badge/AMD_Ryzen™_AI-NPU_Ready-green?logo=amd&logoColor=white)]()
 [![License](https://img.shields.io/badge/License-Proprietary-red)]()
 
 ---
@@ -41,14 +40,14 @@ graph TD
     
     C --> D{"🌐 Online?"}
     
-    D -->|Yes| E["🤖 Llama 4 Scout<br/>Vertex AI MaaS"]
-    D -->|Offline| F["🤖 Phi-3 Mini<br/>Local Ollama"]
+    D -->|Yes| E["🤖 Cloud AI Engine<br/>Enterprise-grade AI"]
+    D -->|Offline| F["🤖 Local Engine<br/>On-device Processing"]
     
     E --> G["📊 Supabase<br/>PostgreSQL + Storage"]
     F --> H["💾 SQLite<br/>Local Database"]
     
-    C --> I["🎙️ Groq Whisper<br/>Speech-to-Text"]
-    C --> J["🔊 Edge TTS<br/>Text-to-Speech"]
+    C --> I["🎙️ Whisper STT<br/>Speech-to-Text"]
+    C --> J["🔊 AI Voice TTS<br/>Text-to-Speech"]
     
     C --> K["🤖 Telegram Bot<br/>Cloud Run Webhook"]
     
@@ -103,35 +102,11 @@ graph LR
 | 🔒 Private invoice storage (signed URLs) | ✅ |
 | 🛡️ SQL injection protection (regex guard) | ✅ |
 | ⚡ WebSocket rate limiting | ✅ |
-| 🔄 Offline mode (SQLite + Ollama local AI) | ✅ |
-| 📱 PWA — installable on mobile | ✅ |
-| 🟢 AMD Ryzen™ AI NPU Ready (offline inference) | ✅ |
+| 🔄 Offline mode (SQLite synchronization) | ✅ |
 
 ---
 
-## 🟢 AMD Ryzen™ AI NPU Ready
-
-DukanSathi is engineered to take full advantage of **AMD Ryzen™ AI NPU** hardware for on-device inference:
-
-| Capability | Detail |
-|-----------|--------|
-| **NPU-First Inference** | Phi-3 Mini & Whisper STT offloaded to NPU via ONNX Runtime |
-| **Zero Latency** | On-device processing — no cloud round-trips when offline |
-| **Battery Efficient** | NPU offload reduces CPU/GPU load by up to 80% |
-| **Privacy by Design** | Business data (dues, margins) processed locally, never leaves device |
-| **Automatic Fallback** | Detects NPU → GPU → CPU at runtime, always works |
-
-```mermaid
-graph LR
-    A["User Voice Command"] --> B{"Hardware Detection"}
-    B -->|"AMD NPU Available"| C["⚡ NPU Offload<br/>Phi-3 Mini + Whisper"]
-    B -->|"GPU Only"| D["🎮 GPU Inference<br/>Radeon / CUDA"]
-    B -->|"CPU Only"| E["💻 CPU Fallback<br/>Standard Inference"]
-    C --> F["🚀 Response < 200ms"]
-    D --> F
-    E --> F
-    style C fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
-```
+---
 
 ---
 
@@ -141,15 +116,15 @@ graph LR
 |-------|-----------|
 | **Frontend** | React 18 + Vite 6 (Vanilla CSS, Mobile-first) |
 | **Backend** | FastAPI 0.115 (Python 3.11+) |
-| **AI (Cloud)** | Llama 4 Scout 17B via Vertex AI MaaS |
-| **AI (Local)** | Phi-3 Mini via Ollama + ONNX Runtime |
+| **AI (Cloud)** | Enterprise-grade LLM |
+| **AI (Local)** | Lightweight Edge LLM |
 | **Agent Framework** | LangGraph (multi-node state machine) |
-| **Speech-to-Text** | Groq Whisper (free tier) |
-| **Text-to-Speech** | Microsoft Edge TTS (free, 10+ voices) |
+| **Speech-to-Text** | Whisper STT |
+| **Text-to-Speech** | AI Voice Engine (10+ voices) |
 | **Database** | Supabase (PostgreSQL + RLS + Storage) |
 | **Offline DB** | SQLite (local-first) |
 | **Auth** | Supabase Auth (Google OAuth + OTP) |
-| **Bot** | Telegram Bot API (Webhook on Cloud Run) |
+| **Bot** | Telegram Bot API |
 | **Frontend Deploy** | Vercel |
 | **Backend Deploy** | Google Cloud Run / Render |
 
@@ -445,12 +420,12 @@ See [`SECURITY.md`](SECURITY.md) for full security policy and incident response 
 2. Verify `VITE_BACKEND_WS_URL` in `frontend/.env.local`
 3. Check CORS errors — add your origin to `ALLOWED_ORIGINS` in `backend/main.py`
 
-### AI draft not showing
+### AI response not showing
 - Check `backend.log` for AI response logs
-- Ensure the AI model is accessible (Vertex AI / Ollama running)
+- Ensure the AI engine is accessible
 
 ### Voice not working
-- Ensure `GROQ_API_KEY` is set (for STT)
+- Ensure Speech-to-Text service is active
 - Check browser microphone permissions
 - Try a different voice in Settings
 

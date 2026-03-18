@@ -57,7 +57,7 @@ const Settings = () => {
     const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'business'); // 'voice' | 'business' | 'system'
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
