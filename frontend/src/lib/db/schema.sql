@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS sales (
     payment_status TEXT DEFAULT 'paid',
     amount_paid NUMERIC DEFAULT 0.00,
     balance_due NUMERIC DEFAULT 0.00,
+    is_out_of_state BOOLEAN DEFAULT 0,
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

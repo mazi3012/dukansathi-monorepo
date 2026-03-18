@@ -131,8 +131,6 @@ const Chat = () => {
         unlockAudio,
         isPlaying,
         isConnected,
-        model,
-        aiPreference,
         pendingAttachment,
         setPendingAttachment
     } = useChat();
@@ -151,7 +149,6 @@ const Chat = () => {
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
     const menuRef = useRef(null);
     const isOnline = useOnlineStatus();
-    const [localAIReady, setLocalAIReady] = useState(false);
     const autoRecordRef = useRef(false);
 
     // Auto-start recording if navigated from BottomNav
@@ -170,26 +167,6 @@ const Chat = () => {
 
     // Note: BottomNav is hidden on /chat page (see MainLayout.jsx), so no nav-mic
     // global events are needed here. The in-page mic button handles everything.
-
-    // Check Local AI availability
-    useEffect(() => {
-        const checkLocalAI = async () => {
-            try {
-                const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
-                const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
-                const res = await fetch(`${API_URL}/api/setup/local-models`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.models && data.models.length > 0) {
-                        setLocalAIReady(true);
-                    }
-                }
-            } catch (e) {
-                console.warn("Local AI check failed:", e);
-            }
-        };
-        checkLocalAI();
-    }, []);
 
     // Auto-scroll
     useEffect(() => {
@@ -237,154 +214,6 @@ const Chat = () => {
 
         // Use a unified type variable for easier matching
         const actionType = actionData.type || actionData.draft_type;
-
-        // ── OFFLINE / LOCAL AI MODE (FALLBACK) ────────────────────────────────
-        if (!isOnline && localAIReady) {
-            try {
-                if (actionType === 'product' || actionType === 'product_draft') {
-                    const res = await fetch(`${API_URL}/api/local/products`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            name: actionData.name,
-                            selling_price: actionData.selling_price,
-                            cost_price: actionData.cost_price || 0,
-                            stock_quantity: actionData.stock_quantity,
-                            category: actionData.category || 'General',
-                            unit: actionData.unit || 'pcs',
-                            hsn_code: actionData.hsn_code || null,
-                            tax_percent: actionData.tax_percent || 0,
-                            tax_type: actionData.tax_type || 'exclusive',
-                            is_gst_applicable: (actionData.tax_percent > 0 || !!actionData.hsn_code)
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    setMessages(prev => [
-                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        { type: 'bot', text: `✅ Product Saved Locally!\n\n📦 ${actionData.name}\n💰 Price: ₹${actionData.selling_price}\n📊 Stock: ${actionData.stock_quantity}` }
-                    ]);
-                    return;
-                }
-
-                if (actionType === 'customer' || actionType === 'customer_draft') {
-                    const res = await fetch(`${API_URL}/api/local/customers`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            name: actionData.name,
-                            phone: actionData.phone || null,
-                            address: actionData.address || null
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    setMessages(prev => [
-                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        { type: 'bot', text: `✅ Customer Saved Locally!\n\n👤 ${actionData.name}\n📞 ${actionData.phone || 'No Phone'}\n📍 ${actionData.address || 'No Address'}` }
-                    ]);
-                    return;
-                }
-
-                if (actionType === 'invoice' || actionType === 'invoice_draft') {
-                    // Calculate totals from items
-                    const items = actionData.items || [];
-                    const totalAmount = actionData.total_amount ||
-                        items.reduce((sum, item) => sum + ((item.price || item.unit_price || 0) * (item.quantity || 1)), 0);
-
-                    const res = await fetch(`${API_URL}/api/local/sales`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            customer_name: actionData.customer_name || 'Walk-in Customer',
-                            items: items,
-                            total_amount: totalAmount,
-                            payment_method: actionData.payment_method || 'cash',
-                            payment_status: totalAmount > 0 ? 'paid' : 'credit',
-                            amount_paid: totalAmount,
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    const result = await res.json();
-                    const itemsSummary = items.map(i =>
-                        `• ${i.product_name || i.name} × ${i.quantity} = ₹${((i.price || i.unit_price || 0) * (i.quantity || 1)).toFixed(2)}`
-                    ).join('\n');
-                    setMessages(prev => [
-                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        {
-                            type: 'bot',
-                            text: `✅ Bill #${result.id} Saved Locally!\n\n👤 ${actionData.customer_name || 'Walk-in Customer'}\n${itemsSummary}\n\n💰 Total: ₹${totalAmount.toFixed(2)}\n📦 Saved to your offline store.`
-                        }
-                    ]);
-                    return;
-                }
-
-                if (actionType === 'payment' || actionType === 'payment_draft') {
-                    const res = await fetch(`${API_URL}/api/local/payments`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            customer_name: actionData.customer_name,
-                            amount: actionData.amount,
-                            payment_type: actionData.payment_type || 'payment',
-                            mode: actionData.mode || 'Cash',
-                            note: actionData.note || ''
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    const result = await res.json();
-
-                    const isCredit = (actionData.payment_type || 'payment') === 'credit';
-                    const emoji = isCredit ? '🔴' : '🟢';
-                    const label = isCredit ? 'Due Added' : 'Payment Received';
-                    const newBalance = result.new_balance;
-                    const balanceMsg = newBalance !== null && newBalance !== undefined
-                        ? `\nNew Due Balance: ₹${parseFloat(newBalance).toFixed(2)}`
-                        : '';
-
-                    setMessages(prev => [
-                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        {
-                            type: 'bot',
-                            text: `${emoji} ${label} Saved!\n\n👤 ${actionData.customer_name}\n💰 ₹${actionData.amount}\n💳 Mode: ${actionData.mode || 'Cash'}${balanceMsg}\n📦 Saved to your offline store.`
-                        }
-                    ]);
-                    return;
-                }
-
-                if (actionType === 'restock' || actionType === 'restock_draft') {
-                    const res = await fetch(`${API_URL}/api/local/restock`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            product_id: actionData.product_id || null,
-                            product_name: actionData.product_name,
-                            quantity_to_add: actionData.quantity_to_add
-                        })
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    const result = await res.json();
-                    setMessages(prev => [
-                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
-                        {
-                            type: 'bot',
-                            text: `✅ Restocked Locally!\n\n📦 ${result.product?.name || actionData.product_name}\n+${actionData.quantity_to_add} units added to stock.\nNew Stock: ${result.product?.stock_quantity || 'Updated'}`
-                        }
-                    ]);
-                    return;
-                }
-
-                // Other draft types not yet supported in local mode
-                setMessages(prev => [...prev, {
-                    type: 'bot',
-                    text: `⚠️ This action requires an internet connection for full processing.`
-                }]);
-                return;
-
-            } catch (err) {
-                console.error('Local save error:', err);
-                setMessages(prev => [...prev, { type: 'bot', text: `❌ Failed to save locally: ${err.message}` }]);
-                return;
-            }
-        }
 
         // ── ONLINE / SUPABASE MODE ────────────────────────────────────────────
         try {
@@ -441,13 +270,14 @@ const Chat = () => {
                     const rawRate = parseFloat(item.price) || 0;
                     const hsn = item.hsn_code || "1905"; // Default if missing
 
+                    const isInterState = actionData.isOutOfState || false;
                     const taxCalc = TaxCalculator.calculate({
                         sellingPrice: rawRate,
                         quantity: qty,
                         hsnCode: hsn,
                         sellerGstin: sellerGstin,
                         buyerGstin: buyerGstin,
-                        placeOfSupply: placeOfSupply
+                        placeOfSupply: isInterState ? 'OUT_OF_STATE' : (placeOfSupply || businessProfile?.state_name)
                     });
 
                     // Force 0 tax if not a GST session
@@ -498,11 +328,21 @@ const Chat = () => {
                 const amtPaid = actionData.amount_paid !== undefined ? parseFloat(actionData.amount_paid) : (status === 'paid' ? grandTotal : 0);
                 const balanceDue = Math.round((Math.max(0, grandTotal - amtPaid) + Number.EPSILON) * 100) / 100;
 
+                // --- Sequential Bill Numbering ---
+                const { count, error: countError } = await supabase
+                    .from('sales')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user.id);
+
+                const nextBillNum = (count || 0) + 1;
+                const billNumber = `Bill-${nextBillNum}`;
+
                 // Create Sale Header
                 const { data: sale, error: saleError } = await supabase.from('sales').insert({
                     user_id: user.id,
                     customer_id: customerId,
                     invoice_type: isGstSession ? 'gst' : 'regular',
+                    invoice_number: billNumber,
                     subtotal: totalSubtotal,
                     total_tax_amount: totalTax,
                     cgst_amount: totalCgst,
@@ -512,6 +352,7 @@ const Chat = () => {
                     payment_status: status === 'paid' ? 'paid' : (status === 'unpaid' ? 'credit' : 'partial'),
                     amount_paid: amtPaid,
                     balance_due: balanceDue,
+                    is_out_of_state: actionData.isOutOfState || false,
                     created_at: new Date()
                 }).select().single();
 
@@ -608,8 +449,10 @@ const Chat = () => {
                     doc.setTextColor(100, 116, 139); // slate-500
                     let yPos = 30;
                     if (businessProfile?.business_address || businessProfile?.address) {
-                        doc.text(businessProfile.business_address || businessProfile.address, 14, yPos);
-                        yPos += 5;
+                        const addr = businessProfile.business_address || businessProfile.address;
+                        const addrLines = doc.splitTextToSize(addr, 100);
+                        doc.text(addrLines, 14, yPos);
+                        yPos += (addrLines.length * 5);
                     }
                     doc.text(`${businessProfile?.city || ''}, ${businessProfile?.state_name || businessProfile?.state || ''} ${businessProfile?.pincode || ''}`, 14, yPos);
                     yPos += 5;
@@ -628,11 +471,18 @@ const Chat = () => {
                     doc.text(isGst ? "TAX INVOICE" : "BILL OF SUPPLY", 200, 22, { align: 'right' });
                     doc.setFontSize(10);
                     doc.setTextColor(148, 163, 184); // slate-400
-                    doc.text(`Document ID: #${sale.id}`, 200, 30, { align: 'right' });
+                    doc.text(`Invoice Number: ${sale.invoice_number || 'Bill-#' + sale.id}`, 200, 30, { align: 'right' });
                     doc.text(`Date: ${new Date(sale.created_at).toLocaleDateString('en-IN')}`, 200, 36, { align: 'right' });
                     if (isGst) {
-                        const placeOfSupply = actionData.customer_state || sale.customers?.state || businessProfile?.state_name || 'Local';
+                        const shopState = (businessProfile?.state_name || businessProfile?.state || '').toLowerCase().trim();
+                        const custState = (actionData.customer_state || sale.customers?.state || '').toLowerCase().trim();
+                        const isOutOfState = actionData.isOutOfState || (custState && shopState && custState !== shopState);
+                        const placeOfSupply = actionData.customer_state || sale.customers?.state || (isOutOfState ? 'Other State' : (businessProfile?.state_name || 'Local'));
+                        
                         doc.text(`Place of Supply: ${placeOfSupply}`, 200, 42, { align: 'right' });
+                        if (isOutOfState) {
+                             doc.text(`IGST Applicable: YES`, 200, 48, { align: 'right' });
+                        }
                     }
 
                     // Bill To
@@ -649,12 +499,27 @@ const Chat = () => {
                     doc.setFontSize(10);
                     doc.setFont(undefined, 'normal');
                     doc.setTextColor(71, 85, 105);
-                    if (actionData.customer_phone) { doc.text(actionData.customer_phone, 14, yPos); yPos += 5; }
-                    if (isGst && actionData.gstin) { doc.text(`GSTIN: ${actionData.gstin}`, 14, yPos); yPos += 5; }
+                    if (actionData.customer_phone || sale.customers?.phone) { 
+                        doc.text(actionData.customer_phone || sale.customers?.phone, 14, yPos); 
+                        yPos += 5; 
+                    }
+                    if (actionData.customer_address || sale.customers?.address) {
+                        const custAddr = actionData.customer_address || sale.customers?.address;
+                        const custAddrLines = doc.splitTextToSize(custAddr, 80);
+                        doc.text(custAddrLines, 14, yPos);
+                        yPos += (custAddrLines.length * 5);
+                    }
+                    if (isGst && (actionData.gstin || sale.customers?.gstin)) { 
+                        doc.text(`GSTIN: ${actionData.gstin || sale.customers?.gstin}`, 14, yPos); 
+                        yPos += 5; 
+                    }
+
+                    // Determine if IGST is needed
+                    const isOutOfState = actionData.isOutOfState || false;
 
                     // Table
                     const tableHead = isGst
-                        ? [['#', 'Description of Goods', 'HSN/SAC', 'Qty', 'Unit Rate', 'Taxable', 'GST Amt', 'Total']]
+                        ? [['#', 'Description of Goods', 'HSN/SAC', 'Qty', 'Unit Rate', 'Taxable', isOutOfState ? 'IGST Amt' : 'GST Amt', 'Total']]
                         : [['#', 'Description of Goods', 'Qty', 'Unit Rate', 'Total']];
 
                     const tableBody = enrichedItems.map((item, idx) => {
@@ -674,7 +539,7 @@ const Chat = () => {
                                 q,
                                 item.unit_price.toFixed(2),
                                 taxable.toFixed(2),
-                                totalTaxAmt.toFixed(2),
+                                isOutOfState ? `(${item.tax_percent}%) ${igst.toFixed(2)}` : totalTaxAmt.toFixed(2),
                                 total.toFixed(2)
                             ];
                         } else {
@@ -737,15 +602,18 @@ const Chat = () => {
                     doc.text(`Rs. ${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
 
                     if (isGst) {
-                        if (totalIgst > 0) {
+                        const isOutOfState = actionData.isOutOfState || false;
+
+                        if (isOutOfState) {
                             doc.text(`IGST:`, 140, finalY + 6);
                             doc.text(`Rs. ${totalIgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
+                            finalY += 6;
                         } else {
                             doc.text(`CGST:`, 140, finalY + 6);
                             doc.text(`Rs. ${totalCgst.toFixed(2)}`, rightAlignX, finalY + 6, { align: 'right' });
                             doc.text(`SGST:`, 140, finalY + 12);
                             doc.text(`Rs. ${totalSgst.toFixed(2)}`, rightAlignX, finalY + 12, { align: 'right' });
-                            finalY += 6; // Shift subsequent items down
+                            finalY += 12;
                         }
                     }
 
@@ -853,6 +721,7 @@ const Chat = () => {
                         payment_status: status,
                         amount_paid: amtPaid.toFixed(2),
                         balance_due: balanceDue.toFixed(2),
+                        is_out_of_state: actionData.isOutOfState || false,
                         items_summary: enrichedItems.map((item, idx) => `${idx + 1}. ${(item.product_name || item.name || 'Item').substring(0, 15)} x ${item.quantity || 0}`).join('\n')
                     };
 
@@ -1175,22 +1044,22 @@ const Chat = () => {
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-            {/* Header (Top) */}
-            <header className="flex-none flex items-center gap-2 p-2 px-3 md:px-4 md:py-3 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/30 z-20 sticky top-0 shrink-0">
-                <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0">
-                    <ArrowLeft size={20} />
+            {/* Header - Always Sticky, Slim on Mobile */}
+            <header className="flex-none flex items-center gap-2 px-2 py-1.5 md:px-4 md:py-2.5 bg-bg-main/95 backdrop-blur-xl border-b border-card-border/30 z-50 sticky top-0 shrink-0">
+                <button onClick={() => navigate(-1)} className="w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0">
+                    <ArrowLeft size={18} />
                 </button>
 
                 {/* Slim Pill Header */}
-                <div className="flex items-center gap-2 md:gap-2.5 bg-card-bg/60 border border-card-border/50 py-1.5 md:py-2 px-3 md:px-4 rounded-full shadow-sm max-w-fit backdrop-blur-md">
-                    <img src={logo} alt="DukanSathi" className="w-5 h-5 md:w-6 md:h-6 object-contain" />
-                    <h2 className="font-heading font-bold text-sm md:text-base text-text-main whitespace-nowrap">Dukan Sathi AI</h2>
-                    <div className="w-[1px] h-3.5 md:h-4 bg-card-border/80 mx-0.5 md:mx-1"></div>
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${model === 'phi3:mini' || localAIReady ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : (!isConnected ? 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]' : (isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500'))} transition-all duration-300`}></div>
+                <div className="flex items-center gap-2 bg-card-bg/60 border border-card-border/50 py-1 md:py-1.5 px-3 rounded-full shadow-sm max-w-fit backdrop-blur-md">
+                    <img src={logo} alt="DukanSathi" className="w-4 h-4 md:w-5 md:h-5 object-contain" />
+                    <h2 className="font-heading font-bold text-xs md:text-sm text-text-main whitespace-nowrap">Dukan Sathi AI</h2>
+                    <div className="w-[1px] h-3 md:h-3.5 bg-card-border/80 mx-0.5"></div>
+                    <div className="flex items-center gap-1 md:gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${!isConnected ? 'bg-yellow-400 animate-pulse shadow-[0_0_6px_rgba(250,204,21,0.6)]' : (isOnline ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-red-500')} transition-all duration-300`}></div>
                         <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-text-muted mt-[1px]">
-                            <span className="hidden md:inline">{aiPreference === 'cloud' ? 'Cloud AI' : (aiPreference === 'local' ? 'Local Compute' : (model.includes(':') ? 'Local Compute' : 'Cloud AI'))}</span>
-                            <span className="inline md:hidden">{!isConnected ? 'Connecting...' : (isOnline ? 'AI Connected' : 'Offline')}</span>
+                            <span className="hidden md:inline">{!isConnected ? 'Connecting...' : (isOnline ? 'Cloud AI Active' : 'Offline')}</span>
+                            <span className="inline md:hidden">{!isConnected ? '...' : (isOnline ? 'Live' : 'Off')}</span>
                         </span>
                     </div>
                 </div>
@@ -1522,11 +1391,11 @@ const Chat = () => {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    if (isOnline || localAIReady) handleSend();
+                                    if (isOnline) handleSend();
                                 }
                             }}
-                            placeholder={!isConnected ? "AI connecting..." : (isThinking ? "Wait for AI to finish..." : (isOnline ? "Message Dukan Sathi..." : "Offline. Using Local AI..."))}
-                            disabled={(!isOnline && !localAIReady) || isThinking}
+                            placeholder={!isConnected ? "Connecting to AI..." : (isThinking ? "Wait for AI to finish..." : "Message Dukan Sathi...")}
+                            disabled={!isOnline || isThinking}
                             className="w-full bg-transparent text-text-main caret-indigo-500 text-sm md:text-base placeholder:text-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl disabled:opacity-50"
                             rows={1}
                             style={{ height: input ? 'auto' : '44px' }}

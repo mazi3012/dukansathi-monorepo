@@ -10,7 +10,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     const [amountPaid, setAmountPaid] = useState('');
 
     // --- GST Calculation Helper for Draft ---
-    const getTemplateItems = (itemsList, activeIsGst) => {
+    const getTemplateItems = (itemsList, activeIsGst, forceInterState = false) => {
         return itemsList.map(item => {
             const qty = parseFloat(item.quantity) || 0;
             const rate = parseFloat(item.price) || 0;
@@ -21,8 +21,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 quantity: qty,
                 hsnCode: hsn,
                 sellerGstin: businessProfile?.gstin,
-                buyerGstin: localData.gstin,
-                placeOfSupply: localData.state_code
+                buyerGstin: forceInterState ? 'OTHER_STATE' : localData.gstin,
+                placeOfSupply: forceInterState ? null : localData.state_code,
+                forceInterState,
             });
 
             const cgst = activeIsGst ? taxCalc.cgst_amount : 0;
@@ -98,9 +99,13 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // Use a local state for bill type if it's a GST shop, allowing toggle to Non-GST
         const [billType, setBillType] = useState(localData.invoice_type || (isGstShop ? 'GST' : 'NON_GST'));
         const activeIsGst = billType === 'GST';
+        // Out-of-State toggle — forces IGST even when both parties may be in same state
+        const [isOutOfState, setIsOutOfState] = useState(false);
+        // Prevent double-click on approve
+        const [isApproving, setIsApproving] = useState(false);
 
         // PREPARE ITEMS FOR TEMPLATE
-        const templateItems = getTemplateItems(itemsList, activeIsGst);
+        const templateItems = getTemplateItems(itemsList, activeIsGst, isOutOfState);
 
         // Calculate Totals
         const subtotal = templateItems.reduce((sum, item) => sum + item.taxable_amount, 0);
@@ -174,6 +179,21 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 >
                                     <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${activeIsGst ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </div>
+                            </div>
+                        )}
+                        {/* Out-of-State / IGST Toggle — shown only when GST is active */}
+                        {isGstShop && activeIsGst && !isEditing && (
+                            <div className="flex items-center gap-1.5 pr-2 border-r border-white/20">
+                                <input
+                                    type="checkbox"
+                                    id="out-of-state-chk"
+                                    checked={isOutOfState}
+                                    onChange={(e) => setIsOutOfState(e.target.checked)}
+                                    className="w-3.5 h-3.5 accent-white cursor-pointer"
+                                />
+                                <label htmlFor="out-of-state-chk" className="text-[9px] font-black uppercase tracking-tighter cursor-pointer select-none">
+                                    Out-of-State (IGST)
+                                </label>
                             </div>
                         )}
                         <button
@@ -392,15 +412,29 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         <X size={16} /> Discard
                     </button>
                     <button
-                        onClick={() => onApprove({
-                            ...localData,
-                            invoice_type: activeIsGst ? 'gst' : 'regular', // Pass chosen type
-                            payment_status: paymentStatus,
-                            amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
-                        })}
-                        className="flex-1 py-1.5 px-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-all flex justify-center items-center gap-2 text-sm"
+                        onClick={() => {
+                            if (isApproving) return;
+                            setIsApproving(true);
+                            onApprove({
+                                ...localData,
+                                invoice_type: activeIsGst ? 'gst' : 'regular',
+                                isOutOfState,
+                                payment_status: paymentStatus,
+                                amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
+                            });
+                        }}
+                        disabled={isApproving}
+                        className={`flex-1 py-1.5 px-3 font-bold rounded-lg shadow-md text-sm flex justify-center items-center gap-2 transition-all ${
+                            isApproving
+                                ? 'bg-indigo-400 text-white cursor-not-allowed opacity-80'
+                                : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'
+                        }`}
                     >
-                        <Check size={18} /> Approve
+                        {isApproving ? (
+                            <><svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/></svg> Processing...</>
+                        ) : (
+                            <><Check size={18} /> Approve</>
+                        )}
                     </button>
                 </div>
             </div>

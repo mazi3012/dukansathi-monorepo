@@ -5,7 +5,7 @@ import localforage from 'localforage';
 let db = null;
 let SQL = null;
 
-const DB_VERSION = 3; // Incremented for deleted_records table
+const DB_VERSION = 4; // Incremented for is_out_of_state column
 
 export const initSQLite = async () => {
     if (db) return db;

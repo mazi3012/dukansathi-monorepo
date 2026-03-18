@@ -20,8 +20,8 @@ const Sales = () => {
     const [loading, setLoading] = useState(true);
     const [timeframe, setTimeframe] = useState('today'); // 'today' | 'all'
     const timeframes = [
-        { id: 'today', label: 'Cycle 01' },
-        { id: 'all', label: 'Archival' }
+        { id: 'today', label: 'Today' },
+        { id: 'all', label: 'All Time' }
     ];
 
     // Data from DB
@@ -288,7 +288,8 @@ const Sales = () => {
                 payment_method: paymentMethod,
                 payment_status: totals.status,
                 amount_paid: parseFloat(amountPaid) || 0,
-                balance_due: totals.balance
+                balance_due: totals.balance,
+                is_out_of_state: isInterStateSale
             };
 
             const saleItems = totals.computedItems.map(item => ({
@@ -362,9 +363,9 @@ const Sales = () => {
                             <TrendingUp size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Revenue Stream</h1>
+                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Sales</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
-                                Flow Tracking • {timeframe === 'today' ? "Today's Pulse" : "All Time Performance"}
+                                History • {timeframe === 'today' ? "Today's Sales" : "All Time Sales"}
                             </p>
                         </div>
                     </div>
@@ -408,10 +409,10 @@ const Sales = () => {
                         <div className="w-24 h-24 bg-indigo-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20 shadow-inner">
                             <Receipt size={40} className="text-indigo-500/40" />
                         </div>
-                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">Engine Idle</h3>
-                        <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No transactions detected in this sector. Synchronize with cloud or forge a new bill.</p>
+                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Sales Yet</h3>
+                        <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No transactions found. Create a new bill to get started.</p>
                         <button onClick={() => setShowModal(true)} className="px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all">
-                            Initialize First Sale
+                            Create First Bill
                         </button>
                     </div>
                 ) : (
@@ -506,8 +507,8 @@ const Sales = () => {
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8">
                                 <div>
-                                    <h2 className="text-3xl font-black font-heading text-text-main tracking-tight transition-colors">Forge Invoice</h2>
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest transition-colors">Transaction Protocol Level 4</p>
+                                    <h2 className="text-3xl font-black font-heading text-text-main tracking-tight transition-colors">Create Bill</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest transition-colors">Enter bill details</p>
                                 </div>
                                 <button onClick={() => setShowModal(false)} className="w-12 h-12 rounded-2xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
                                     <Plus className="rotate-45" size={28} />
@@ -522,20 +523,20 @@ const Sales = () => {
                                             onClick={() => setBillType('NON_GST')}
                                             className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${billType === 'NON_GST' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-text-muted hover:bg-card-bg'}`}
                                         >
-                                            Standard Ledger
+                                            Standard Bill
                                         </button>
                                         <button
                                             onClick={() => setBillType('GST')}
                                             className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${billType === 'GST' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-text-muted hover:bg-card-bg'}`}
                                         >
-                                            Tax Compliant (GST)
+                                            GST Bill
                                         </button>
                                     </div>
                                 )}
 
                                 {/* Client Selector */}
                                 <div className="space-y-3">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Client Entity</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Customer</label>
                                     <div className="flex gap-3">
                                         <div className="flex-1 glass-card p-1 rounded-2xl border border-card-border/50">
                                             <Combobox
@@ -550,7 +551,7 @@ const Sales = () => {
                                                         setSelectedCustomerId(null);
                                                     }
                                                 }}
-                                                placeholder="Link to Intelligence Profile..."
+                                                placeholder="Select Customer..."
                                                 labelKey="name"
                                             />
                                         </div>
@@ -563,8 +564,8 @@ const Sales = () => {
                                 {/* Items Forge */}
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest">Inventory Assets</label>
-                                        <button onClick={handleAddItem} className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:underline decoration-2 underline-offset-4">+ Deploy Asset</button>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-widest">Items</label>
+                                        <button onClick={handleAddItem} className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:underline decoration-2 underline-offset-4">+ Add Item</button>
                                     </div>
 
                                     <div className="space-y-4">
@@ -594,7 +595,7 @@ const Sales = () => {
                                                                     handleItemChange(index, 'name', val);
                                                                 }
                                                             }}
-                                                            placeholder="Select Quantum Asset..."
+                                                            placeholder="Select Product..."
                                                             labelKey="name"
                                                         />
                                                     </div>
@@ -611,12 +612,12 @@ const Sales = () => {
                                 {/* Valuation Matrix */}
                                 <div className="glass-card rounded-[32px] p-8 border border-indigo-500/10 bg-indigo-500/[0.02] space-y-4">
                                     <div className="flex justify-between items-center text-text-muted">
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Base Valuation</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span>
                                         <span className="font-black text-text-main">₹{totals.subtotal.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center py-4 border-y border-card-border/30">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Efficiency Rebate</span>
+                                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Discount</span>
                                             <input type="number" value={additionalDiscount} onChange={(e) => setAdditionalDiscount(e.target.value)} className="w-20 p-1 bg-card-bg border border-card-border rounded-lg text-center font-black text-indigo-500 text-xs" placeholder="0" />
                                         </div>
                                         <div className="text-2xl font-black text-text-main tracking-tighter">
@@ -625,11 +626,11 @@ const Sales = () => {
                                     </div>
                                     <div className="flex justify-between items-center pt-2">
                                         <div>
-                                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block">Settlement Value</span>
+                                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block">Amount Paid</span>
                                             <input type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} className="mt-2 w-32 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl font-black text-emerald-500 text-lg shadow-inner focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all outline-none" placeholder="0" />
                                         </div>
                                         <div className="text-right">
-                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest block">Neural Debt</span>
+                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest block">Balance Due</span>
                                             <div className="text-xl font-black text-red-500 tracking-tighter mt-1">₹{totals.balance.toLocaleString()}</div>
                                         </div>
                                     </div>
@@ -638,7 +639,7 @@ const Sales = () => {
 
                             <div className="pt-8">
                                 <button onClick={handleGenerateInvoice} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest">
-                                    Transmit to Ledger
+                                    Save Bill
                                 </button>
                             </div>
                         </motion.div>

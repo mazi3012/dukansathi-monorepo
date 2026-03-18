@@ -20,10 +20,6 @@ Why Llama instead of Claude:
 import os
 from typing import TypedDict, Annotated
 from langchain_google_vertexai import ChatVertexAI
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    ChatOllama = None  # Not available on cloud (Render) - only needed locally
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from google.oauth2 import service_account
@@ -57,15 +53,12 @@ if os.path.exists(skill_path):
 else:
     logger.warning("skill.md not found. OpenClaw token-efficient skills may be impaired.")
 
-# Add backend to path for local_db import
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../backend"))
+
+# SQLite local_db used for offline quick-read caching. Not for AI inference.
 try:
     import local_db
-    # Initialize DB on load to ensure tables exist
     local_db.init_db()
 except ImportError:
-    logger.warning("Could not import local_db. Offline features may fail.")
     local_db = None
 
 
@@ -145,16 +138,68 @@ def number_to_hinglish_words(amount) -> str:
     return " ".join(parts) + " rupaye"
 
 
-# ─── Shared Voice + Language Rules (injected into every prompt) ──────────────
-VOICE_RULES = (
-    "VOICE RULE: This response will be SPOKEN aloud. "
-    "Be professional, conversational, and helpful. Keep responses to 1-2 natural sentences. "
-    "GIVE DIRECT ANSWERS but avoid being robotic. DO NOT INCLUDE ROLE NAMES LIKE 'USER:' OR 'ASSISTANT:'. "
-    "No markdown or bullet points. "
-    "For large amounts (>= 1,00,000), use 'lakh' or 'crore'. For smaller amounts, just say the number followed by 'rupees'. "
-    "LANGUAGE: Reply ONLY in English or Hinglish (Hindi words in Roman script). "
-    "NEVER use Devanagari script."
-)
+# ─── Dynamic Voice Rules & Culturally-Aware Confirmations ───────────────────
+
+def get_voice_rules(language: str = "hinglish") -> str:
+    """
+    Returns language-specific voice rules injected into every LLM prompt.
+    Controls how OpenClaw speaks: tone, script, culturally-native phrases.
+    """
+    if language == "bangla":
+        return (
+            "VOICE RULE: You are speaking to a Bengali shopkeeper. "
+            "Reply strictly in NATIVE BENGALI UNICODE SCRIPT (বাংলা). "
+            "BE EXTREMELY CONCISE. Small talk only. No long explanations. "
+            "Max 1 short sentence. Example: 'হয়েছে দাদা', 'নমস্কার, করছি', 'বিল রেডি'। "
+            "Address user as 'dada'. Use 'টাকা' for amounts. "
+            "Cost-efficiency is priority: keep it very brief."
+        )
+    elif language == "hinglish":
+        return (
+            "VOICE RULE: Reply in Hinglish — mix of Hindi and English, ROMAN SCRIPT ONLY. "
+            "Use natural shop-owner phrases: 'Boss', 'Bhai', 'kar diya', 'dekh lo', 'sab set hai', 'ready hai'. "
+            "NEVER use Devanagari script. Amounts use 'rupees' or 'hazaar'. "
+            "Keep it conversational, 1-2 sentences. No markdown or bullets."
+        )
+    else:  # english
+        return (
+            "VOICE RULE: Reply in clear, friendly Indian English. "
+            "Be professional and direct. Use 'Boss' or 'Sir' when addressing the owner. "
+            "Amounts use '₹' symbol. Max 2 sentences. No markdown."
+        )
+
+
+# Language-specific confirmation messages for draft actions
+CONFIRMATION_TEMPLATES = {
+    "bangla": {
+        "invoice_draft":     "হয়েছে দাদা, বিল রেডি! একটু দেখে অ্যাপ্রুভ করুন।",
+        "product_draft":     "দাদা, প্রোডাক্ট অ্যাড করে দিয়েছি! দেখুন একবার।",
+        "customer_draft":    "কাস্টমার ডিটেইলস রেডি দাদা! রিভিউ করুন।",
+        "payment_draft":     "পেমেন্ট রেকর্ড রেডি! কনফার্ম করুন দাদা।",
+        "restock_draft":     "স্টক ড্রাফট রেডি! অ্যাপ্রুভ করুন দাদা।",
+        "bulk_product_draft": "দাদা, পুরো লিস্ট তুলে নিয়েছি! দেখে নিন।",
+    },
+    "hinglish": {
+        "invoice_draft":     "Boss, bill draft ready kar diya! Ek baar dekh lo.",
+        "product_draft":     "Boss, product draft ready hai! Approve kar do.",
+        "customer_draft":    "Boss, customer ki details ready hai! Review kar lo.",
+        "payment_draft":     "Payment record ready hai Boss! Confirm kar do.",
+        "restock_draft":     "Boss, restock draft ready! Approve kar do.",
+        "bulk_product_draft": "Boss, saari list extract kar di! Dekh lo.",
+    },
+    "english": {
+        "invoice_draft":     "Sure! Invoice draft is ready. Please review and approve.",
+        "product_draft":     "Sure! Product draft is ready. Please review and approve.",
+        "customer_draft":    "Customer details are ready. Please review.",
+        "payment_draft":     "Payment record is ready. Please confirm.",
+        "restock_draft":     "Restock draft is ready. Please approve.",
+        "bulk_product_draft": "Product list extracted. Please review and approve.",
+    },
+}
+
+# Kept for backward compatibility — defaults to hinglish
+VOICE_RULES = get_voice_rules("hinglish")
+
 
 
 # Helper to check if a model ID should bypass local sqlite and use Cloud (Supabase) logic.
@@ -637,9 +682,9 @@ Return STRICT JSON only. No markdown, no explanation.
 OPENCLAW SKILLS & RULES:
 {OPENCLAW_SKILLS}
 
-Example 1 - Bill: {{"type":"invoice_draft","customer_name":"Amit","items":[{{"product_name":"Rice","quantity":2,"price":0,"tax_percent":0,"hsn_code":""}}]}}
+Example 1 - Bill: {{"type":"invoice_draft","customer_name":"Amit","customer_address":"Kolkata","customer_state":"West Bengal","items":[{{"product_name":"Rice","quantity":2}}]}}
 Example 2 - Restock: {{"type":"restock_draft","product_name":"Rice","quantity_to_add":50}}
-Example 3 - New Customer: {{"type":"customer_draft","name":"Rahul","phone":"9876543210","address":"New Delhi"}}
+Example 3 - New Customer: {{"type":"customer_draft","name":"Rahul","phone":"9876543210","address":"New Delhi","state":"Delhi"}}
 {bulk_product_example}
 
 If query is vague, return {{"type":"unknown","error":"Missing details"}}"""
@@ -1442,15 +1487,11 @@ async def action_node(state: AgentState):
     except:
         draft_type = ""
     
-    confirmation_templates = {
-        "invoice_draft": "Sure, I've prepared the invoice draft. Please review and approve.",
-        "product_draft": "Sure, I've prepared the product draft. Please review and approve.",
-        "customer_draft": "Sure, I've prepared the customer details. Please review and approve.",
-        "payment_draft": "Sure, I've prepared the payment record. Please review and approve.",
-        "restock_draft": "Sure, I've prepared the restock draft. Please review and approve.",
-        "bulk_product_draft": "Sure Boss, I've extracted the product list. Please review and approve.",
-    }
-    confirmation_text = confirmation_templates.get(draft_type, "Sure, I've prepared the draft. Please review and approve.")
+    confirmation_lang = state.get("language", "hinglish")
+    lang_templates = CONFIRMATION_TEMPLATES.get(confirmation_lang, CONFIRMATION_TEMPLATES["hinglish"])
+    confirmation_text = lang_templates.get(draft_type, lang_templates.get(
+        "invoice_draft", "Draft ready! Please review and approve."
+    ))
     
     class _FakeResponse:
         def __init__(self, c): self.content = c
@@ -1755,19 +1796,22 @@ async def chat_node(state: AgentState):
         except Exception as e:
             print(f"WARN: Could not load local DB context: {e}")
 
+    # Language-aware persona and voice rules
+    language = state.get("language", "hinglish")
+    lang_voice_rules = get_voice_rules(language)
+
     PERSONA_LOCK = (
         f"PERSONA: Professional shop manager and assistant for {business_name}. "
         f"IMPORTANT: You are talking to the SHOP OWNER/BOSS. Do NOT assume the user is "
         f"one of the customers listed in the ledger. Address the user as 'Boss' or 'Sir'. "
         f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. "
-        f"{VOICE_RULES} "
-        f"Respond in {'Hinglish (Hindi written in English text)' if detected_lang == 'hinglish' else 'clear English'}."
+        f"{lang_voice_rules}"
     )
     if role == "customer":
         PERSONA_LOCK = (
             f"PERSONA: Welcoming customer-facing assistant for {business_name}. "
             f"No profit/cost prices. Say available/out instead of stock numbers. "
-            f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. {VOICE_RULES}"
+            f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. {lang_voice_rules}"
         )
 
     if category == "GREETING":
@@ -1960,9 +2004,11 @@ async def process_user_input(
     user_token: str,
     model: str = "llama-4-scout-17b-16e-instruct-maas",
     role: str = "owner",
+    language: str = "hinglish",
 ) -> str:
     """
     Main entry point for Sathi AI.
+    language: 'english' | 'hinglish' | 'bangla'
     """
     global MEMORY_STORE
 
@@ -1987,14 +2033,14 @@ async def process_user_input(
 
     inputs = {
         "messages": memory,
-        "language": "hi-EN",
+        "language": language,
         "user_token": user_token,
         "model": model,
         "role": role,
     }
 
     try:
-        print(f"DEBUG: Invoking Agent Graph for session {session_id}...")
+        print(f"DEBUG: Invoking Agent Graph for session {session_id} (lang={language})...")
         result = await app.ainvoke(inputs)
 
         if result and "messages" in result and len(result["messages"]) > 0:
@@ -2017,3 +2063,4 @@ def clear_user_memory(user_token: str):
     if session_id in MEMORY_STORE:
         del MEMORY_STORE[session_id]
         print(f"INFO: Cleared memory for session {session_id}")
+

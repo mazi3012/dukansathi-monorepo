@@ -34,6 +34,13 @@ telegram_bot.log
 *.sqlite
 *.sqlite3
 backend/dukansathi_offline.db
+dukansathi_offline.db
+# Ignore any local model folders
+vosk-model-*/
+vosk-model*
+model/
+models/
+!ai-bot/dukansathi_ai/models/
 
 # ── Node.js ───────────────────────────────
 node_modules/
@@ -118,8 +125,11 @@ ai-bot/verify_*.py
 
 # ── Custom / Accidental Files ─────────────
 genkit-ide-models/
-.genkit/
-*.jsx.txt
-frontend/theme_*.py
-migrations_part*.sql
 setup_invoices_bucket.sql
+.genkit/
+.genkit-cache/
+genkit.log
+genkit-ide-models/
+*.tmp
+*.temp
+/tmp/

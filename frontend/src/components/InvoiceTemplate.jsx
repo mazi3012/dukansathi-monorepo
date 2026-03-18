@@ -91,7 +91,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
     const isGst = sale.invoice_type === 'gst';
 
     // Determine if it's IGST (Inter-state) or CGST+SGST (Intra-state)
-    const isIgst = parseFloat(sale.igst_amount) > 0;
+    const isIgst = sale.is_out_of_state || parseFloat(sale.igst_amount) > 0;
 
     // For Bill of Supply (non-GST), the correct total is subtotal minus discount — NO TAX
     const discount = parseFloat(sale.discount_amount) || 0;
@@ -126,8 +126,13 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                         {businessProfile?.business_name || "My Shop"}
                     </h1>
                     <div className="text-[10px] sm:text-xs text-slate-600 space-y-0.5 sm:space-y-1">
-                        <p className="font-bold text-slate-900">{businessProfile?.business_address || businessProfile?.address}</p>
-                        <p>{businessProfile?.city}, {businessProfile?.state_name || businessProfile?.state} {businessProfile?.pincode}</p>
+                        {businessProfile?.business_address && <p className="font-bold text-slate-900">{businessProfile.business_address}</p>}
+                        {(businessProfile?.city || businessProfile?.state_name || businessProfile?.state || businessProfile?.pincode) && (
+                            <p>
+                                {[businessProfile?.city, businessProfile?.state_name || businessProfile?.state, businessProfile?.pincode]
+                                    .filter(Boolean).join(', ')}
+                            </p>
+                        )}
                         {businessProfile?.phone && <p className="font-medium">Phone: <span className="text-slate-900">{businessProfile.phone}</span></p>}
                         {isGst && businessProfile?.gstin && (
                             <p className="font-black text-slate-900 mt-2 border-t border-slate-200 pt-1 flex items-center gap-2">
@@ -153,7 +158,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                         </div>
                         {isGst && (
                             <div className="mt-1 text-[9px] sm:text-xs text-indigo-600 font-black flex items-center gap-1 sm:justify-end uppercase tracking-tighter">
-                                <span className="opacity-50">Place of Supply:</span> {sale.customers?.state || sale.customer_state || businessProfile?.state_name || 'Local'}
+                                <span className="opacity-50">Place of Supply:</span> {isIgst ? 'Other State' : (sale.customers?.state || sale.customer_state || businessProfile?.state_name || 'Local')}
                             </div>
                         )}
                     </div>
@@ -185,16 +190,16 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                     <div className="space-y-2">
                         {sale.payment_status === 'paid' && (
                             <div className="flex flex-col items-end">
-                                <span className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20">Authenticated Paid</span>
-                                <span className="text-[8px] text-emerald-600 font-bold mt-1 uppercase tracking-tighter opacity-70">Payment Protocol: {sale.payment_method || 'Cash'}</span>
+                                <span className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20">✓ Paid in Full</span>
+                                <span className="text-[8px] text-emerald-600 font-bold mt-1 uppercase tracking-tighter opacity-70">Mode: {sale.payment_method || 'Cash'}</span>
                             </div>
                         )}
                         {(sale.payment_status === 'partial' || (sale.payment_status !== 'paid' && sale.balance_due > 0)) && (
                             <div className="flex flex-col items-end">
                                 <span className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl ${sale.amount_paid > 0 ? 'bg-orange-500 shadow-orange-500/20' : 'bg-red-500 shadow-red-500/20'} text-white`}>
-                                    {sale.amount_paid > 0 ? 'Deferred Balance' : 'Full Accrual'}
+                                    {sale.amount_paid > 0 ? 'Partial Payment' : 'Unpaid / Udhaar'}
                                 </span>
-                                <span className="text-[8px] text-red-500 font-bold mt-1 uppercase tracking-tighter opacity-70 italic">Subject to Settlement</span>
+                                <span className="text-[8px] text-red-500 font-bold mt-1 uppercase tracking-tighter opacity-70 italic">Balance Due</span>
                             </div>
                         )}
                     </div>
@@ -347,7 +352,7 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
                     {(businessProfile?.bank_name || businessProfile?.bank_account_no) && (
                         <div className="bg-emerald-50/30 p-3 rounded-xl border border-emerald-100 flex items-center gap-4">
                             <div className="flex-1">
-                                <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Bank Settlement Node</p>
+                                <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Bank Details</p>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] uppercase font-bold text-slate-600">
                                     <p><span className="opacity-50">BANK:</span> {businessProfile.bank_name}</p>
                                     <p><span className="opacity-50">IFSC:</span> {businessProfile.bank_ifsc}</p>
@@ -436,14 +441,14 @@ const InvoiceTemplate = forwardRef(({ sale, items, businessProfile, theme = 'cla
             <div className={`mt-10 pt-8 ${t.footerBorder} grid grid-cols-2 gap-8 items-end`}>
                 <div className="space-y-4">
                     <div className="space-y-1">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">Terms & Protocols:</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">Terms:</p>
                         <ul className="text-[8px] text-slate-500 font-bold list-disc pl-3 space-y-0.5 uppercase tracking-tighter">
-                            <li>Goods once sold represent final asset transfer.</li>
-                            <li>Electronic document: Digital signature authenticated.</li>
-                            <li>Late payment interest: 18% p.a. applies on overdue settlements.</li>
+                            <li>Maal bechne ke baad wapas nahi hoga.</li>
+                            <li>Yeh ek digital bill hai. Valid without physical stamp.</li>
+                            <li>Late payment par 18% yearly interest lagega.</li>
                         </ul>
                     </div>
-                    <p className="text-xs text-slate-900 font-black italic tracking-tight">Gratitude for choosing {businessProfile?.business_name || "us"}!</p>
+                    <p className="text-xs text-slate-900 font-black italic tracking-tight">Dhanywad! {businessProfile?.business_name || "Hamari Dukan"} pe aane ke liye shukriya.</p>
                 </div>
                 <div className="text-right">
                     <div className="h-24 flex flex-col items-center justify-end">
