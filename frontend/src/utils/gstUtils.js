@@ -184,11 +184,12 @@ export const TaxCalculator = {
      * @param {string} params.placeOfSupply - State Code (Optional)
      * @returns {Object} JSON calculation details
      */
-    calculate: ({ sellingPrice, quantity, hsnCode, sellerGstin, buyerGstin = null, placeOfSupply = null }) => {
+    calculate: ({ sellingPrice, quantity, hsnCode, sellerGstin, buyerGstin = null, placeOfSupply = null, forceInterState = false }) => {
         const taxableValue = sellingPrice * quantity;
         const totalGstRate = HSN_TAX_RATES[hsnCode] || 0;
 
-        const isInterSet = isInterState(sellerGstin, buyerGstin, placeOfSupply);
+        // forceInterState lets the user manually override auto GSTIN detection
+        const isInterSet = forceInterState || isInterState(sellerGstin, buyerGstin, placeOfSupply);
 
         let cgstAmount = 0;
         let sgstAmount = 0;

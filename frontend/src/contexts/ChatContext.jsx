@@ -1,5 +1,4 @@
 import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
-import { localAgent } from '../lib/ai/localAgent';
 import { syncEngine } from '../lib/db/syncEngine';
 
 export const ChatContext = createContext();
@@ -16,14 +15,9 @@ export const ChatProvider = ({ children }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [voice, setVoice] = useState(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
-    const [aiPreference, setAiPreference] = useState(localStorage.getItem('ai_preference') || 'cloud');
+    const [aiLanguage, setAiLanguage] = useState(localStorage.getItem('ai_language') || 'hinglish');
 
-    let initialModel = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
-    if (initialModel.includes('gemini')) {
-        initialModel = 'llama-4-scout-17b-16e-instruct-maas';
-        localStorage.setItem('model_id', initialModel);
-    }
-    const [model, setModel] = useState(initialModel);
+    const model = 'llama-4-scout-17b-16e-instruct-maas';
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
@@ -52,6 +46,7 @@ export const ChatProvider = ({ children }) => {
     const reconnectAttemptRef = useRef(0);
     const reconnectTimerRef = useRef(null);
     const onMessageHandlerRef = useRef(null);
+    const isMountedRef = useRef(false); // Tracks real mount vs StrictMode double-invoke
 
     useEffect(() => {
         pendingAttachmentRef.current = pendingAttachment;
@@ -62,8 +57,7 @@ export const ChatProvider = ({ children }) => {
         const handleSettingsChange = () => {
             setVoice(localStorage.getItem('voice_id') || 'hi-IN-MadhurNeural');
             setVoiceSpeed(localStorage.getItem('voice_speed') || '+0%');
-            setModel(localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas');
-            setAiPreference(localStorage.getItem('ai_preference') || 'cloud');
+            setAiLanguage(localStorage.getItem('ai_language') || 'hinglish');
         };
         window.addEventListener('settings-changed', handleSettingsChange);
         window.addEventListener('storage', handleSettingsChange);
@@ -207,12 +201,12 @@ export const ChatProvider = ({ children }) => {
     }, [onMessageHandler]);
 
     const connectWebSocket = useCallback(() => {
+        // Don't create a duplicate if already open or connecting
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
+        if (wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
         let wsUrl = import.meta.env.VITE_BACKEND_WS_URL;
         if (!wsUrl) {
-            // Smart dynamic fallback: Use current hostname but port 8000
-            // This allows mobile devices on same network to connect to the dev machine
             const currentHost = window.location.hostname;
             const apiUrl = import.meta.env.VITE_BACKEND_API_URL || `http://${currentHost}:8000`;
             wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws/chat';
@@ -223,26 +217,31 @@ export const ChatProvider = ({ children }) => {
         setWs(socket);
 
         socket.onopen = () => {
+            // Only update state if this is still the active socket
+            if (wsRef.current !== socket) return;
             setIsConnected(true);
             reconnectAttemptRef.current = 0;
         };
 
         socket.onclose = (event) => {
+            if (wsRef.current !== socket) return; // stale socket, ignore
             setIsConnected(false);
-            if (!event.wasClean) {
-                const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 30000);
-                reconnectAttemptRef.current += 1;
-                reconnectTimerRef.current = setTimeout(connectWebSocket, delay);
+            if (!isMountedRef.current) return; // unmounted, don't reconnect
+            if (reconnectAttemptRef.current > 10) {
+                console.warn('Max WebSocket reconnect attempts reached. Giving up.');
+                return;
             }
+            const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 15000);
+            reconnectAttemptRef.current += 1;
+            reconnectTimerRef.current = setTimeout(connectWebSocket, delay);
         };
 
-        socket.onerror = (error) => {
-            console.error('WebSocket Error:', error);
-            setIsConnected(false);
+        socket.onerror = () => {
+            // Suppress — errors always precede an onclose which handles reconnect
         };
 
         socket.onmessage = (event) => onMessageHandlerRef.current?.(event);
-    }, []);
+    }, []);;
 
     useEffect(() => {
         const initChat = async () => {
@@ -283,71 +282,46 @@ export const ChatProvider = ({ children }) => {
             }
         };
 
+        isMountedRef.current = true;
         initChat();
         connectWebSocket();
 
         return () => {
+            isMountedRef.current = false;
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-            if (wsRef.current) wsRef.current.close();
+            const ws = wsRef.current;
+            if (!ws) return;
+            if (ws.readyState === WebSocket.OPEN) {
+                // Cleanly close an open socket
+                ws.close();
+            } else if (ws.readyState === WebSocket.CONNECTING) {
+                // CONNECTING: don't close (causes browser error). Detach handlers so
+                // when it connects it does nothing, then let it die on its own.
+                ws.onopen = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                ws.onmessage = null;
+                wsRef.current = null; // The next mount will create a fresh socket
+            }
         };
     }, [connectWebSocket]);
 
     const sendMessage = useCallback(async (text, attachment = null) => {
         unlockAudio();
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        // Force establish connection if it was dropped
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            connectWebSocket();
+            // Wait briefly for connection (in production, a robust message queue would be better)
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                 setMessages(prev => [...prev, { type: 'ai', text: 'Still reconnecting... Please try again in a moment.', isError: true }]);
+                 return;
+            }
+        }
 
         setIsThinking(true);
         const { supabase } = await import('../lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
-
-        const isOffline = !navigator.onLine;
-        const mobile = isMobile();
-        const pwa = isPWA();
-        const isLocalModel = model.includes(':');
-
-        let activeMode;
-        let activeModel = model;
-
-        if (aiPreference === 'cloud') {
-            activeMode = 'cloud';
-            if (isLocalModel) {
-                // Default to standard cloud model if they had a local one selected
-                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-            }
-        } else if (aiPreference === 'local') {
-            activeMode = 'local';
-            if (!isLocalModel) {
-                activeModel = 'phi3:mini'; // Fallback to lightest local model
-            }
-        } else {
-            // "auto" behavior: Prioritize Cloud for PWA/Mobile if online
-            if (!isOffline && (mobile || pwa)) {
-                activeMode = 'cloud';
-                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-            } else {
-                activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
-            }
-            if (activeMode === 'local' && !isLocalModel) {
-                activeModel = 'phi3:mini';
-            }
-        }
-
-        if (activeMode === 'local') {
-            setMessages(prev => [...prev, { type: 'user', text }]);
-            try {
-                const response = await localAgent.process(text, messages, activeModel);
-                setIsThinking(false);
-                setMessages(prev => [...prev, { type: 'ai', text: response }]);
-                speakNative(response);
-            } catch (err) {
-                console.error("Local AI Error:", err);
-                setIsThinking(false);
-                const errMsg = "Ollama is not reachable. Please ensure Ollama is running locally.";
-                setMessages(prev => [...prev, { type: 'ai', text: errMsg }]);
-                speakNative(errMsg);
-            }
-            return;
-        }
 
         const payload = {
             type: 'text',
@@ -356,8 +330,8 @@ export const ChatProvider = ({ children }) => {
             access_token: session?.access_token,
             voice_id: voice,
             voice_rate: voiceSpeed,
-            model: activeModel,
-            ai_mode: activeMode
+            model: model,
+            language: aiLanguage,
         };
 
         if (attachment) {
@@ -371,7 +345,7 @@ export const ChatProvider = ({ children }) => {
 
         wsRef.current.send(JSON.stringify(payload));
         setPendingAttachment(null);
-    }, [voice, voiceSpeed, model, unlockAudio]);
+    }, [voice, voiceSpeed, model, aiLanguage, unlockAudio]);
 
     const startRecording = async () => {
         if (isRecordingRef.current) return;
@@ -394,37 +368,6 @@ export const ChatProvider = ({ children }) => {
                         const { supabase } = await import('../lib/supabase');
                         const { data: { session } } = await supabase.auth.getSession();
 
-                        const isOffline = !navigator.onLine;
-                        const mobile = isMobile();
-                        const pwa = isPWA();
-                        const isLocalModel = model.includes(':');
-
-                        let activeMode;
-                        let activeModel = model;
-
-                        if (aiPreference === 'cloud') {
-                            activeMode = 'cloud';
-                            if (isLocalModel) {
-                                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-                            }
-                        } else if (aiPreference === 'local') {
-                            activeMode = 'local';
-                            if (!isLocalModel) {
-                                activeModel = 'phi3:mini';
-                            }
-                        } else {
-                            // "auto" behavior: Prioritize Cloud for PWA/Mobile if online
-                            if (!isOffline && (mobile || pwa)) {
-                                activeMode = 'cloud';
-                                activeModel = 'llama-4-scout-17b-16e-instruct-maas';
-                            } else {
-                                activeMode = (isOffline || isLocalModel) ? 'local' : 'cloud';
-                            }
-                            if (activeMode === 'local' && !isLocalModel) {
-                                activeModel = 'phi3:mini';
-                            }
-                        }
-
                         const payload = {
                             type: 'voice',
                             content: base64,
@@ -432,8 +375,8 @@ export const ChatProvider = ({ children }) => {
                             access_token: session?.access_token,
                             voice_id: voice,
                             voice_rate: voiceSpeed,
-                            model: activeModel,
-                            ai_mode: activeMode
+                            model: model,
+                            language: aiLanguage,
                         };
 
                         const attachment = pendingAttachmentRef.current;
@@ -488,7 +431,7 @@ export const ChatProvider = ({ children }) => {
             messages, sendMessage, startRecording, stopRecording,
             isListening, isThinking, setMessages, voice, changeVoice,
             isMuted, toggleMute, unlockAudio, isPlaying, isConnected,
-            model, aiPreference, pendingAttachment, setPendingAttachment,
+            model, pendingAttachment, setPendingAttachment,
             sendImage: (file) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);

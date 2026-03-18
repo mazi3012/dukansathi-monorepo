@@ -277,7 +277,7 @@ const Dashboard = () => {
                         <h1 className="text-2xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
                         <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors">
                             <span className="md:hidden">Business Insights</span>
-                            <span className="hidden md:inline">Business Insights & Analytics Performance</span>
+                            <span className="hidden md:inline">Store Analytics</span>
                         </p>
                     </div>
                 </div>
@@ -367,7 +367,7 @@ const Dashboard = () => {
 
                     {/* Quick Actions Bento */}
                     <div>
-                        <h2 className="text-xs md:text-sm font-bold text-text-main uppercase tracking-widest mb-3 md:mb-4 transition-colors">Command Center</h2>
+                        <h2 className="text-xs md:text-sm font-bold text-text-main uppercase tracking-widest mb-3 md:mb-4 transition-colors">Quick Actions</h2>
                         <div className="flex flex-row justify-between sm:justify-start gap-2 sm:gap-6">
                             <ActionButton icon={Plus} label="New Bill" gradient="from-indigo-500 to-indigo-600" onClick={() => navigate('/sales')} />
                             <ActionButton icon={Package} label="Add Stock" gradient="from-blue-500 to-blue-600" onClick={() => navigate('/inventory')} />
@@ -442,7 +442,7 @@ const Dashboard = () => {
                     </div>
                     {/* View All Footer */}
                     <div className="p-4 bg-card-bg/30 rounded-b-3xl border-t border-card-border text-center">
-                        <Link to="/sales" className="text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors">View Complete Ledger</Link>
+                        <Link to="/sales" className="text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors">View All Sales</Link>
                     </div>
                 </motion.div>
             </div>

@@ -6,48 +6,70 @@ import { syncEngine } from '../lib/db/syncEngine';
 
 const VOICE_OPTIONS = [
     {
-        language: 'Hindi (India)',
+        language: 'Hindi (Hinglish)',
+        flag: '🇮🇳',
+        desc: 'Clear & Reliable — Google TTS',
         voices: [
-            { id: 'hi-IN-MadhurNeural', label: 'Madhur (Male)', gender: 'Male' },
-            { id: 'hi-IN-SwaraNeural', label: 'Swara (Female)', gender: 'Female' }
+            { id: 'hi-IN-MadhurNeural', label: 'Madhur (Male)', gender: 'Male', quality: 'Google Neural2' },
+            { id: 'hi-IN-SwaraNeural', label: 'Swara (Female)', gender: 'Female', quality: 'Google Neural2' }
         ]
     },
     {
         language: 'English (India)',
+        flag: '🇬🇧',
+        desc: 'Clear Indian English — Google Neural2',
         voices: [
-            { id: 'en-IN-PrabhatNeural', label: 'Prabhat (Male)', gender: 'Male' },
-            { id: 'en-IN-NeerjaNeural', label: 'Neerja (Female)', gender: 'Female' }
+            { id: 'en-IN-PrabhatNeural', label: 'Prabhat (Male)', gender: 'Male', quality: 'Google Neural2' },
+            { id: 'en-IN-NeerjaNeural', label: 'Neerja (Female)', gender: 'Female', quality: 'Google Neural2' }
         ]
     },
-
-
+    {
+        language: 'বাংলা (Kolkata Bangla)',
+        flag: '🇧🇩',
+        desc: 'Natural & Expressive — Sarvam AI ✨',
+        voices: [
+            { id: 'bn-IN-BashkarNeural', label: 'Shubh (Male)', gender: 'Male', quality: 'Sarvam AI ✨' },
+            { id: 'bn-IN-TanishaNeural', label: 'Priya (Female)', gender: 'Female', quality: 'Sarvam AI ✨' }
+        ]
+    },
 ];
 
-const MODEL_OPTIONS = [
-    { id: 'llama-4-scout-17b-16e-instruct-maas', label: 'Dukan Sathi Cloud (Default)', description: 'Fast, powerful, and always up-to-date. Requires internet.' },
-    { id: 'phi3:mini', label: 'Phi-3 Mini (Local)', description: 'Runs offline on your computer. Requires Ollama.' },
-    { id: 'gemma:2b', label: 'Gemma 2B (Local)', description: 'Lightweight Google model for low-spec PCs.' }
+const AI_LANGUAGES = [
+    { id: 'hinglish', label: '🇮🇳 Hinglish', desc: 'Hindi + English mix (Roman script)' },
+    { id: 'english', label: '🇬🇧 English', desc: 'Clear Indian English' },
+    { id: 'bangla', label: '🇧🇩 বাংলা', desc: 'Kolkata colloquial Bangla' },
 ];
+
+// Auto-derive AI language from voice ID prefix
+// This ensures Groq STT and ElevenLabs TTS both use the correct language code
+const VOICE_TO_LANGUAGE = {
+    'hi-IN': 'hinglish',
+    'bn-IN': 'bangla',
+    'en-IN': 'english',
+    'en-US': 'english',
+};
+const deriveLanguageFromVoice = (voiceId = '') => {
+    const prefix = voiceId.split('-').slice(0, 2).join('-');
+    return VOICE_TO_LANGUAGE[prefix] || 'hinglish';
+};
+
+
 
 const Settings = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'business'); // 'ai' | 'voice' | 'business' | 'system'
+    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'business'); // 'voice' | 'business' | 'system'
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
-    const [selectedModel, setSelectedModel] = useState('llama-4-scout-17b-16e-instruct-maas');
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [user, setUser] = useState(null);
-    const [aiPreference, setAiPreference] = useState(localStorage.getItem('ai_preference') || 'cloud'); // 'cloud', 'local', or 'auto'
     const [playingVoice, setPlayingVoice] = useState(null); // ID of currently playing preview
 
-    // Local AI States
+    // System State
     const [hardware, setHardware] = useState(null);
-    const [localModels, setLocalModels] = useState([]);
-    const [isInstalling, setIsInstalling] = useState(null);
-    const [ollamaStatus, setOllamaStatus] = useState('checking');
+    const [aiLanguage, setAiLanguage] = useState(localStorage.getItem('ai_language') || 'hinglish');
     const [businessData, setBusinessData] = useState({
         business_name: '',
         owner_name: '',
@@ -77,10 +99,7 @@ const Settings = () => {
                 // 1. Load from LocalStorage (Fast)
                 const localVoice = localStorage.getItem('voice_id');
                 const localSpeed = localStorage.getItem('voice_speed');
-                const localModel = localStorage.getItem('model_id');
-
                 if (localVoice) setSelectedVoice(localVoice);
-                if (localModel) setSelectedModel(localModel);
                 if (localSpeed) {
                     const speed = parseInt(localSpeed.replace('%', ''));
                     if (!isNaN(speed)) setVoiceSpeed(speed);
@@ -103,10 +122,6 @@ const Settings = () => {
                             setSelectedVoice(data.voice_id);
                             localStorage.setItem('voice_id', data.voice_id);
                         }
-                        if (data.model_id) {
-                            setSelectedModel(data.model_id);
-                            localStorage.setItem('model_id', data.model_id);
-                        }
                         if (data.voice_speed) {
                             const speed = parseInt(data.voice_speed.replace('%', ''));
                             if (!isNaN(speed)) {
@@ -114,9 +129,9 @@ const Settings = () => {
                                 localStorage.setItem('voice_speed', data.voice_speed);
                             }
                         }
-                        if (data.ai_preference) {
-                            setAiPreference(data.ai_preference);
-                            localStorage.setItem('ai_preference', data.ai_preference);
+                        if (data.ai_language) {
+                            setAiLanguage(data.ai_language);
+                            localStorage.setItem('ai_language', data.ai_language);
                         }
 
                         // Load Business Data
@@ -140,10 +155,7 @@ const Settings = () => {
                     }
                 }
 
-                // 3. Load Hardware & Local AI Status
-                // 3. Load Hardware & Local AI Status
-                fetchHardware();
-                fetchLocalModels();
+                // Load Hardware Status intentionally skipped (cloud-only mode)
 
             } catch (err) {
                 console.error("Error loading settings:", err);
@@ -165,106 +177,11 @@ const Settings = () => {
         return headers;
     };
 
-    const fetchHardware = async () => {
-        try {
-            const headers = await getAuthHeaders();
-            const res = await fetch(`${API_BASE}/api/setup/hardware`, { headers });
-            if (res.ok) {
-                const data = await res.json();
-                setHardware(data);
-            }
-        } catch (e) {
-            console.error("Hardware fetch failed:", e);
-        }
-    };
+    // Hardware check removed — app is cloud-only.
+    // fetchHardware was calling a deleted endpoint (/api/setup/hardware).
 
-    const fetchLocalModels = async () => {
-        try {
-            const headers = await getAuthHeaders();
-            // First check if Ollama is even alive
-            const checkRes = await fetch(`${API_BASE}/api/setup/ollama-check`, { headers });
-            const checkData = await checkRes.json();
 
-            if (checkData.is_running) {
-                setOllamaStatus('connected');
-                const res = await fetch(`${API_BASE}/api/setup/local-models`, { headers });
-                if (res.ok) {
-                    const data = await res.json();
-                    setLocalModels(data.models || []);
-                }
-            } else {
-                setOllamaStatus('offline');
-                setLocalModels([]);
-            }
-        } catch (e) {
-            console.error("Local models fetch failed:", e);
-            setOllamaStatus('offline');
-        }
-    };
 
-    // Ref to track the install polling interval for cleanup
-    const installPollRef = useRef(null);
-
-    // Cleanup polling interval on unmount
-    useEffect(() => {
-        return () => {
-            if (installPollRef.current) {
-                clearInterval(installPollRef.current);
-                installPollRef.current = null;
-            }
-        };
-    }, []);
-
-    const installModel = async (modelName) => {
-        setIsInstalling(modelName);
-        try {
-            const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
-            const res = await fetch(`${API_BASE}/api/setup/install-ai`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ model_name: modelName })
-            });
-
-            if (res.ok) {
-                alert(`Started installing ${modelName}. This will take a few minutes in the background.`);
-                let retryCount = 0;
-                const MAX_RETRIES = 30; // Stop after 5 minutes (30 * 10s)
-                // Clear any previous interval
-                if (installPollRef.current) clearInterval(installPollRef.current);
-                installPollRef.current = setInterval(async () => {
-                    retryCount++;
-                    if (retryCount > MAX_RETRIES) {
-                        clearInterval(installPollRef.current);
-                        installPollRef.current = null;
-                        setIsInstalling(null);
-                        alert('Installation timed out. Check Ollama manually.');
-                        return;
-                    }
-                    try {
-                        const checkHeaders = await getAuthHeaders();
-                        const checkRes = await fetch(`${API_BASE}/api/setup/local-models`, { headers: checkHeaders });
-                        const checkData = await checkRes.json();
-                        const isDone = checkData.models?.some(m => m.name.includes(modelName));
-                        if (isDone) {
-                            setLocalModels(checkData.models);
-                            setIsInstalling(null);
-                            clearInterval(installPollRef.current);
-                            installPollRef.current = null;
-                        }
-                    } catch (pollErr) {
-                        console.error('Install poll error:', pollErr);
-                    }
-                }, 10000);
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Installation failed");
-                setIsInstalling(null);
-            }
-        } catch (e) {
-            alert("Connection error to backend");
-            setIsInstalling(null);
-        }
-    };
 
     const [hasChanges, setHasChanges] = useState(false);
     const markChange = () => setHasChanges(true);
@@ -274,25 +191,32 @@ const Settings = () => {
         try {
             const speedStr = (voiceSpeed >= 0 ? '+' : '') + voiceSpeed + '%';
 
+            // Auto-derive language from voice as a safety net — ensures Groq STT gets right language
+            const derivedLanguage = deriveLanguageFromVoice(selectedVoice);
+            const effectiveLanguage = derivedLanguage; // language always follows voice
+            if (effectiveLanguage !== aiLanguage) {
+                setAiLanguage(effectiveLanguage);
+            }
+
             localStorage.setItem('voice_id', selectedVoice);
             localStorage.setItem('voice_speed', speedStr);
-            localStorage.setItem('model_id', selectedModel);
-            localStorage.setItem('ai_preference', aiPreference);
+            localStorage.setItem('ai_language', effectiveLanguage);
 
             window.dispatchEvent(new Event('settings-changed'));
             window.dispatchEvent(new Event('storage'));
 
             if (user) {
+                // Separate out fields not in the DB schema before upserting
+                const { sync_enabled, ...dbSafeBusinessData } = businessData;
                 const { error } = await supabase
                     .from('profiles')
                     .upsert({
                         id: user.id,
                         voice_id: selectedVoice,
                         voice_speed: speedStr,
-                        model_id: selectedModel,
-                        ai_preference: aiPreference,
+                        ai_language: effectiveLanguage,
                         updated_at: new Date().toISOString(),
-                        ...businessData
+                        ...dbSafeBusinessData
                     });
 
                 if (error) console.warn("Cloud save warning:", error.message);
@@ -312,7 +236,10 @@ const Settings = () => {
     const previewVoice = async (voiceId) => {
         if (playingVoice) return;
         setPlayingVoice(voiceId);
-        const text = voiceId.includes('hi') ? "Namaste! Main Sathi AI hoon." : "Hello! I am Sathi AI.";
+        // Use the correct preview text for each language
+        let text = "Hello! I am Sathi AI.";
+        if (voiceId.startsWith('hi-IN')) text = "Namaste Boss! Main Sathi AI hoon. Aaj kya help karu?";
+        if (voiceId.startsWith('bn-IN')) text = "নমস্কার দাদা! আমি সাথী এআই। আজ কী সাহায্য করব?";
         try {
             const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
             const response = await fetch(`${API_BASE}/api/tts-preview`, {
@@ -369,8 +296,8 @@ const Settings = () => {
                         <SettingsIcon size={32} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Control Center</h1>
-                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Protocol & System Orchestration</p>
+                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
+                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Manage your store preferences</p>
                     </div>
                 </div>
 
@@ -383,13 +310,12 @@ const Settings = () => {
                         }`}
                 >
                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} strokeWidth={2.5} />}
-                    {saving ? 'Syncing...' : 'Commit Changes'}
+                    {saving ? 'Saving...' : 'Save Changes'}
                 </button>
             </header>
 
             <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
                 <TabButton id="business" icon={Briefcase} label="Business Profile" />
-                <TabButton id="ai" icon={Brain} label="Intelligence" className="hidden md:flex" />
                 <TabButton id="voice" icon={Volume2} label="Neural Voice" />
                 <TabButton id="system" icon={Cpu} label="Core System" />
             </div>
@@ -405,14 +331,14 @@ const Settings = () => {
                                     <Building2 size={28} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Identity Profile</h2>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Business Profile</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Core Business Credentials</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Enterprise Name</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Business Name</label>
                                     <input
                                         placeholder="Ex: Matrix Corp"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
@@ -421,7 +347,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Proprietor Name</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Owner Name</label>
                                     <input
                                         placeholder="Ex: John Matrix"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
@@ -430,7 +356,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Comm Channel [WhatsApp]</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">WhatsApp Number</label>
                                     <input
                                         placeholder="+91 XXXXX XXXXX"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
@@ -439,7 +365,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Tax Identity [GSTIN]</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">GSTIN (Tax ID)</label>
                                     <input
                                         placeholder="27AAAAA0000A1Z5"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main uppercase"
@@ -457,7 +383,7 @@ const Settings = () => {
                                     <MapPin size={28} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Geo Protocol</h2>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Location Details</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Physical Location Nodes</p>
                                 </div>
                             </div>
@@ -512,14 +438,14 @@ const Settings = () => {
                                     <CreditCard size={28} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Fiscal Nodes</h2>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Bank Details</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Bank Settlement Details</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Bank Designation</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Bank Name</label>
                                     <input
                                         placeholder="Ex: HDFC Bank"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
@@ -528,7 +454,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Account Protocol</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Account Number</label>
                                     <input
                                         placeholder="Acc No: XXXXXXXX"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono"
@@ -537,7 +463,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Switch Code [IFSC]</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">IFSC Code</label>
                                     <input
                                         placeholder="HDFC000XXXX"
                                         className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono uppercase"
@@ -578,57 +504,9 @@ const Settings = () => {
 
                 {activeTab === 'system' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        {/* System Protocol & Hardware */}
-                        <section className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-6 text-white shadow-xl overflow-hidden relative hidden md:block">
-                            <div className="relative z-10">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Cpu size={24} />
-                                        <h2 className="font-bold text-lg">System Hardware</h2>
-                                    </div>
-                                    <div className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1.5 ${ollamaStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
-                                        <div className={`w-2 h-2 rounded-full ${ollamaStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-                                        {ollamaStatus === 'connected' ? 'Ollama Online' : 'Ollama Offline'}
-                                    </div>
-                                </div>
+                        {/* System Hardware section removed — app is cloud-only */}
 
-                                {hardware && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                                        <div className="bg-white/10 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
-                                            <div className="text-[10px] text-indigo-200 uppercase font-black mb-1">Processor</div>
-                                            <div className="text-sm font-bold truncate" title={hardware.cpu}>{hardware.cpu}</div>
-                                        </div>
-                                        <div className="bg-white/10 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
-                                            <div className="text-[10px] text-indigo-200 uppercase font-black mb-1">Memory</div>
-                                            <div className="text-sm font-bold">{hardware.ram_total_gb} GB RAM</div>
-                                        </div>
-                                        <div className="bg-white/10 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
-                                            <div className="text-[10px] text-indigo-200 uppercase font-black mb-1">Graphics</div>
-                                            <div className="text-sm font-bold truncate">{hardware.gpu}</div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    <button
-                                        onClick={() => navigate('/setup')}
-                                        className="w-full sm:w-auto px-6 py-2.5 bg-white text-indigo-600 rounded-xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg"
-                                    >
-                                        Run System Wizard
-                                    </button>
-                                    <button
-                                        onClick={fetchLocalModels}
-                                        className="w-full sm:w-auto px-6 py-2.5 bg-white/10 text-white border border-white/20 rounded-xl font-black text-sm hover:bg-white/20 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw size={16} />
-                                        Refresh Status
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
-                        </section>
-
-                        {/* Theme Protocol */}
+                        {/* App Theme */}
                         <section className="glass-card rounded-3xl p-6 border-indigo-500/10 bg-indigo-500/[0.01]">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                                 <div className="flex items-center gap-4">
@@ -636,8 +514,8 @@ const Settings = () => {
                                         {theme === 'light' ? <Moon size={28} /> : <Sun size={28} />}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">Interface Protocol</h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Light / Dark Mode Selection</p>
+                                        <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">App Theme</h2>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Light / Dark Mode</p>
                                     </div>
                                 </div>
                                 <div className="bg-card-bg/50 p-1.5 rounded-2xl border border-card-border/50 flex gap-2 w-full sm:w-auto">
@@ -717,117 +595,43 @@ const Settings = () => {
                     </div>
                 )}
 
-                {activeTab === 'ai' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        {/* AI Model Selection */}
-                        <section className="glass-card rounded-3xl p-6">
-                            <div className="flex flex-col mb-6">
-                                <div className="flex items-center gap-2">
-                                    <Brain className="text-indigo-500" size={24} />
-                                    <h2 className="font-extrabold text-text-main text-lg transition-colors">AI Intelligence Engine</h2>
-                                </div>
-                                <p className="text-sm text-text-muted mt-1 transition-colors">Choose between blazing fast Cloud AI or private Offline Models.</p>
-                            </div>
 
-                            <div className="mb-8">
-                                <label className="text-xs font-black text-text-muted uppercase tracking-widest mb-3 block">AI Routing Preference</label>
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    <button
-                                        onClick={() => { setAiPreference('cloud'); markChange(); }}
-                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'cloud' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
-                                    >
-                                        Force Cloud AI
-                                    </button>
-                                    <button
-                                        onClick={() => { setAiPreference('local'); markChange(); }}
-                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'local' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
-                                    >
-                                        Force Local / Offline
-                                    </button>
-                                    <button
-                                        onClick={() => { setAiPreference('auto'); markChange(); }}
-                                        className={`flex-1 p-3 rounded-xl border text-sm font-bold transition-all ${aiPreference === 'auto' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg border-card-border text-text-muted hover:border-indigo-500/30 hover:text-text-main'}`}
-                                    >
-                                        Auto (Smart Match)
-                                    </button>
-                                </div>
-                                <p className="text-xs text-text-muted mt-2">
-                                    {aiPreference === 'cloud' && "All requests will use Cloud models directly, ignoring your device type. Requires internet."}
-                                    {aiPreference === 'local' && "All requests will execute on your local physical machine. Private and entirely offline."}
-                                    {aiPreference === 'auto' && "Mobile and Web apps will use Cloud AI. Desktop apps will use your selected Local model when possible."}
-                                </p>
-                            </div>
-
-                            <h3 className="text-xs font-black text-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <div className="h-px bg-card-border flex-1" />
-                                Model Selection
-                                <div className="h-px bg-card-border flex-1" />
-                            </h3>
-
-                            {ollamaStatus === 'offline' ? (
-                                <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-start gap-4">
-                                    <AlertCircle size={24} className="text-amber-500 shrink-0 mt-0.5" />
-                                    <div className="text-sm">
-                                        <p className="font-black text-amber-500 mb-1 uppercase tracking-wider">Local AI Status: Offline</p>
-                                        <p className="text-text-main opacity-80 mb-3">To use 100% offline models, ensure Ollama is running on your machine.</p>
-                                        <a href="https://ollama.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-indigo-500 hover:underline">
-                                            Download Ollama <ChevronRight size={14} />
-                                        </a>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {MODEL_OPTIONS.map((opt) => {
-                                        const isDownloaded = localModels.some(m => m.name.includes(opt.id.split(':')[0]));
-
-                                        return (
-                                            <div key={opt.id} className="relative group">
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedModel(selectedModel === opt.id ? 'llama-4-scout-17b-16e-instruct-maas' : opt.id);
-                                                        markChange();
-                                                    }}
-                                                    className={`w-full p-5 rounded-2xl border text-left transition-all h-full ${selectedModel === opt.id
-                                                        ? 'border-indigo-500 bg-indigo-500/10 shadow-lg ring-1 ring-indigo-500/50'
-                                                        : 'border-card-border hover:border-indigo-500/30 hover:bg-card-bg'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <div className="font-extrabold text-text-main transition-colors">{opt.label}</div>
-                                                        {isDownloaded && (
-                                                            <span className="text-[10px] uppercase px-2 py-0.5 rounded-full font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                                                Ready
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-text-muted leading-relaxed pr-8 transition-colors">{opt.description}</div>
-
-                                                    {selectedModel === opt.id &&
-                                                        <div className="absolute top-5 right-5 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/20 animate-in zoom-in">
-                                                            <Check size={12} className="text-white" />
-                                                        </div>
-                                                    }
-                                                </button>
-                                                {!isDownloaded && (
-                                                    <button
-                                                        onClick={() => installModel(opt.id)}
-                                                        className="absolute bottom-5 right-5 p-2 text-indigo-500 hover:bg-indigo-500/10 rounded-xl transition-all"
-                                                    >
-                                                        {isInstalling === opt.id ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </section>
-                    </div>
-                )}
 
                 {activeTab === 'voice' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        {/* Voice Selection */}
+                        {/* AI Language Preference */}
+                        <section className="glass-card rounded-3xl p-6">
+                            <div className="flex items-center gap-2 mb-6">
+                                <Brain className="text-indigo-500" size={24} />
+                                <h2 className="font-extrabold text-text-main text-lg">AI Language</h2>
+                            </div>
+                            <p className="text-sm text-text-muted mb-4 font-medium">Choose the language OpenClaw AI speaks and listens in.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {AI_LANGUAGES.map((lang) => (
+                                    <button
+                                        key={lang.id}
+                                        onClick={() => { setAiLanguage(lang.id); markChange(); }}
+                                        className={`p-4 rounded-2xl border text-left transition-all ${
+                                            aiLanguage === lang.id
+                                                ? 'border-indigo-500 bg-indigo-500/10 shadow-lg ring-1 ring-indigo-500/50'
+                                                : 'border-card-border hover:border-indigo-500/30 hover:bg-card-bg'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="font-black text-text-main text-base">{lang.label}</span>
+                                            {aiLanguage === lang.id && (
+                                                <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                                                    <Check size={12} className="text-white" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-text-muted font-medium">{lang.desc}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* Voice Persona */}
                         <section className="glass-card rounded-3xl p-6">
                             <div className="flex items-center gap-2 mb-6">
                                 <Volume2 className="text-indigo-500" size={24} />
@@ -850,7 +654,14 @@ const Settings = () => {
                                                         ? 'border-indigo-500 bg-indigo-500/10 shadow-lg ring-1 ring-indigo-500/50'
                                                         : 'border-card-border hover:border-indigo-500/30 hover:bg-card-bg'
                                                         }`}
-                                                    onClick={() => { setSelectedVoice(voice.id); markChange(); }}
+                                                    onClick={() => {
+                                                        setSelectedVoice(voice.id);
+                                                        // Auto-sync AI language to match the selected voice persona
+                                                        // This ensures Groq STT and ElevenLabs TTS both use the right language
+                                                        const autoLang = deriveLanguageFromVoice(voice.id);
+                                                        setAiLanguage(autoLang);
+                                                        markChange();
+                                                    }}
                                                 >
                                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 transition-all ${selectedVoice === voice.id ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-card-bg text-text-muted border border-card-border'}`}>
                                                         <User size={24} />

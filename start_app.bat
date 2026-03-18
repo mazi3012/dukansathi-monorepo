@@ -1,48 +1,69 @@
 @echo off
-echo =========================================
-echo       Starting Dukan Sathi Locally
-echo =========================================
+title Dukan Sathi - Local Dev Server
+color 0A
+
+echo.
+echo  =====================================================
+echo       DUKAN SATHI - LOCAL DEVELOPMENT SERVER
+echo  =====================================================
 echo.
 
-:: --- Pre-flight Checks (Offline Voice) ---
-set "OFFLINE_VOICE_READY=YES"
-set "ENABLE_OFFLINE_STT=true"
-
-if not exist "backend\vosk-model-small-en-in-0.4" (
-    echo [WARNING] Vosk model not found in backend folder!
-    echo           Offline Speech-to-Text will use Whisper Small if available.
-)
-
-:: 1. Start Ollama
-echo [1/3] Checking Local AI (Ollama)...
-netstat -ano | findstr :11434 > nul
+:: Check Python is available
+where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] Ollama is not running. Starting Ollama...
-    start "Ollama Local AI" cmd /c "ollama serve"
-    echo [WAIT] Waiting for Ollama to initialize...
-    :wait_ollama
-    timeout /t 2 /nobreak > nul
-    netstat -ano | findstr :11434 > nul
-    if %errorlevel% neq 0 goto wait_ollama
-    echo [OK] Ollama is now responsive.
-) else (
-    echo [OK] Ollama is already running.
+    echo  [ERROR] Python is not found in PATH. Please install Python 3.11+.
+    pause
+    exit /b 1
 )
 
-:: 2. Start Backend with Hot Reload
-echo [2/3] Starting Python Backend Server...
-start "Dukan Backend" cmd /k "cd /d e:\dukanv22\backend && venv\Scripts\activate.bat && set "ENABLE_OFFLINE_STT=true" && uvicorn main:app --reload --reload-dir e:\dukanv22\backend --reload-dir e:\dukanv22\ai-bot --port 8000"
+:: Check Node.js is available
+where node >nul 2>&1
+if %errorlevel% neq 0 (
+    echo  [ERROR] Node.js is not found in PATH. Please install Node.js 18+.
+    pause
+    exit /b 1
+)
 
-:: 3. Start Frontend
-echo [3/3] Starting React/Vite Frontend Server...
-start "Dukan Frontend" cmd /k "cd /d e:\dukanv22\frontend && cmd /c npm run dev"
+:: Check if venv exists
+if not exist "backend\venv\Scripts\activate.bat" (
+    echo  [ERROR] Backend virtual environment not found at backend\venv
+    echo  [TIP]   Run: python -m venv backend\venv
+    echo          Then: cd backend ^& venv\Scripts\activate ^& pip install -r requirements.txt
+    pause
+    exit /b 1
+)
+
+:: Check if frontend node_modules exist
+if not exist "frontend\node_modules" (
+    echo  [INFO] Frontend dependencies not installed. Running npm install...
+    cd /d e:\dukanv22\frontend
+    npm install
+    cd /d e:\dukanv22
+)
+
+echo  [1/2] Starting Backend (FastAPI + Uvicorn) ...
+echo        URL: http://localhost:8000
+start "Dukan Sathi Backend" cmd /k "cd /d e:\dukanv22\backend && venv\Scripts\activate.bat && uvicorn main:app --reload --reload-dir e:\dukanv22\backend --reload-dir e:\dukanv22\ai-bot --port 8000 --host 0.0.0.0"
+
+:: Brief wait so backend starts binding before frontend connects
+timeout /t 3 /nobreak >nul
+
+echo  [2/2] Starting Frontend (Vite + React) ...
+echo        URL: http://localhost:5173
+start "Dukan Sathi Frontend" cmd /k "cd /d e:\dukanv22\frontend && npm run dev"
 
 echo.
-echo =========================================
-echo  Done! Servers are opening in new windows.
-echo  - Local AI Engine triggered
-echo  - Backend running on: http://localhost:8000
-echo  - Frontend running on: http://localhost:5173
-echo =========================================
-echo You can close this window now.
+echo  =====================================================
+echo   All servers started! Open your browser at:
+echo.
+echo       http://localhost:5173
+echo.
+echo   Backend API available at:
+echo       http://localhost:8000
+echo       http://localhost:8000/docs  (API Docs)
+echo.
+echo   Close this window anytime. The servers keep
+echo   running in their own windows.
+echo  =====================================================
+echo.
 pause

@@ -6,11 +6,11 @@ Created: 2026-02-05
 
 This is the main entry point for the Dukan Sathi backend server.
 It handles:
-- WebSocket connections for real-time AI chat
+- WebSocket connections for real-time AI chat  
 - API endpoints for CRUD operations
 - Authentication middleware
 - CORS configuration
-- System Setup & Local AI (Offline mode)
+- Multilingual AI (English, Hinglish, Kolkata Bangla)
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
@@ -79,15 +79,7 @@ try:
 except Exception as e:
     pass
 
-# Import Setup Routes & Local AI
-try:
-    from setup_routes import router as setup_router
-    from local_ai import LocalLLMService
-    import local_db # Import local_db for direct access
-except ImportError as e:
-    logger.error(f"Failed to import Setup/LocalAI modules: {e}")
-    setup_router = None
-    local_db = None
+# Local AI system imports have been permanently removed as the system is now cloud-only.
 
 
 
@@ -145,13 +137,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_request_origins(request, call_next):
-    origin = request.headers.get("origin")
-    if "/api/setup" in str(request.url):
-        logger.info(f"Setup Request: {request.method} {request.url} from Origin: {origin}")
     return await call_next(request)
-# Register Setup Router
-if setup_router:
-    app.include_router(setup_router)
 
 # --- Authentication Dependency ---
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -160,131 +146,21 @@ from fastapi import Depends
 security = HTTPBearer()
 
 async def verify_local_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Validates the JWT token against Supabase for local API endpoints."""
+    """Validates the JWT token against Supabase for API endpoints."""
     token = credentials.credentials
     
-    # Detect Offline/Local Mode
-    # ENABLE_OFFLINE_STT is our signal that we expect local-first behavior
-    is_offline_mode = os.environ.get("ENABLE_OFFLINE_STT", "false").lower() == "true"
-
     if not supabase:
-        if is_offline_mode and token and len(token) >= 20:
-             # Allow direct user_id as token in local mode if DB is missing
-             return token
         raise HTTPException(status_code=503, detail="Database not connected")
         
     try:
-        # Primary: Remote Valdiation
+        # Remote Validation
         auth_user = supabase.auth.get_user(token)
         if not auth_user or not auth_user.user:
             raise HTTPException(status_code=401, detail="Invalid token")
         return auth_user.user.id
     except Exception as e:
-        # Secondary: Offline Bypass for connection/network issues
-        err_str = str(e).lower()
-        network_errors = ["connection", "timeout", "dns", "unreachable", "name resolution", "getaddrinfo"]
-        
-        if any(err in err_str for err in network_errors) and token and len(token) >= 20:
-            logger.info(f"OFFLINE AUTH: Bypassing Supabase check due to connection error. Using token as UserID: {token[:8]}...")
-            return token
-            
-        logger.warning(f"Failed local auth: {e}")
+        logger.warning(f"Failed auth: {e}")
         raise HTTPException(status_code=401, detail="Unauthorized")
-
-# --- Local Data Endpoints (for Offline Mode) ---
-@app.get("/api/local/customers")
-async def get_local_customers(user_id: str = Depends(verify_local_auth)):
-    """Get customers from local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    return local_db.get_customers_local(user_id)
-
-@app.get("/api/local/products")
-async def get_local_products(user_id: str = Depends(verify_local_auth)):
-    """Get products from local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    return local_db.get_products_local(user_id)
-
-@app.post("/api/local/products")
-async def save_local_product(request: Request, user_id: str = Depends(verify_local_auth)):
-    """Save a product to local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    data = await request.json()
-    product_id = local_db.save_product_local(data, user_id)
-    if product_id is None:
-         raise HTTPException(status_code=500, detail="Failed to save product locally")
-    return {"status": "success", "id": product_id}
-
-@app.post("/api/local/customers")
-async def save_local_customer(request: Request, user_id: str = Depends(verify_local_auth)):
-    """Save a customer to local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    data = await request.json()
-    customer_id = local_db.save_customer_local(data, user_id)
-    if customer_id is None:
-         raise HTTPException(status_code=500, detail="Failed to save customer locally")
-    return {"status": "success", "id": customer_id}
-
-@app.post("/api/local/restock")
-async def restock_local_product(request: Request, user_id: str = Depends(verify_local_auth)):
-    """Restock a product in local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    data = await request.json()
-    # Assume user validation happens inside local_db if this feature is used
-    product = local_db.restock_product_local(data)
-    if product is None:
-        raise HTTPException(status_code=500, detail="Failed to restock product locally")
-    return {"status": "success", "product": product}
-
-@app.get("/api/local/customers/{customer_id}")
-async def get_local_customer_detail(customer_id: int, user_id: str = Depends(verify_local_auth)):
-    """Get customer details by rowid locally."""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    customer = local_db.get_customer_by_id_local(customer_id)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return customer
-
-@app.post("/api/local/sales")
-async def save_local_sale(request: Request, user_id: str = Depends(verify_local_auth)):
-    """Save an offline invoice/sale to local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    data = await request.json()
-    sale_id = local_db.save_invoice_local(data)
-    if sale_id is None:
-        raise HTTPException(status_code=500, detail="Failed to save invoice locally")
-    return {"status": "success", "id": sale_id}
-
-@app.get("/api/local/sales")
-async def get_local_sales(customer_name: str = None, user_id: str = Depends(verify_local_auth)):
-    """Get all offline invoices from local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    return local_db.get_invoices_local(customer_name)
-
-@app.post("/api/local/payments")
-async def save_local_payment(request: Request, user_id: str = Depends(verify_local_auth)):
-    """Save an offline payment or due record to local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    data = await request.json()
-    payment_id = local_db.save_payment_local(data)
-    if payment_id is None:
-        raise HTTPException(status_code=500, detail="Failed to save payment locally")
-    return {"status": "success", "id": payment_id}
-
-@app.get("/api/local/payments")
-async def get_local_payments(customer_name: str = None, user_id: str = Depends(verify_local_auth)):
-    """Get all offline payment/due records from local SQLite DB"""
-    if not local_db:
-        raise HTTPException(status_code=503, detail="Local DB not available")
-    return local_db.get_payments_local(customer_name)
 
 
 
@@ -618,9 +494,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             content = data.get("content", "")
             user_token = data.get("access_token", "")
             client_user_id = data.get("user_id", "")
-            voice_id = data.get("voice_id", "en-IN-PrabhatNeural")
+            voice_id = data.get("voice_id", "hi-IN-MadhurNeural")
             voice_rate = data.get("voice_rate", "+0%")
             model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
+            ai_language = data.get("language", "hinglish")  # 'english' | 'hinglish' | 'bangla'
 
             # --- SERVER-SIDE USER AUTH ---
             # Verify user_id via Supabase JWT on first message, then cache for session
@@ -684,8 +561,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             if message_type == "voice" and content:
                 try:
                     audio_bytes = base64.b64decode(content)
-                    user_text = await transcribe_audio(audio_bytes)
-                    print(f"[STT] Transcribed: {user_text}")
+                    user_text = await transcribe_audio(audio_bytes, language=ai_language)
+                    print(f"[STT] Transcribed ({ai_language}): {user_text}")
                     
                     if attachment_context:
                         user_text = f"{attachment_context}{user_text}"
@@ -1004,21 +881,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             
             if not user_text: continue
 
-            # 4. Process with AI (Cloud or Local)
+            # 4. Process with AI
             try:
                 ai_response_raw = ""
-                
-                # Check for Local Mode
-                is_local_mode = model_id.startswith("local:") or model_id in ["phi3:mini", "gemma:2b", "time:latest"]
-                
-                if is_local_mode or data.get("ai_mode") == "local":
-                     local_model_name = model_id.replace("local:", "") if model_id.startswith("local:") else model_id
-                     print(f"[AI] Using LOCAL AI Engine ({local_model_name})...")
-                     ai_response_raw = await process_user_input(user_text, user_token, model=local_model_name)
-                     
-                else:
-                    # Cloud AI
-                    ai_response_raw = await process_user_input(user_text, user_token, model=model_id)
+                # Cloud AI — always use process_user_input with language context
+                ai_response_raw = await process_user_input(
+                    user_text,
+                    user_token,
+                    model=model_id,
+                    language=ai_language
+                )
 
                 print(f"[AI] AI Raw Response: {ai_response_raw[:100]}...")
                 

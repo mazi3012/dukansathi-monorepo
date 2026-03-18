@@ -244,9 +244,9 @@ const Inventory = () => {
                             <Package size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Digital Vault</h1>
+                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Inventory</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
-                                Assets • {filteredProducts.length} Entries • Live Sync
+                                Products • {filteredProducts.length} Items • Live Sync
                             </p>
                         </div>
                     </div>
@@ -255,7 +255,7 @@ const Inventory = () => {
                         <div className="relative group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted transition-colors group-hover:text-indigo-500" size={18} />
                             <input
-                                placeholder="Query database..."
+                                placeholder="Search products..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full sm:w-[280px] bg-card-bg/40 backdrop-blur-xl border border-card-border p-4 pl-12 rounded-2xl outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 text-text-main font-bold transition-all text-sm"
@@ -266,7 +266,7 @@ const Inventory = () => {
                             className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
                         >
                             <Plus size={18} strokeWidth={3} />
-                            Initialize Asset
+                            Add Product
                         </button>
                     </div>
                 </header>
@@ -295,10 +295,10 @@ const Inventory = () => {
                         <div className="w-24 h-24 bg-indigo-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20 shadow-inner">
                             <Package size={40} className="text-indigo-500/40" />
                         </div>
-                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">Catalog Flush</h3>
-                        <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No assets discovered in this sector. Synchronize or create a new entry.</p>
+                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Products Found</h3>
+                        <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No products found. Add a new product to get started.</p>
                         <button onClick={() => setIsAddModalOpen(true)} className="px-8 py-4 bg-indigo-500/10 text-indigo-500 font-extrabold rounded-2xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all shadow-lg hover:scale-105 active:scale-95">
-                            Create First Asset
+                            Add First Product
                         </button>
                     </div>
                 ) : (
@@ -340,12 +340,12 @@ const Inventory = () => {
                                 <div className="space-y-4 relative z-10">
                                     <div>
                                         <h3 className="font-heading font-black text-text-main text-xl tracking-tight truncate transition-colors group-hover:text-indigo-500">{product.name}</h3>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 transition-colors group-hover:text-text-main/60">{product.category || 'Legacy Catalog'}</p>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 transition-colors group-hover:text-text-main/60">{product.category || 'Uncategorized'}</p>
                                     </div>
 
                                     <div className="flex items-center justify-between pt-4 border-t border-card-border/30">
                                         <div className="flex flex-col">
-                                            <span className="text-[9px] font-black text-text-muted/60 uppercase tracking-widest">Inventory State</span>
+                                            <span className="text-[9px] font-black text-text-muted/60 uppercase tracking-widest">Current Stock</span>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <div className={`w-2.5 h-2.5 rounded-full ${isLowStock ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'} `} />
                                                 <span className={`text-base font-black ${isLowStock ? 'text-red-500' : 'text-text-main'} tracking-tighter`}>
@@ -415,9 +415,9 @@ const Inventory = () => {
                                     </div>
                                     <div>
                                         <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">
-                                            {editingId ? 'Edit Asset' : 'Manifest Entry'}
+                                            {editingId ? 'Edit Product' : 'Add Product'}
                                         </h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Operational Logistics Interface</p>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter product information</p>
                                     </div>
                                 </div>
                                 <button
@@ -452,7 +452,7 @@ const Inventory = () => {
                                     <div className="flex flex-col sm:flex-row gap-8 items-start">
                                         {/* Image Upload Area */}
                                         <div className="w-full sm:w-48 shrink-0">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 mb-3">Neural Imaging</label>
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 mb-3">Product Image</label>
                                             <div
                                                 onClick={() => document.getElementById('prod-img').click()}
                                                 className="group relative w-full aspect-square rounded-[32px] bg-card-bg/50 border-2 border-dashed border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 shadow-inner"
@@ -491,19 +491,19 @@ const Inventory = () => {
 
                                         <div className="flex-1 space-y-6 w-full">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Asset Designation</label>
-                                                <input placeholder="Ex: Quantum Processor X1" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Product Name</label>
+                                                <input placeholder="Ex: Smart Watch" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Category Domain</label>
-                                            <input placeholder="Ex: Hardware" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Category</label>
+                                            <input placeholder="Ex: Electronics" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Metric Unit</label>
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Unit</label>
                                             <div className="relative">
                                                 <select
                                                     value={['pcs', 'kg', 'g', 'litre', 'ml', 'dozen', 'box', 'packet', 'metre', 'set'].includes(formData.unit) ? formData.unit : 'other'}
@@ -527,19 +527,19 @@ const Inventory = () => {
                                 {/* Financials */}
                                 <section className="space-y-6">
                                     <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] flex items-center gap-4">
-                                        Financial Matrix
+                                        Pricing
                                         <div className="h-px bg-gradient-to-r from-card-border/50 to-transparent flex-1" />
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="glass-card p-6 rounded-[28px] border-indigo-500/10 bg-indigo-500/[0.02] shadow-inner">
-                                            <label className="text-[10px] text-indigo-500/60 font-black uppercase tracking-[0.2em] block mb-3">Acquisition Cost</label>
+                                            <label className="text-[10px] text-indigo-500/60 font-black uppercase tracking-[0.2em] block mb-3">Cost Price</label>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl font-black text-indigo-500/40 tracking-tighter transition-colors">₹</span>
                                                 <input type="number" value={formData.cost_price} onChange={e => setFormData({ ...formData, cost_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-text-main w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
                                             </div>
                                         </div>
                                         <div className="glass-card p-6 rounded-[28px] border-emerald-500/10 bg-emerald-500/[0.02] shadow-inner">
-                                            <label className="text-[10px] text-emerald-500/60 font-black uppercase tracking-[0.2em] block mb-3">Market Valuation</label>
+                                            <label className="text-[10px] text-emerald-500/60 font-black uppercase tracking-[0.2em] block mb-3">Selling Price</label>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl font-black text-emerald-500/40 tracking-tighter transition-colors">₹</span>
                                                 <input type="number" value={formData.selling_price} onChange={e => setFormData({ ...formData, selling_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-text-main w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
@@ -551,7 +551,7 @@ const Inventory = () => {
                                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 p-6 glass-card rounded-[32px] border-indigo-500/20 shadow-inner">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Bracket</label>
+                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Percentage</label>
                                                     <div className="relative">
                                                         <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none shadow-inner">
                                                             <option value="0">Zero [0%]</option>
@@ -564,14 +564,14 @@ const Inventory = () => {
                                                     </div>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Protocol</label>
+                                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Code</label>
                                                     <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none shadow-inner" />
                                                 </div>
                                             </div>
 
                                             {/* Tax Type Toggle */}
                                             <div className="space-y-2">
-                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Taxation Strategy</label>
+                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Type</label>
                                                 <div className="flex bg-card-bg/30 p-1 rounded-2xl border border-card-border/50 gap-1 shadow-inner">
                                                     <button
                                                         onClick={() => setFormData({ ...formData, tax_type: 'exclusive' })}
@@ -594,22 +594,22 @@ const Inventory = () => {
                                 {/* Logistics */}
                                 <section className="space-y-6">
                                     <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] flex items-center gap-4">
-                                        Neural Logistics
+                                        Stock Details
                                         <div className="h-px bg-gradient-to-r from-card-border/50 to-transparent flex-1" />
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Current Inventory</label>
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Current Stock</label>
                                             <input type="number" value={formData.stock_quantity} onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-2xl text-text-main shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Critical Threshold</label>
+                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Low Stock Alert At</label>
                                             <input type="number" value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
                                         </div>
                                     </div>
                                     <div className="space-y-2 group">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors group-focus-within:text-indigo-500">Asset Identity [SKU / Barcode]</label>
-                                        <input placeholder="Ex: SKU-NEURAL-882" value={formData.sku || formData.barcode} onChange={e => setFormData({ ...formData, sku: e.target.value, barcode: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors group-focus-within:text-indigo-500">SKU / Barcode</label>
+                                        <input placeholder="Ex: SKU-882" value={formData.sku || formData.barcode} onChange={e => setFormData({ ...formData, sku: e.target.value, barcode: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
                                     </div>
                                 </section>
                             </div>
@@ -619,7 +619,7 @@ const Inventory = () => {
                                     onClick={handleSave}
                                     className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
                                 >
-                                    Transmit to Ledger
+                                    Save Product
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
                             </div>

@@ -178,9 +178,9 @@ const Customers = () => {
                             <Users size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Client Registry</h1>
+                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Customers</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
-                                Neural Nodes • {filteredCustomers.length} Verified Handles
+                                Directory • {filteredCustomers.length} Customers
                             </p>
                         </div>
                     </div>
@@ -189,7 +189,7 @@ const Customers = () => {
                         <div className="relative group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted transition-colors group-hover:text-indigo-500" size={18} />
                             <input
-                                placeholder="Search identity..."
+                                placeholder="Search customers..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full sm:w-[280px] bg-card-bg/40 backdrop-blur-xl border border-card-border p-4 pl-12 rounded-2xl outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 text-text-main font-bold transition-all text-sm"
@@ -200,7 +200,7 @@ const Customers = () => {
                             className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
                         >
                             <Plus size={18} strokeWidth={3} />
-                            Register Client
+                            Add Customer
                         </button>
                     </div>
                 </header>
@@ -228,10 +228,10 @@ const Customers = () => {
                         <div className="w-24 h-24 bg-indigo-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20 shadow-inner">
                             <Users size={40} className="text-indigo-500/40" />
                         </div>
-                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Connections Found</h3>
+                        <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Customers Found</h3>
                         <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">Start building your community. Add customers to track spending and loyalty.</p>
                         <button onClick={() => setIsAddModalOpen(true)} className="px-8 py-4 bg-indigo-500/10 text-indigo-500 font-extrabold rounded-2xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all shadow-lg hover:scale-105 active:scale-95">
-                            Onboard First Client
+                            Add First Customer
                         </button>
                     </div>
                 ) : (
@@ -316,9 +316,9 @@ const Customers = () => {
                                     </div>
                                     <div>
                                         <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">
-                                            {isEditModalOpen ? 'Modify Identity' : 'Create Identity'}
+                                            {isEditModalOpen ? 'Edit Customer' : 'Add Customer'}
                                         </h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Digital Ledger Protocol v2</p>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
                                     </div>
                                 </div>
                                 <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-12 h-12 rounded-2xl bg-card-bg/80 border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-90 shadow-sm">
@@ -332,7 +332,7 @@ const Customers = () => {
                                     <input placeholder="Ex: John Matrix" className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
                                 <div className="space-y-3">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Communication Channel</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Phone Number</label>
                                     <div className="relative group">
                                         <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-indigo-500 transition-colors" />
                                         <input placeholder="+91 XXXXX XXXXX" className="w-full p-5 pl-14 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
@@ -340,11 +340,11 @@ const Customers = () => {
                                 </div>
                                 <div className="grid grid-cols-1 gap-8">
                                     <div className="space-y-3">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Physical Location</label>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Address</label>
                                         <textarea placeholder="Client Primary Address..." rows={3} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 resize-none outline-none shadow-inner text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
                                     </div>
                                     <div className="space-y-3">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Identity [GSTIN]</label>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">GSTIN</label>
                                         <input
                                             placeholder="27AAAAA0000A1Z5"
                                             maxLength={15}
@@ -358,7 +358,7 @@ const Customers = () => {
                                         />
                                     </div>
                                     <div className="space-y-3">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">Place of Supply [State]</label>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">State</label>
                                         <select
                                             className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main outline-none shadow-inner appearance-none"
                                             value={formData.state}
@@ -375,7 +375,7 @@ const Customers = () => {
 
                             <div className="pt-8 border-t border-card-border/50 shrink-0">
                                 <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
-                                    {isEditModalOpen ? 'Update Records' : 'Commit to Database'}
+                                    {isEditModalOpen ? 'Update Customer' : 'Save Customer'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
                             </div>

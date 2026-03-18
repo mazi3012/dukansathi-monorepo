@@ -1,12 +1,23 @@
 {
-    "name": "Dukan Sathi - Voice-First Shop Management",
+    "name": "Dukan Sathi - Smart Dukan Management",
     "short_name": "Dukan Sathi",
-    "description": "Premium shop management with voice-first interface and local-first storage.",
+    "description": "Awaaz se billing karo. Udhaar track karo. Dukan chalana ab hua aasaan.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0a0a0c",
     "theme_color": "#4f46e5",
     "icons": [
+        {
+            "src": "/logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
         {
             "src": "/pwa-192x192.png",
             "sizes": "192x192",
@@ -16,12 +27,6 @@
             "src": "/pwa-512x512.png",
             "sizes": "512x512",
             "type": "image/png"
-        },
-        {
-            "src": "/pwa-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
         }
     ]
-}
+}

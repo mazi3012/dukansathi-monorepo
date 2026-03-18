@@ -183,7 +183,7 @@ const CustomerDetails = () => {
                     <div>
                         <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">{customer.name}</h1>
                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
-                            Client Dossier • {customer.phone || 'Identity Secured'}
+                            Customer Profile • {customer.phone || 'Unknown'}
                         </p>
                     </div>
                 </div>
@@ -194,7 +194,7 @@ const CustomerDetails = () => {
                         className="h-16 px-6 rounded-[22px] bg-card-bg/40 backdrop-blur-xl border border-card-border flex items-center justify-center gap-3 text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all active:scale-95 shadow-xl shadow-indigo-500/5 group"
                     >
                         <Edit2 size={24} className="group-hover:scale-110 transition-transform" />
-                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Update Profile</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Edit Customer</span>
                     </button>
                     {customer.phone && (
                         <a href={`tel:${customer.phone}`} className="flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-[22px] shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all">
@@ -215,7 +215,7 @@ const CustomerDetails = () => {
                             : 'text-text-muted hover:text-text-main'
                             }`}
                     >
-                        {tab === 'due' ? 'Ledger' : tab === 'history' ? 'Protocol' : 'Profile'}
+                        {tab === 'due' ? 'Ledger' : tab === 'history' ? 'History' : 'Details'}
                     </button>
                 ))}
             </div>
@@ -229,20 +229,20 @@ const CustomerDetails = () => {
                                 onClick={() => { setDueType('credit'); setIsDueModalOpen(true); }}
                                 className="flex-1 py-5 bg-red-500/10 text-red-500 font-black rounded-3xl border border-red-500/20 flex items-center justify-center gap-3 transition-all hover:bg-red-500 hover:text-white uppercase tracking-widest text-[10px]"
                             >
-                                <ArrowDownLeft size={18} strokeWidth={3} /> Debit Memo
+                                <ArrowDownLeft size={18} strokeWidth={3} /> Add Due
                             </button>
                             <button
                                 onClick={() => { setDueType('payment'); setIsDueModalOpen(true); }}
                                 className="flex-1 py-5 bg-emerald-500/10 text-emerald-500 font-black rounded-3xl border border-emerald-500/20 flex items-center justify-center gap-3 transition-all hover:bg-emerald-500 hover:text-white uppercase tracking-widest text-[10px]"
                             >
-                                <ArrowUpRight size={18} strokeWidth={3} /> Credit Entry
+                                <ArrowUpRight size={18} strokeWidth={3} /> Receive Payment
                             </button>
                         </div>
 
                         <div className="space-y-4">
-                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Live Transaction Stream</h3>
+                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Recent Ledger Entries</h3>
                             {transactions.length === 0 ? (
-                                <div className="text-center py-12 glass-card rounded-[32px] border-dashed text-text-muted font-bold">No transactions logged in database</div>
+                                <div className="text-center py-12 glass-card rounded-[32px] border-dashed text-text-muted font-bold">No entries found</div>
                             ) : (
                                 transactions.map(txn => (
                                     <div key={txn.id} className="glass-card p-5 rounded-[28px] border border-card-border/50 flex justify-between items-center group hover:-translate-y-1 transition-all duration-300">
@@ -269,7 +269,7 @@ const CustomerDetails = () => {
                 {activeTab === 'history' && (
                     <div className="space-y-4">
                         {transactions.length === 0 ? (
-                            <div className="text-center py-12 glass-card rounded-[32px] border-dashed text-text-muted font-bold">No invoices found in registry</div>
+                            <div className="text-center py-12 glass-card rounded-[32px] border-dashed text-text-muted font-bold">No sales found</div>
                         ) : (
                             transactions.map(inv => (
                                 <div key={inv.id} className="glass-card p-6 rounded-[32px] border border-card-border/50 flex justify-between items-center group hover:-translate-y-1 transition-all duration-300">
@@ -285,7 +285,7 @@ const CustomerDetails = () => {
                                     <div className="text-right">
                                         <div className="text-xl font-black text-text-main tracking-tighter">₹{inv.amount.toLocaleString('en-IN')}</div>
                                         <span className="inline-block mt-2 text-[9px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-full">
-                                            Verified
+                                            Completed
                                         </span>
                                     </div>
                                 </div>
@@ -317,19 +317,19 @@ const CustomerDetails = () => {
                         </div>
 
                         <div className="glass-card p-6 rounded-[32px] border border-card-border shadow-md space-y-4">
-                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Location & Identity</h3>
+                            <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">Location & Tax Info</h3>
                             <div className="space-y-3">
                                 <div className="flex gap-5 p-6 bg-card-bg/40 rounded-3xl border border-card-border shadow-inner">
                                     <MapPin size={24} className="text-indigo-500 shrink-0 mt-1" />
                                     <div className="space-y-1">
-                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">Primary Settlement Location</p>
-                                        <p className="text-lg font-bold text-text-main leading-relaxed">{customer.address || "Digital Nomad (No address linked)"}</p>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">Primary Address</p>
+                                        <p className="text-lg font-bold text-text-main leading-relaxed">{customer.address || "No address provided"}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-4 p-4 bg-card-bg/40 rounded-2xl border border-card-border">
                                     <FileText size={18} className="text-indigo-500 shrink-0" />
                                     <div>
-                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">GST Identity</p>
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">GST Details</p>
                                         <p className="font-bold text-text-main">{customer.gstin ? `${customer.gstin} (${customer.state || 'N/A'})` : "Regular (Non-GST)"}</p>
                                     </div>
                                 </div>
@@ -347,7 +347,7 @@ const CustomerDetails = () => {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-bg-main w-full max-w-lg rounded-[32px] p-6 relative z-10 border border-card-border shadow-2xl flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Modify Identity</h2>
+                                <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Edit Customer</h2>
                                 <button onClick={() => setIsEditModalOpen(false)} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 transition-colors">
                                     <X size={20} />
                                 </button>
@@ -413,19 +413,19 @@ const CustomerDetails = () => {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDueModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                         <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="bg-bg-main w-full max-w-md rounded-[32px] p-6 relative z-10 border border-card-border shadow-2xl">
                             <h2 className="text-xl font-black font-heading text-text-main mb-6 uppercase tracking-tight">
-                                {dueType === 'credit' ? 'Create Debit Memo' : 'Register Credit Entry'}
+                                {dueType === 'credit' ? 'Add Due Amount' : 'Receive Payment'}
                             </h2>
 
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Transaction Amount</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Amount</label>
                                     <div className="relative">
                                         <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-text-muted">₹</span>
                                         <input type="number" value={dueAmount} onChange={e => setDueAmount(e.target.value)} className="w-full p-4 pl-10 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none font-black text-2xl text-text-main" placeholder="0.00" autoFocus />
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Narration / Note</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest ml-1">Note</label>
                                     <input value={dueNote} onChange={e => setDueNote(e.target.value)} className="w-full p-4 bg-card-bg/50 rounded-xl border border-card-border focus:border-indigo-500 outline-none font-bold text-text-main" placeholder="Brief description..." />
                                 </div>
                             </div>
