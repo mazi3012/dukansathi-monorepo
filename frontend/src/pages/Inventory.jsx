@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Package, Edit2, ChevronDown, ChevronUp, Loader2, Filter, Download as DownloadIcon, ArrowUpRight, AlertTriangle, Trash2 } from 'lucide-react';
+import { Plus, Search, Package, Edit2, ChevronDown, ChevronUp, Loader2, Filter, Download as DownloadIcon, ArrowUpRight, AlertTriangle, Trash2, ChevronRight } from 'lucide-react';
 import { InventorySkeleton, HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';

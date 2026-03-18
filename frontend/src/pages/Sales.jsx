@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
