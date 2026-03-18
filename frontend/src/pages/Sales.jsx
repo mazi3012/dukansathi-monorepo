@@ -363,7 +363,7 @@ const Sales = () => {
                             <TrendingUp size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Sales</h1>
+                            <h1 className="text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Sales</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
                                 History • {timeframe === 'today' ? "Today's Sales" : "All Time Sales"}
                             </p>
@@ -419,63 +419,59 @@ const Sales = () => {
                     history.map((sale, index) => (
                         <motion.div
                             key={sale.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.04, duration: 0.4 }}
-                            className="glass-card rounded-[32px] p-6 hover:translate-x-2 transition-all duration-500 group relative overflow-hidden"
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.02, duration: 0.4 }}
+                            className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 sm:hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
                             onClick={() => handleViewReceipt(sale)}
                         >
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                                <div className="flex items-center gap-5">
-                                    <div className="w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-black text-xl shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500">
-                                        #{sale.id.toString().slice(-4).toUpperCase()}
+                            <div className="flex items-center gap-3 sm:gap-5 relative z-10">
+                                {/* ID / Type Indicator */}
+                                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-black text-[10px] sm:text-xs shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 shrink-0">
+                                    #{sale.id.toString().slice(-4).toUpperCase()}
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <h3 className="font-heading font-black text-text-main text-sm sm:text-lg truncate transition-colors group-hover:text-indigo-500">
+                                            {sale.customers?.name || "Cash Sale"}
+                                        </h3>
+                                        <span className={`px-2 py-0.5 rounded-lg text-[8px] sm:text-[9px] font-black uppercase tracking-widest border ${sale.invoice_type === 'gst' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-text-muted/10 text-text-muted border-card-border/30'}`}>
+                                            {sale.invoice_type === 'gst' ? 'GST' : 'Standard'}
+                                        </span>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-heading font-black text-text-main text-lg transition-colors group-hover:text-indigo-500">
-                                                {sale.customers?.name || "Anonymous Client"}
-                                            </h3>
-                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${sale.invoice_type === 'gst' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-text-muted/10 text-text-muted border-card-border'}`}>
-                                                {sale.invoice_type === 'gst' ? 'GST' : 'Standard'}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest transition-colors flex items-center gap-1.5">
-                                                <Calendar size={10} /> {new Date(sale.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </p>
-                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-indigo-500/5 px-2 py-0.5 rounded-lg border border-indigo-500/10">
-                                                {sale.payment_method}
-                                            </p>
-                                        </div>
+                                    <p className="text-[9px] sm:text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-1.5 truncate">
+                                        <Calendar size={10} strokeWidth={3} /> {new Date(sale.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} • {sale.payment_method}
+                                    </p>
+                                </div>
+
+                                {/* Total & Status */}
+                                <div className="text-right shrink-0 px-2 lg:px-6">
+                                    <div className="text-base sm:text-2xl font-black text-text-main tracking-tighter group-hover:text-indigo-500 transition-colors">
+                                        ₹{(sale.total_amount || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    <div className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tighter mt-0.5 ${sale.payment_status === 'paid' ? 'text-emerald-500' : sale.payment_status === 'partial' ? 'text-amber-500' : 'text-red-500'}`}>
+                                        {sale.payment_status}
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between md:justify-end gap-8 border-t md:border-t-0 border-card-border/50 pt-5 md:pt-0">
-                                    <div className="text-right">
-                                        <span className="text-[9px] font-black text-text-muted uppercase tracking-tighter block mb-1">Total Valuation</span>
-                                        <div className="text-2xl font-black text-text-main tracking-tighter transition-colors group-hover:text-indigo-500">₹{(sale.total_amount || 0).toLocaleString('en-IN')}</div>
+                                {/* Actions (Desktop) */}
+                                <div className="hidden sm:flex items-center gap-2">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteSale(sale.id, e); }}
+                                        className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                    <div className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted group-hover:text-indigo-500 group-hover:border-indigo-500/50 transition-all">
+                                        <ArrowUpRight size={16} />
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-right flex flex-col items-end">
-                                            <span className={`${sale.payment_status === 'paid' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : sale.payment_status === 'partial' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'} px - 3 py - 1 rounded - full text - [9px] font - black uppercase tracking - widest border transition - all`}>
-                                                {sale.payment_status}
-                                            </span>
-                                            {sale.balance_due > 0 && (
-                                                <span className="text-[9px] font-black text-red-500 mt-1 uppercase tracking-tighter">Due: ₹{sale.balance_due}</span>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-2 relative z-20">
-                                            <button
-                                                onClick={(e) => handleDeleteSale(sale.id, e)}
-                                                className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                            >
-                                                <Trash2 size={20} />
-                                            </button>
-                                            <div className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted group-hover:text-indigo-500 group-hover:border-indigo-500/50 transition-all">
-                                                <ArrowUpRight size={20} />
-                                            </div>
-                                        </div>
-                                    </div>
+                                </div>
+
+                                {/* Mobile Arrow */}
+                                <div className="sm:hidden text-text-muted/30">
+                                    <ChevronRight size={18} />
                                 </div>
                             </div>
                         </motion.div>
@@ -507,7 +503,7 @@ const Sales = () => {
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8">
                                 <div>
-                                    <h2 className="text-3xl font-black font-heading text-text-main tracking-tight transition-colors">Create Bill</h2>
+                                    <h2 className="text-xl font-black font-heading text-text-main tracking-tight transition-colors">Create Bill</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-widest transition-colors">Enter bill details</p>
                                 </div>
                                 <button onClick={() => setShowModal(false)} className="w-12 h-12 rounded-2xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
@@ -518,7 +514,7 @@ const Sales = () => {
                             <div className="overflow-y-auto flex-1 space-y-8 pr-2 scrollbar-hide">
                                 {/* Configuration */}
                                 {userProfile?.is_gst_registered && (
-                                    <div className="bg-card-bg/50 p-1.5 rounded-2xl border border-card-border/50 flex gap-2">
+                                    <div className="bg-card-bg p-1.5 rounded-2xl border border-card-border flex gap-2 shadow-inner">
                                         <button
                                             onClick={() => setBillType('NON_GST')}
                                             className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${billType === 'NON_GST' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-text-muted hover:bg-card-bg'}`}
@@ -538,7 +534,7 @@ const Sales = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Customer</label>
                                     <div className="flex gap-3">
-                                        <div className="flex-1 glass-card p-1 rounded-2xl border border-card-border/50">
+                                        <div className="flex-1 bg-card-bg p-1 rounded-2xl border border-card-border overflow-hidden">
                                             <Combobox
                                                 options={customers}
                                                 value={customerName}
@@ -570,7 +566,7 @@ const Sales = () => {
 
                                     <div className="space-y-4">
                                         {items.map((item, index) => (
-                                            <div key={item.id} className="glass-card rounded-3xl p-5 border border-card-border/50 relative group">
+                                            <div key={item.id} className="bg-card-bg rounded-3xl p-5 border border-card-border relative group shadow-inner">
                                                 <button onClick={() => handleRemoveItem(index)} className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100">
                                                     <Trash2 size={16} />
                                                 </button>
@@ -600,8 +596,8 @@ const Sales = () => {
                                                         />
                                                     </div>
                                                     <div className="md:col-span-4 flex gap-2">
-                                                        <input type="number" placeholder="Qty" value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} className="w-20 p-3 bg-card-bg rounded-xl border border-card-border text-center font-black text-text-main focus:border-indigo-500 transition-all shadow-inner" />
-                                                        <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} className="flex-1 p-3 bg-card-bg rounded-xl border border-card-border font-black text-text-main focus:border-indigo-500 transition-all shadow-inner" />
+                                                        <input type="number" placeholder="Qty" value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} className="w-20 p-3 bg-bg-main rounded-xl border border-card-border text-center font-black text-text-main focus:border-indigo-500 transition-all shadow-inner" />
+                                                        <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} className="flex-1 p-3 bg-bg-main rounded-xl border border-card-border font-black text-text-main focus:border-indigo-500 transition-all shadow-inner" />
                                                     </div>
                                                 </div>
                                             </div>

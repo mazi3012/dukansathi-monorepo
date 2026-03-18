@@ -627,7 +627,7 @@ def categorize_query(msg_lower: str) -> str:
         "create", "add", "new", "make a", "draft", "register", "record", 
         "pay", "paid", "receive", "received", "recive", "recieve", "recived", "recieved",
         "payment", "bill", "invoice", "due", "dues", "baki", "udhar", "liya", "diya", "mila",
-        "restock", "restocked"
+        "restock", "restocked", "maal", "aaya", "peyalam", "pelam", "dilam", "nilam", "taka"
     ]
 
     # Context keywords for query categorization
@@ -651,13 +651,59 @@ def categorize_query(msg_lower: str) -> str:
         return "BUSINESS"
     
     return "CHAT"
-async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
+
+async def get_store_directory(user_id: str) -> str:
+    """
+    Fetch a directory of product and customer names for the user to help the LLM resolve entities.
+    Returns a formatted string like: 'PRODUCTS: [Rice, Salt], CUSTOMERS: [Amit, Rahul]'
+    """
+    if not user_id:
+        return ""
+    
+    parts = []
+    
+    # Try local DB first (available offline / faster)
+    if local_db:
+        try:
+            db = local_db.get_db()
+            # Products
+            p_res = db.execute("SELECT name FROM products WHERE user_id = ? LIMIT 50", (user_id,)).fetchall()
+            if p_res:
+                parts.append(f"AVAILABLE PRODUCTS: [{', '.join([r[0] for r in p_res])}]")
+            # Customers
+            c_res = db.execute("SELECT name FROM customers WHERE user_id = ? LIMIT 50", (user_id,)).fetchall()
+            if c_res:
+                parts.append(f"AVAILABLE CUSTOMERS: [{', '.join([r[0] for r in c_res])}]")
+        except Exception as e:
+            logger.error(f"Error fetching directory from local DB: {e}")
+
+    # Fallback/Supplemental: Supabase (if online and not already fetched enough)
+    if supabase and len(parts) < 2:
+        try:
+            if not any("PRODUCTS" in p for p in parts):
+                p_res = supabase.table("products").select("name").eq("user_id", user_id).limit(50).execute()
+                if p_res.data:
+                    parts.append(f"AVAILABLE PRODUCTS: [{', '.join([r['name'] for r in p_res.data])}]")
+            
+            if not any("CUSTOMERS" in p for p in parts):
+                c_res = supabase.table("customers").select("name").eq("user_id", user_id).limit(50).execute()
+                if c_res.data:
+                    parts.append(f"AVAILABLE CUSTOMERS: [{', '.join([r['name'] for r in c_res.data])}]")
+        except Exception as e:
+            logger.error(f"Error fetching directory from Supabase: {e}")
+            
+    return "\n".join(parts)
+
+async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas", user_id: str = None) -> str:
     """
     Extract structured JSON parameters for an action.
     Uses Gemini Flash (vision model) when an image URL is detected,
     falls back to Llama for text-only requests.
     """
     import re, json, ast
+
+    # Fetch store directory for entity resolution
+    directory_context = await get_store_directory(user_id) if user_id else ""
 
     # Detect image context
     img_match = re.search(r'\[IMAGE CONTEXT:\s*(https?://[^\s\]]+)\]', user_query)
@@ -674,9 +720,16 @@ JSON: {"type": "bulk_product_draft", "items": [{"name": "Basmati Rice (1kg)", "c
 
 USER QUERY: "{clean_query}"
 HISTORY: "{history_context}"
+STORE CONTEXT: "{directory_context}"
 
 YOUR JOB: Extract parameters to create a DRAFT for the requested action.
 If an image is provided, scan it using OCR. Extract ALL products visible in the image with their name, category, cost price (CP), selling price (SP/MRP), and stock quantity. Map table column headers intelligently.
+
+MULTILINGUAL MAPPING RULES:
+1. If user says a product or customer name in Bangla or Hinglish (e.g., "Aloo", "Dal", "Chaler", "দাদা"), check the STORE CONTEXT to find the corresponding English/Official name in the database.
+2. Return the Official Name from the database if a match is found, otherwise return the name as spoken.
+3. Handle ambiguous quantities (e.g., "ekta packet" -> 1 packet).
+
 Return STRICT JSON only. No markdown, no explanation.
 
 OPENCLAW SKILLS & RULES:
@@ -762,14 +815,15 @@ def fast_parse_action(user_query: str) -> str:
 
     # --- PATTERN 1: Payment (Priority) ---
     # "amit paid 500" / "received 200 from rahul" / "Received payment of 500 from Farooq"
+    # Added "dilam" (gave) and "nilam" (took) for Bangla
     payment_pattern1 = re.search(
-        r'([\w\s]+?)\s+(?:paid|gave|returned)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)',
+        r'([\w\s]+?)\s+(?:paid|gave|returned|dilam|diyesi|diyechi)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)',
         ql
     )
     if payment_pattern1:
         name = payment_pattern1.group(1).strip().title()
         amount = float(payment_pattern1.group(2))
-        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'new', 'make', 'received', 'got']:
+        if name.lower() not in ['i', 'he', 'she', 'they', 'we', 'add', 'create', 'new', 'make', 'received', 'got', 'ami', 'tumi', 'apni']:
             return json.dumps({
                 "type": "payment_draft",
                 "customer_name": name,
@@ -779,8 +833,9 @@ def fast_parse_action(user_query: str) -> str:
             })
 
     # Enhanced pattern for "received X from Y" or "received payment of X from Y"
+    # Added "mila", "peyalam", "pelam"
     payment_pattern2 = re.search(
-        r'(?:received|recieved|recived|recive|recieve|got|liya|mila)\s+(?:payment|dues|due|of|rs\.?|₹)*\s*(\d+(?:\.\d+)?)\s*(?:payment|dues|due|of)?\s*(?:from|se)\s+([\w\s]+)',
+        r'(?:received|recieved|recived|recive|recieve|got|liya|mila|peyalam|pelam|nilam|niesi|niyechi)\s+(?:payment|dues|due|of|rs\.?|₹|taka)*\s*(\d+(?:\.\d+)?)\s*(?:payment|dues|due|of|taka)?\s*(?:from|se|theke|theika)\s+([\w\s]+)',
         ql
     )
     if payment_pattern2:
@@ -795,8 +850,9 @@ def fast_parse_action(user_query: str) -> str:
         })
 
     # "add 500 due to rahul" / "rahul ko 500 udhar"
+    # Added "baki", "taka"
     payment_pattern3 = re.search(
-        r'(?:add|gave|de diya|plus)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:dues|due|credit|udhar|baki)?\s*(?:to|for|on|ko)\s+([\w\s]+)',
+        r'(?:add|gave|de diya|dilam|plus)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:dues|due|credit|udhar|baki|taka)?\s*(?:to|for|on|ko|ke)\s+([\w\s]+)',
         ql
     )
     if not payment_pattern3:
@@ -825,9 +881,9 @@ def fast_parse_action(user_query: str) -> str:
 
     # --- PATTERN 2: Restock ---
     # "restock 50 rice" / "received 30 kg atta" / "restock 1.5 kg rice"
-    # Added check to avoid payment keywords in product name
+    # Added "maal aaya", "peyechi", "pelam"
     restock_pattern = re.search(
-        r'(?:restock|restocked|received|got|aa\s*gaya|maal\s*aaya|added?\s+more?)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:kg|g|litre|liter|ltr|l|ml|pcs|packets?|dozen|box|set|pieces?)?\s*(?:of\s+)?([a-z][a-z\s]+)',
+        r'(?:restock|restocked|received|got|aa\s*gaya|maal\s*aaya|peyechi|pelam|added?\s+more?)\s+(?:rs\.?\s*|₹\s*)?(\d+(?:\.\d+)?)\s+(?:kg|g|litre|liter|ltr|l|ml|pcs|packets?|dozen|box|set|pieces?)?\s*(?:of\s+)?([a-z][a-z\s]+)',
         ql
     )
     restock_pattern2 = re.search(
@@ -1093,12 +1149,14 @@ def fast_parse_action(user_query: str) -> str:
 
     return None  # No pattern matched
 
-
-async def extract_action_params_local(user_query: str, history_context: str = "", model: str = "phi3:mini") -> str:
+async def extract_action_params_local(user_query: str, history_context: str = "", model: str = "phi3:mini", user_id: str = None) -> str:
     """
     Enhanced extraction for Local AI supporting all 4 Dukan Sathi draft scenarios.
     Uses fast regex parser first, falls back to LLM only if needed.
     """
+    # Fetch store directory for entity resolution
+    directory_context = await get_store_directory(user_id) if user_id else ""
+
     # FAST PATH: Try regex parser first (instant, no LLM call)
     fast_result = fast_parse_action(user_query)
     if fast_result:
@@ -1115,7 +1173,10 @@ Task: Extract data from the user query into a structured DRAFT JSON.
 OPENCLAW SKILLS & RULES:
 {OPENCLAW_SKILLS}
 
-Now, parse this query:
+STORE DB CONTEXT (Existing names):
+{directory_context}
+
+Now, parse this query and map names to existing DB entries if possible.
 query: "{user_query}"
 output:"""
     try:
@@ -1272,9 +1333,9 @@ async def action_node(state: AgentState):
     else:
         # SLOW PATH: Fall back to LLM extraction (always for image/excel)
         if is_cloud_model(selected_model):
-            action_json_str = await extract_action_params(last_msg, history_text, model=selected_model)
+            action_json_str = await extract_action_params(last_msg, history_text, model=selected_model, user_id=user_id)
         else:
-            action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model)
+            action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model, user_id=user_id)
         
     print(f"DEBUG: Extracted JSON: {action_json_str}")
 

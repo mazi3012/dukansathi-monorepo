@@ -65,7 +65,7 @@ const StatCard = ({ title, value, change, icon: Icon, colorClass, gradientClass,
             {isLoading ? (
                 <div className="h-8 md:h-10 w-24 md:w-32 bg-indigo-500/5 rounded-xl skeleton-shimmer" />
             ) : (
-                <div className="text-2xl md:text-3xl lg:text-4xl font-black font-heading text-text-main tracking-tighter leading-none transition-colors group-hover:text-indigo-500 truncate">{value}</div>
+                <div className="text-xl md:text-2xl lg:text-3xl font-black font-heading text-text-main tracking-tighter leading-none transition-colors group-hover:text-indigo-500 truncate">{value}</div>
             )}
 
             <div className="flex items-center gap-3 mt-2 md:mt-4">
@@ -274,7 +274,7 @@ const Dashboard = () => {
                         <Activity className="w-8 h-8" strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
+                        <h1 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
                         <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors">
                             <span className="md:hidden">Business Insights</span>
                             <span className="hidden md:inline">Store Analytics</span>

@@ -244,7 +244,7 @@ const Inventory = () => {
                             <Package size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Inventory</h1>
+                            <h1 className="text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Inventory</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
                                 Products • {filteredProducts.length} Items • Live Sync
                             </p>
@@ -310,73 +310,66 @@ const Inventory = () => {
                         return (
                             <motion.div
                                 key={product.id}
-                                initial={{ opacity: 0, y: 30 }}
+                                initial={{ opacity: 0, y: 15 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.03, duration: 0.5 }}
-                                className="glass-card rounded-[40px] p-7 hover:-translate-y-3 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-700 group relative overflow-hidden active:scale-95"
+                                transition={{ delay: index * 0.02, duration: 0.4 }}
+                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 sm:hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
                             >
-                                {/* Decorative Glow */}
-                                <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/[0.03] rounded-full blur-[80px] -mr-24 -mt-24 group-hover:bg-indigo-500/[0.08] transition-all duration-700" />
-
-                                <div className="flex items-start justify-between mb-6 relative z-10">
-                                    <div className="w-20 h-20 bg-card-bg/50 backdrop-blur-xl rounded-[28px] flex items-center justify-center border border-card-border/50 shadow-2xl group-hover:border-indigo-500/40 transition-all duration-700 overflow-hidden ring-4 ring-transparent group-hover:ring-indigo-500/5">
+                                <div className="flex items-center gap-3 sm:gap-5 relative z-10">
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-card-bg/50 backdrop-blur-xl rounded-xl sm:rounded-2xl flex items-center justify-center border border-card-border/50 shadow-lg overflow-hidden shrink-0">
                                         {product.image_url ? (
                                             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                         ) : (
-                                            <Package size={32} strokeWidth={1.5} className="text-text-muted group-hover:text-indigo-500 transition-colors duration-700" />
+                                            <Package size={24} strokeWidth={1.5} className="text-text-muted group-hover:text-indigo-500 transition-colors" />
                                         )}
                                     </div>
-                                    <div className="flex flex-col items-end">
-                                        <div className="text-3xl font-black font-heading text-text-main tracking-tighter transition-colors group-hover:text-indigo-500">₹{product.selling_price}</div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <h3 className="font-heading font-black text-text-main text-sm sm:text-lg tracking-tight truncate transition-colors group-hover:text-indigo-500">
+                                                {product.name}
+                                            </h3>
+                                            {isLowStock && (
+                                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-[9px] sm:text-[10px] font-black text-text-muted uppercase tracking-widest truncate">{product.category || 'General'}</p>
+                                            <p className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${isLowStock ? 'text-red-500' : 'text-indigo-500/70'}`}>
+                                                Stock: {product.stock_quantity} {product.unit || 'pcs'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0 px-2 lg:px-6">
+                                        <div className="text-lg sm:text-2xl font-black text-text-main tracking-tighter group-hover:text-indigo-500 transition-colors">
+                                            ₹{product.selling_price}
+                                        </div>
                                         {margin !== null && (
-                                            <div className={`text-[9px] font-black px-3 py-1 rounded-full border mt - 2 flex items-center gap-1.5 backdrop-blur-md transition-all ${parseFloat(margin) > 0 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'} `}>
-                                                {parseFloat(margin) > 0 ? <ArrowUpRight size={12} strokeWidth={3} /> : <AlertTriangle size={12} />}
-                                                {margin}% GAIN
+                                            <div className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tighter mt-0.5 ${parseFloat(margin) > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                {parseFloat(margin) > 0 ? '+' : ''}{margin}% gain
                                             </div>
                                         )}
                                     </div>
-                                </div>
 
-                                <div className="space-y-4 relative z-10">
-                                    <div>
-                                        <h3 className="font-heading font-black text-text-main text-xl tracking-tight truncate transition-colors group-hover:text-indigo-500">{product.name}</h3>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 transition-colors group-hover:text-text-main/60">{product.category || 'Uncategorized'}</p>
+                                    <div className="hidden sm:flex items-center gap-2">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteProduct(product.id, e); }}
+                                            className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all font-black"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
+                                            className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 transition-all font-black"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4 border-t border-card-border/30">
-                                        <div className="flex flex-col">
-                                            <span className="text-[9px] font-black text-text-muted/60 uppercase tracking-widest">Current Stock</span>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className={`w-2.5 h-2.5 rounded-full ${isLowStock ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'} `} />
-                                                <span className={`text-base font-black ${isLowStock ? 'text-red-500' : 'text-text-main'} tracking-tighter`}>
-                                                    {product.stock_quantity} <span className="text-[10px] text-text-muted uppercase tracking-wider ml-1">{product.unit || 'pcs'}</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={(e) => handleDeleteProduct(product.id, e)}
-                                                className="w-12 h-12 rounded-2xl bg-red-500/5 backdrop-blur-xl border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/10 transition-all active:scale-90 shadow-lg"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleEdit(product)}
-                                                className="w-12 h-12 rounded-2xl bg-card-bg/80 backdrop-blur-xl border border-card-border flex items-center justify-center text-text-muted hover:text-indigo-500 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all active:scale-90 shadow-lg"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                        </div>
+                                    <div className="sm:hidden text-text-muted/30">
+                                        <ChevronRight size={18} />
                                     </div>
-
-                                    {isLowStock && (
-                                        <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center gap-3">
-                                            <div className="w-6 h-6 rounded-lg bg-red-500/10 flex items-center justify-center">
-                                                <AlertTriangle size={14} className="text-red-500" />
-                                            </div>
-                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Low Stock Alert</span>
-                                        </div>
-                                    )}
                                 </div>
                             </motion.div>
                         );
@@ -414,7 +407,7 @@ const Inventory = () => {
                                         <Package size={28} />
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">
+                                        <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">
                                             {editingId ? 'Edit Product' : 'Add Product'}
                                         </h2>
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter product information</p>
@@ -433,7 +426,7 @@ const Inventory = () => {
                                 <section className="space-y-6">
                                     {/* Product Type Toggle - ONLY SHOW IF USER IS GST REGISTERED */}
                                     {userProfile?.is_gst_registered && (
-                                        <div className="bg-card-bg/50 p-1.5 rounded-2xl border border-card-border/50 flex gap-2">
+                                        <div className="bg-card-bg p-1.5 rounded-2xl border border-card-border flex gap-2 shadow-inner">
                                             <button
                                                 onClick={() => setFormData({ ...formData, isGst: false })}
                                                 className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!formData.isGst ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : 'text-text-muted hover:text-text-main'} `}
@@ -455,7 +448,7 @@ const Inventory = () => {
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 mb-3">Product Image</label>
                                             <div
                                                 onClick={() => document.getElementById('prod-img').click()}
-                                                className="group relative w-full aspect-square rounded-[32px] bg-card-bg/50 border-2 border-dashed border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 shadow-inner"
+                                                className="group relative w-full aspect-square rounded-[32px] bg-card-bg border-2 border-dashed border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 shadow-inner"
                                             >
                                                 {formData.image_url || (formData.image instanceof File) ? (
                                                     <>
@@ -492,7 +485,7 @@ const Inventory = () => {
                                         <div className="flex-1 space-y-6 w-full">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Product Name</label>
-                                                <input placeholder="Ex: Smart Watch" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                                <input placeholder="Ex: Smart Watch" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
                                             </div>
                                         </div>
                                     </div>
@@ -500,7 +493,7 @@ const Inventory = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Category</label>
-                                            <input placeholder="Ex: Electronics" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                            <input placeholder="Ex: Electronics" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Unit</label>
@@ -508,7 +501,7 @@ const Inventory = () => {
                                                 <select
                                                     value={['pcs', 'kg', 'g', 'litre', 'ml', 'dozen', 'box', 'packet', 'metre', 'set'].includes(formData.unit) ? formData.unit : 'other'}
                                                     onChange={e => setFormData({ ...formData, unit: e.target.value === 'other' ? '' : e.target.value })}
-                                                    className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer shadow-inner outline-none"
+                                                    className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer shadow-inner outline-none"
                                                 >
                                                     <option value="pcs">Unit [pcs]</option>
                                                     <option value="kg">Mass [kg]</option>
@@ -553,7 +546,7 @@ const Inventory = () => {
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Percentage</label>
                                                     <div className="relative">
-                                                        <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none shadow-inner">
+                                                        <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none shadow-inner">
                                                             <option value="0">Zero [0%]</option>
                                                             <option value="5">Micro [5%]</option>
                                                             <option value="12">Standard [12%]</option>
@@ -565,7 +558,7 @@ const Inventory = () => {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Code</label>
-                                                    <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none shadow-inner" />
+                                                    <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none shadow-inner" />
                                                 </div>
                                             </div>
 
@@ -600,11 +593,11 @@ const Inventory = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Current Stock</label>
-                                            <input type="number" value={formData.stock_quantity} onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-2xl text-text-main shadow-inner outline-none" />
+                                            <input type="number" value={formData.stock_quantity} onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-2xl text-text-main shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Low Stock Alert At</label>
-                                            <input type="number" value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
+                                            <input type="number" value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
                                         </div>
                                     </div>
                                     <div className="space-y-2 group">

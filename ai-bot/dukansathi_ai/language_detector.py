@@ -1,54 +1,69 @@
 """
 Language Detection for Dukan Sathi
-Detects: English or Hinglish (Hindi-English mix written in Roman script)
-Only English and Hinglish are supported — no other languages needed.
+Detects: English, Hinglish, or Bangla (Bengali)
+Supports both Roman/Latin script and native scripts (Hindi/Bengali).
 """
+
+import re
 
 def detect_language(text: str) -> str:
     """
-    Detect if text is English or Hinglish.
+    Detect if text is English, Hinglish, or Bangla.
 
     Args:
-        text: Input text to analyze (always expected in Roman/Latin script
-              since Whisper STT is locked to language='en')
+        text: Input text to analyze.
 
     Returns:
-        'hinglish' if Hindi-English mix is detected, else 'english'
+        'bangla', 'hinglish', or 'english'
     """
-    # Handle None or empty input
     if not text or not isinstance(text, str):
         return 'english'
 
     text_lower = text.lower().strip()
-
     if not text_lower:
         return 'english'
 
-    # Hinglish patterns — Hindi words commonly written in Roman script
+    # 1. Native Script Detection (Fast Path)
+    # Bengali script range: \u0980-\u09FF
+    if re.search(r'[\u0980-\u09FF]', text):
+        return 'bangla'
+    
+    # Devanagari (Hindi) script range: \u0900-\u097F
+    if re.search(r'[\u0900-\u097F]', text):
+        return 'hinglish'
+
+    # 2. Romanized Bangla Patterns
+    bangla_roman_patterns = [
+        'kemon', 'taka', 'dilam', 'nilam', 'hobe', 'koro', 'ami', 'tumi',
+        'apni', 'kori', 'kore', 'dakho', 'bolo', 'asho', 'khaba', 'bari',
+        'naam', 'ki', 'keno', 'kothay', 'kokhon', 'koto', 'ke',
+        'shudhu', 'ekhon', 'pore', 'shathe', 'bangla', 'dada', 'didi'
+    ]
+
+    # 3. Hinglish patterns — Hindi words commonly written in Roman script
     hinglish_patterns = [
-        # Greetings
-        'namaste', 'namaskar', 'kaise', 'kya', 'hai', 'ho', 'hain',
-        # Common Hindi words
+        'namaste', 'namaskar', 'kaise', 'kya', 'hai', 'ho', 'hain', 'mein',
         'kar', 'karo', 'kare', 'karenge', 'kiya', 'dekho', 'batao', 'dikhao',
         'mujhe', 'tumhe', 'aapko', 'hum', 'tum', 'aap',
         'acha', 'thik', 'bahut', 'bohot', 'thoda', 'kuch', 'koi',
-        # Questions
         'kyun', 'kahan', 'kab', 'kitna', 'kaun',
-        # Business / Shop
         'rupay', 'rupaye', 'paisa', 'paise', 'lena', 'dena', 'dukaan',
-        # Extra common Hinglish
         'bhai', 'yaar', 'boss', 'theek', 'sahi', 'bilkul', 'zaroor',
-        'wala', 'wali', 'wale', 'bata', 'dikha', 'nikal',
+        'wala', 'wali', 'wale', 'bata', 'dikha', 'nikal', 'gaya', 'diya'
     ]
 
     # Count matches
-    hinglish_count = sum(1 for pattern in hinglish_patterns if pattern in text_lower)
+    bangla_count = sum(1 for pattern in bangla_roman_patterns if f" {pattern} " in f" {text_lower} ")
+    hinglish_count = sum(1 for pattern in hinglish_patterns if f" {pattern} " in f" {text_lower} ")
 
-    # Strong single-word indicators
+    # Check for strong indicators
+    strong_bangla = ['taka', 'kemon acho', 'ami ', 'apni ']
     strong_hinglish = ['namaste', 'kaise ho', 'kya hal', 'kya haal', 'bhai']
 
+    if bangla_count >= 1 or any(pattern in text_lower for pattern in strong_bangla):
+        return 'bangla'
+        
     if hinglish_count >= 2 or any(pattern in text_lower for pattern in strong_hinglish):
         return 'hinglish'
 
-    # Default to English
     return 'english'

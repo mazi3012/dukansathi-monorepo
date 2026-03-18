@@ -7,7 +7,6 @@ import { syncEngine } from '../lib/db/syncEngine';
 const VOICE_OPTIONS = [
     {
         language: 'Hindi (Hinglish)',
-        flag: '🇮🇳',
         desc: 'Clear & Reliable — Google TTS',
         voices: [
             { id: 'hi-IN-MadhurNeural', label: 'Madhur (Male)', gender: 'Male', quality: 'Google Neural2' },
@@ -16,7 +15,6 @@ const VOICE_OPTIONS = [
     },
     {
         language: 'English (India)',
-        flag: '🇬🇧',
         desc: 'Clear Indian English — Google Neural2',
         voices: [
             { id: 'en-IN-PrabhatNeural', label: 'Prabhat (Male)', gender: 'Male', quality: 'Google Neural2' },
@@ -25,7 +23,6 @@ const VOICE_OPTIONS = [
     },
     {
         language: 'বাংলা (Kolkata Bangla)',
-        flag: '🇧🇩',
         desc: 'Natural & Expressive — Sarvam AI ✨',
         voices: [
             { id: 'bn-IN-BashkarNeural', label: 'Shubh (Male)', gender: 'Male', quality: 'Sarvam AI ✨' },
@@ -35,9 +32,9 @@ const VOICE_OPTIONS = [
 ];
 
 const AI_LANGUAGES = [
-    { id: 'hinglish', label: '🇮🇳 Hinglish', desc: 'Hindi + English mix (Roman script)' },
-    { id: 'english', label: '🇬🇧 English', desc: 'Clear Indian English' },
-    { id: 'bangla', label: '🇧🇩 বাংলা', desc: 'Kolkata colloquial Bangla' },
+    { id: 'hinglish', label: 'Hinglish', desc: 'Hindi + English mix (Roman script)' },
+    { id: 'english', label: 'English', desc: 'Clear Indian English' },
+    { id: 'bangla', label: 'বাংলা', desc: 'Kolkata colloquial Bangla' },
 ];
 
 // Auto-derive AI language from voice ID prefix

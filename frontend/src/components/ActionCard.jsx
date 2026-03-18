@@ -150,7 +150,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
 
         // INVOICE (Handled by InvoiceTemplate now, skipping this wrapper if it's external, but wait, InvoiceTemplate is inside ActionCard? No, InvoiceTemplate is separate component. The ActionCard doesn't wrap it in a box here, it just returns InvoiceTemplate).
         return (
-            <div className="glass-card rounded-[28px] shadow-xl border border-card-border/50 overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 transition-all">
+            <div className="glass-card rounded-[28px] shadow-xl border border-card-border overflow-hidden w-full max-w-md md:max-w-xl mx-auto my-4 transition-all">
                 {/* Header Toolbar */}
                 <div className="bg-indigo-600 px-4 py-3 flex justify-between items-center">
                     <div className="flex flex-col text-white">
@@ -206,7 +206,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     </div>
                 </div>
 
-                <div className="p-0 overflow-hidden relative bg-card-bg/30">
+                <div className="p-0 overflow-hidden relative bg-card-bg">
                     {/* EDIT MODE OVERLAY / FORM */}
                     {isEditing ? (
                         <div className="p-4 space-y-4">
@@ -226,7 +226,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             <div className="space-y-3">
                                 <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">Items</label>
                                 {localData.items?.map((item, idx) => (
-                                    <div key={idx} className="flex flex-col gap-2 bg-bg-main/50 p-3 rounded-xl border border-card-border/30">
+                                    <div key={idx} className="flex flex-col gap-2 bg-bg-main p-3 rounded-xl border border-card-border">
                                         <input
                                             value={item.product_name}
                                             onChange={(e) => handleInvoiceItemChange(idx, 'product_name', e.target.value)}
@@ -236,7 +236,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                         <div className="flex gap-2 items-center mt-1">
                                             <div className="flex-1">
                                                 <p className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Qty</p>
-                                                <div className="flex items-center gap-1 border border-card-border/50 rounded-lg px-2 bg-card-bg/50 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                <div className="flex items-center gap-1 border border-card-border rounded-lg px-2 bg-card-bg focus-within:ring-1 focus-within:ring-indigo-500 shadow-inner">
                                                     <input
                                                         type="number"
                                                         value={item.quantity}
@@ -249,7 +249,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                             <div className="w-6 text-center text-text-muted font-bold text-xs mt-4">×</div>
                                             <div className="flex-1">
                                                 <p className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Rate</p>
-                                                <div className="flex items-center gap-1 border border-card-border/50 rounded-lg px-2 bg-card-bg/50 focus-within:ring-1 focus-within:ring-indigo-500">
+                                                <div className="flex items-center gap-1 border border-card-border rounded-lg px-2 bg-card-bg focus-within:ring-1 focus-within:ring-indigo-500 shadow-inner">
                                                     <span className="text-[10px] text-text-muted font-bold">₹</span>
                                                     <input
                                                         type="number"
@@ -703,7 +703,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                     type="number"
                                     value={Math.abs(localData.amount) || ''}
                                     onChange={(e) => handleAmountChange(e.target.value)}
-                                    className={`w-full pl-8 pr-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 outline-none transition-all font-bold text-text-main ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
+                                    className={`w-full pl-8 pr-3 py-2 text-sm border border-card-border rounded-lg focus:ring-2 outline-none transition-all font-bold text-text-main bg-card-bg shadow-inner ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                                     placeholder="0.00"
                                 />
                             </div>
@@ -715,7 +715,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             <select
                                 value={localData.mode || 'Cash'}
                                 onChange={(e) => setLocalData({ ...localData, mode: e.target.value })}
-                                className={`w-full px-3 py-2 text-sm border border-card-border/50 rounded-lg focus:ring-2 outline-none bg-bg-main/50 font-medium text-text-main ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
+                                className={`w-full px-3 py-2 text-sm border border-card-border rounded-lg focus:ring-2 outline-none bg-card-bg font-medium text-text-main shadow-inner ${isCredit ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-500 focus:border-emerald-500'}`}
                             >
                                 <option value="Cash">Cash</option>
                                 <option value="UPI">UPI</option>

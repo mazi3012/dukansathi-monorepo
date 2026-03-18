@@ -178,7 +178,7 @@ const Customers = () => {
                             <Users size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Customers</h1>
+                            <h1 className="text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Customers</h1>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
                                 Directory • {filteredCustomers.length} Customers
                             </p>
@@ -238,55 +238,56 @@ const Customers = () => {
                     filteredCustomers.map((c, index) => (
                         <Link to={`/customers/${c.id}`} key={c.id}>
                             <motion.div
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 15 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.03, duration: 0.4 }}
-                                className="glass-card rounded-[32px] p-6 hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden"
+                                transition={{ delay: index * 0.02, duration: 0.4 }}
+                                className="glass-card rounded-2xl sm:rounded-[32px] p-3 sm:p-5 hover:translate-x-1 sm:hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden active:scale-[0.98]"
                             >
-                                {/* Decorative Glow */}
-                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="flex items-center gap-3 sm:gap-5 relative z-10">
+                                    {/* Avatar */}
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-black text-lg sm:text-2xl shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 uppercase shrink-0">
+                                        {c.name ? c.name[0] : '?'}
+                                    </div>
 
-                                <div className="flex items-start justify-between mb-6 relative z-10">
-                                    <div className="flex gap-4 items-center">
-                                        <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-black text-xl shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 uppercase">
-                                            {c.name ? c.name[0] : '?'}
+                                    {/* Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-heading font-black text-text-main text-sm sm:text-xl truncate transition-colors group-hover:text-indigo-500">
+                                            {c.name}
+                                        </h3>
+                                        <p className="text-[9px] sm:text-[10px] font-black text-text-muted uppercase tracking-widest mt-0.5 transition-colors flex items-center gap-1.5 truncate">
+                                            <Phone size={10} strokeWidth={3} /> {c.phone || 'NO CONTACT'}
+                                        </p>
+                                    </div>
+
+                                    {/* Balance */}
+                                    <div className="text-right shrink-0 px-2 lg:px-6">
+                                        <div className={`text-base sm:text-2xl font-black tracking-tighter transition-colors ${c.credit_balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                            ₹{(c.credit_balance || 0).toLocaleString('en-IN')}
                                         </div>
-                                        <div>
-                                            <h3 className="font-heading font-black text-text-main text-lg truncate transition-colors group-hover:text-indigo-500">{c.name}</h3>
-                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mt-0.5 transition-colors flex items-center gap-1.5">
-                                                <Phone size={10} /> {c.phone || 'NO CONTACT'}
-                                            </p>
+                                        <div className={`text-[8px] sm:text-[9px] font-black uppercase tracking-tighter mt-0.5 ${c.credit_balance > 0 ? 'text-red-500/70 animate-pulse' : 'text-emerald-500/70'}`}>
+                                            {c.credit_balance > 0 ? 'Due' : 'Clear'}
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 relative z-20">
+
+                                    {/* Actions (Desktop) */}
+                                    <div className="hidden sm:flex items-center gap-2">
                                         <button
-                                            onClick={(e) => handleEditClick(c, e)}
-                                            className="w-8 h-8 rounded-lg bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center text-indigo-500/70 hover:text-indigo-500 hover:bg-indigo-500/10 transition-colors"
-                                            title="Edit Profile"
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditClick(c, e); }}
+                                            className="w-10 h-10 rounded-xl bg-indigo-500/5 border border-indigo-500/10 flex items-center justify-center text-indigo-500/70 hover:text-indigo-500 hover:bg-indigo-500/10 transition-all shadow-sm"
                                         >
                                             <Edit2 size={16} />
                                         </button>
                                         <button
-                                            onClick={(e) => handleDeleteCustomer(c.id, e)}
-                                            className="w-8 h-8 rounded-lg bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                            title="Delete Account"
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteCustomer(c.id, e); }}
+                                            className="w-10 h-10 rounded-xl bg-red-500/5 border border-red-500/10 flex items-center justify-center text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all shadow-sm"
                                         >
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
-                                </div>
 
-                                <div className="grid grid-cols-2 gap-3 pt-6 border-t border-card-border/50 relative z-10">
-                                    <div className="space-y-1">
-                                        <span className="text-[9px] font-black text-text-muted uppercase tracking-tighter">Due Balance</span>
-                                        <div className={`text-lg font-black tracking-tighter transition-colors ${c.credit_balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                            ₹{(c.credit_balance || 0).toLocaleString('en-IN')}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-end justify-end">
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${c.credit_balance > 0 ? 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
-                                            {c.credit_balance > 0 ? 'Payment Due' : 'All Clear'}
-                                        </span>
+                                    {/* Mobile Arrow */}
+                                    <div className="sm:hidden text-text-muted/30">
+                                        <ChevronRight size={18} />
                                     </div>
                                 </div>
                             </motion.div>
@@ -315,7 +316,7 @@ const Customers = () => {
                                         {isEditModalOpen ? <Edit2 size={28} /> : <User size={28} />}
                                     </div>
                                     <div>
-                                        <h2 className="text-3xl font-black font-heading text-text-main transition-colors tracking-tight">
+                                        <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">
                                             {isEditModalOpen ? 'Edit Customer' : 'Add Customer'}
                                         </h2>
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
@@ -329,26 +330,26 @@ const Customers = () => {
                             <div className="space-y-8 overflow-y-auto pr-2 scrollbar-hide mb-8 flex-1">
                                 <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">Full Name</label>
-                                    <input placeholder="Ex: John Matrix" className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    <input placeholder="Ex: John Matrix" className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Phone Number</label>
                                     <div className="relative group">
                                         <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-indigo-500 transition-colors" />
-                                        <input placeholder="+91 XXXXX XXXXX" className="w-full p-5 pl-14 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                        <input placeholder="+91 XXXXX XXXXX" className="w-full p-5 pl-14 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 outline-none shadow-inner" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-8">
                                     <div className="space-y-3">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Address</label>
-                                        <textarea placeholder="Client Primary Address..." rows={3} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 resize-none outline-none shadow-inner text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                        <textarea placeholder="Client Primary Address..." rows={3} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/20 resize-none outline-none shadow-inner text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">GSTIN</label>
                                         <input
                                             placeholder="27AAAAA0000A1Z5"
                                             maxLength={15}
-                                            className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main uppercase font-mono placeholder-text-muted/20 outline-none shadow-inner"
+                                            className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main uppercase font-mono placeholder-text-muted/20 outline-none shadow-inner"
                                             value={formData.gstin}
                                             onChange={e => {
                                                 const val = e.target.value.toUpperCase();
@@ -360,7 +361,7 @@ const Customers = () => {
                                     <div className="space-y-3">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors">State</label>
                                         <select
-                                            className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main outline-none shadow-inner appearance-none"
+                                            className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main outline-none shadow-inner appearance-none"
                                             value={formData.state}
                                             onChange={e => setFormData({ ...formData, state: e.target.value })}
                                         >
