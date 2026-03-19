@@ -226,6 +226,9 @@ const Inventory = () => {
             try {
                 await productRepo.delete(id);
                 toast.success("Product deleted successfully");
+                // close modal after successful deletion and refresh list
+                setShowModal(false);
+                setEditingId(null);
                 fetchData();
             } catch (err) {
                 console.error("Error deleting product:", err);
@@ -386,29 +389,24 @@ const Inventory = () => {
             </div>
 
             {/* FAB (Mobile Only) */}
-            <button
-                onClick={handleAddNew}
-                className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center z-40 active:scale-95 transition-transform"
-            >
-                <Plus size={28} />
-            </button>
+                {/* Mobile FAB removed — use top Add Product button instead */}
 
             {/* Modal */}
-            <AnimatePresence>
-                {showModal && (
-                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-20 sm:pb-28">
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
-                            onClick={() => setShowModal(false)}
-                        />
+                <AnimatePresence>
+                    {showModal && (
+                        <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center pointer-events-none pt-20 pb-20 sm:pb-28">
+                            <motion.div
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-black/60 dark:bg-black/40 backdrop-blur-md pointer-events-auto"
+                                onClick={() => setShowModal(false)}
+                            />
 
-                        <motion.div
-                            initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card-bg w-[95%] max-w-6xl sm:max-w-4xl h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
-                            style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
-                        >
+                            <motion.div
+                                initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                className="bg-card-bg w-[95%] sm:w-[90%] md:w-[85%] lg:w-[75%] max-w-none h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-20 overflow-hidden"
+                                style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
+                            >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8 shrink-0">
                                 <div className="flex items-center gap-4">
@@ -624,7 +622,6 @@ const Inventory = () => {
                                     <button
                                         onClick={(e) => {
                                             handleDeleteProduct(editingId, e);
-                                            setShowModal(false);
                                         }}
                                         className="w-full py-4 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                                     >

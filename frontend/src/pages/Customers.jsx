@@ -311,22 +311,20 @@ const Customers = () => {
                 )}
             </div>
 
-            <button onClick={() => setIsAddModalOpen(true)} className="md:hidden fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors">
-                <Plus size={28} />
-            </button>
+            {/* Mobile FAB removed — top Add Customer button is primary */}
 
             <AnimatePresence>
                 {(isAddModalOpen || isEditModalOpen) && (
-                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-20 sm:pb-28">
+                    <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center pointer-events-none pt-20 pb-20 sm:pb-28">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
+                            className="absolute inset-0 bg-black/60 dark:bg-black/40 backdrop-blur-md pointer-events-auto"
                             onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}
                         />
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white dark:bg-slate-900 w-[95%] max-w-6xl sm:max-w-4xl h-[97vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            className="bg-card-bg w-[95%] sm:w-[90%] md:w-[85%] lg:w-[75%] max-w-none h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-20 overflow-hidden"
                             style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
