@@ -244,8 +244,8 @@ const Sidebar = () => {
                         <p className="text-sm font-bold text-text-main truncate group-hover:text-indigo-500 transition-colors">
                             {user?.user_metadata?.full_name || 'Workspace'}
                         </p>
-                        <p className="text-[11px] font-medium text-text-muted truncate">
-                            {user?.email || 'Owner'}
+                        <p className="text-[10px] font-medium text-text-muted lowercase truncate">
+                            {String(user?.email || 'Owner').toLowerCase()}
                         </p>
                     </div>
                     <ChevronUp

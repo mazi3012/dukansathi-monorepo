@@ -97,7 +97,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                         {user?.user_metadata?.full_name || 'Dukan Sathi'}
                                     </h2>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none truncate max-w-[120px]">{user?.email || 'App Mode'}</p>
+                                        <p className="text-[10px] font-medium text-text-muted lowercase leading-none truncate max-w-[140px]">{String(user?.email || 'App Mode').toLowerCase()}</p>
                                         <button
                                             onClick={handleLogout}
                                             className="text-[9px] font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
