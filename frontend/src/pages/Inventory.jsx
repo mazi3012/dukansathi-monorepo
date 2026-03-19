@@ -69,6 +69,13 @@ const Inventory = () => {
         return () => window.removeEventListener('focus', onFocus);
     }, [fetchData]);
 
+    // Prevent background page scrolling when modal is open
+    useEffect(() => {
+        if (showModal) document.body.style.overflow = 'hidden';
+        else document.body.style.overflow = '';
+        return () => { document.body.style.overflow = ''; };
+    }, [showModal]);
+
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     // Image Compression Utility
@@ -389,7 +396,7 @@ const Inventory = () => {
             {/* Modal */}
             <AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center pointer-events-none">
+                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-8">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
@@ -399,7 +406,7 @@ const Inventory = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white w-full max-w-md h-[92vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            className="bg-white dark:bg-slate-900 w-full max-w-4xl sm:max-w-3xl h-[92vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden max-h-[90vh]"
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8 shrink-0">
@@ -485,24 +492,24 @@ const Inventory = () => {
 
                                         <div className="flex-1 space-y-6 w-full">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Product Name</label>
-                                                <input placeholder="Ex: Smart Watch" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                                <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Product Name</label>
+                                                <input placeholder="Ex: Smart Watch" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 placeholder-text-muted/30 shadow-inner outline-none" />
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Category</label>
-                                            <input placeholder="Ex: Electronics" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 shadow-inner outline-none" />
+                                            <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Category</label>
+                                            <input placeholder="Ex: Electronics" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 placeholder-text-muted/30 shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Unit</label>
+                                            <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Unit</label>
                                             <div className="relative">
                                                 <select
                                                     value={['pcs', 'kg', 'g', 'litre', 'ml', 'dozen', 'box', 'packet', 'metre', 'set'].includes(formData.unit) ? formData.unit : 'other'}
                                                     onChange={e => setFormData({ ...formData, unit: e.target.value === 'other' ? '' : e.target.value })}
-                                                    className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer shadow-inner outline-none"
+                                                    className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 appearance-none cursor-pointer shadow-inner outline-none"
                                                 >
                                                     <option value="pcs">Unit [pcs]</option>
                                                     <option value="kg">Mass [kg]</option>
@@ -512,7 +519,7 @@ const Inventory = () => {
                                                     <option value="box">Crate [box]</option>
                                                     <option value="other">Override...</option>
                                                 </select>
-                                                <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                                                <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 pointer-events-none" />
                                             </div>
                                         </div>
                                     </div>
@@ -529,14 +536,14 @@ const Inventory = () => {
                                             <label className="text-[10px] text-indigo-500/60 font-black uppercase tracking-[0.2em] block mb-3">Cost Price</label>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl font-black text-indigo-500/40 tracking-tighter transition-colors">₹</span>
-                                                <input type="number" value={formData.cost_price} onChange={e => setFormData({ ...formData, cost_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-text-main w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
+                                                <input type="number" value={formData.cost_price} onChange={e => setFormData({ ...formData, cost_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-gray-900 dark:text-gray-100 w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
                                             </div>
                                         </div>
                                         <div className="glass-card p-6 rounded-[28px] border-emerald-500/10 bg-emerald-500/[0.02] shadow-inner">
                                             <label className="text-[10px] text-emerald-500/60 font-black uppercase tracking-[0.2em] block mb-3">Selling Price</label>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl font-black text-emerald-500/40 tracking-tighter transition-colors">₹</span>
-                                                <input type="number" value={formData.selling_price} onChange={e => setFormData({ ...formData, selling_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-text-main w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
+                                                <input type="number" value={formData.selling_price} onChange={e => setFormData({ ...formData, selling_price: e.target.value })} className="bg-transparent border-none p-0 focus:ring-0 font-black text-3xl text-gray-900 dark:text-gray-100 w-full placeholder-text-muted/20 outline-none" placeholder="0.00" />
                                             </div>
                                         </div>
                                     </div>
@@ -547,7 +554,7 @@ const Inventory = () => {
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Tax Percentage</label>
                                                     <div className="relative">
-                                                        <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main appearance-none cursor-pointer outline-none shadow-inner">
+                                                        <select value={formData.tax_percent} onChange={e => setFormData({ ...formData, tax_percent: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 appearance-none cursor-pointer outline-none shadow-inner">
                                                             <option value="0">Zero [0%]</option>
                                                             <option value="5">Micro [5%]</option>
                                                             <option value="12">Standard [12%]</option>
@@ -559,7 +566,7 @@ const Inventory = () => {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">HSN Code</label>
-                                                    <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main placeholder-text-muted/30 outline-none shadow-inner" />
+                                                    <input placeholder="HSN Code" value={formData.hsn_code} onChange={e => setFormData({ ...formData, hsn_code: e.target.value })} className="w-full p-4 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 placeholder-text-muted/30 outline-none shadow-inner" />
                                                 </div>
                                             </div>
 
@@ -594,16 +601,16 @@ const Inventory = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Current Stock</label>
-                                            <input type="number" value={formData.stock_quantity} onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-2xl text-text-main shadow-inner outline-none" />
+                                            <input type="number" value={formData.stock_quantity} onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-2xl text-gray-900 dark:text-gray-100 shadow-inner outline-none" />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Low Stock Alert At</label>
-                                            <input type="number" value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
+                                            <input type="number" value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} className="w-full p-5 bg-card-bg rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 shadow-inner outline-none" />
                                         </div>
                                     </div>
                                     <div className="space-y-2 group">
-                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 transition-colors group-focus-within:text-indigo-500">SKU / Barcode</label>
-                                        <input placeholder="Ex: SKU-882" value={formData.sku || formData.barcode} onChange={e => setFormData({ ...formData, sku: e.target.value, barcode: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-text-main shadow-inner outline-none" />
+                                        <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1 transition-colors group-focus-within:text-indigo-500">SKU / Barcode</label>
+                                        <input placeholder="Ex: SKU-882" value={formData.sku || formData.barcode} onChange={e => setFormData({ ...formData, sku: e.target.value, barcode: e.target.value })} className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-gray-900 dark:text-gray-100 shadow-inner outline-none" />
                                     </div>
                                 </section>
                             </div>
