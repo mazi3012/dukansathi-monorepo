@@ -315,7 +315,7 @@ const Customers = () => {
 
             <AnimatePresence>
                 {(isAddModalOpen || isEditModalOpen) && (
-                    <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center pointer-events-none pt-20 pb-20 sm:pb-28">
+                    <div className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center pointer-events-none pt-12 pb-24 sm:pb-28">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/60 dark:bg-black/40 backdrop-blur-md pointer-events-auto"
@@ -324,11 +324,11 @@ const Customers = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card-bg w-[95%] sm:w-[90%] md:w-[85%] lg:w-[75%] max-w-none h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-20 overflow-hidden"
-                            style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
+                            className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[80%] max-w-none h-[88vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
+                            style={{ maxHeight: 'calc(100vh - 9rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
-                            <div className="flex justify-between items-center mb-10 shrink-0">
+                            <div className="flex justify-between items-center mb-6 shrink-0">
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
                                         {isEditModalOpen ? <Edit2 size={28} /> : <User size={28} />}
@@ -345,7 +345,7 @@ const Customers = () => {
                                 </button>
                             </div>
 
-                            <div className="space-y-6 overflow-y-auto pr-1 scrollbar-hide mb-4 flex-1">
+                            <div className="space-y-4 overflow-y-auto pr-1 scrollbar-hide mb-3 flex-1">
                                     <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Full Name</label>
                                     <input placeholder="Ex: John Matrix" className="w-full h-10 px-3 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
@@ -392,8 +392,8 @@ const Customers = () => {
                                 </div>
                             </div>
 
-                            <div className="pt-8 border-t border-card-border/50 shrink-0 flex flex-col gap-3">
-                                <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
+                            <div className="pt-6 border-t border-card-border/50 shrink-0 flex flex-col gap-2">
+                                <button onClick={handleSave} className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
                                     {isEditModalOpen ? 'Update Customer' : 'Save Customer'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
@@ -403,7 +403,7 @@ const Customers = () => {
                                         onClick={(e) => {
                                             handleDeleteCustomer(editingCustomer.id, e);
                                         }}
-                                        className="w-full py-4 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
+                                        className="w-full py-3 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                                     >
                                         <Trash2 size={16} />
                                         Delete Customer Permanently

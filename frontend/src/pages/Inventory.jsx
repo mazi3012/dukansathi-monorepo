@@ -394,7 +394,7 @@ const Inventory = () => {
             {/* Modal */}
                 <AnimatePresence>
                     {showModal && (
-                        <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center pointer-events-none pt-20 pb-20 sm:pb-28">
+                        <div className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center pointer-events-none pt-12 pb-24 sm:pb-28">
                             <motion.div
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 className="absolute inset-0 bg-black/60 dark:bg-black/40 backdrop-blur-md pointer-events-auto"
@@ -404,11 +404,11 @@ const Inventory = () => {
                             <motion.div
                                 initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="bg-card-bg w-[95%] sm:w-[90%] md:w-[85%] lg:w-[75%] max-w-none h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-20 overflow-hidden"
-                                style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
+                                className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[80%] max-w-none h-[88vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
+                                style={{ maxHeight: 'calc(100vh - 9rem)' }}
                             >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
-                            <div className="flex justify-between items-center mb-8 shrink-0">
+                            <div className="flex justify-between items-center mb-6 shrink-0">
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
                                         <Package size={28} />
@@ -428,7 +428,7 @@ const Inventory = () => {
                                 </button>
                             </div>
 
-                            <div className="overflow-y-auto flex-1 space-y-10 pr-2 pb-8 scrollbar-hide">
+                            <div className="overflow-y-auto flex-1 space-y-6 pr-2 pb-6 scrollbar-hide">
                                 {/* Basic Info */}
                                 <section className="space-y-6">
                                     {/* Product Type Toggle - ONLY SHOW IF USER IS GST REGISTERED */}
@@ -609,21 +609,21 @@ const Inventory = () => {
                                 </section>
                             </div>
 
-                            <div className="pt-8 border-t border-card-border/50 mt-4 shrink-0 flex flex-col gap-3">
+                            <div className="pt-6 border-t border-card-border/50 mt-2 shrink-0 flex flex-col gap-2">
                                 <button
                                     onClick={handleSave}
-                                    className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
+                                    className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
                                 >
                                     {editingId ? 'Update Product' : 'Save Product'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
-                                
+
                                 {editingId && (
                                     <button
                                         onClick={(e) => {
                                             handleDeleteProduct(editingId, e);
                                         }}
-                                        className="w-full py-4 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
+                                        className="w-full py-3 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
                                     >
                                         <Trash2 size={16} />
                                         Delete Product Permanently
