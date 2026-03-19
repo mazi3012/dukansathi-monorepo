@@ -396,7 +396,7 @@ const Inventory = () => {
             {/* Modal */}
             <AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-8">
+                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-24 pb-24">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
@@ -406,7 +406,8 @@ const Inventory = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white dark:bg-slate-900 w-full max-w-4xl sm:max-w-3xl h-[92vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden max-h-[90vh]"
+                            className="bg-white dark:bg-slate-900 w-[95%] max-w-6xl sm:max-w-4xl h-[92vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            style={{ maxHeight: 'calc(100vh - 9rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8 shrink-0">
@@ -452,30 +453,25 @@ const Inventory = () => {
 
                                     <div className="flex flex-col sm:flex-row gap-8 items-start">
                                         {/* Image Upload Area */}
-                                        <div className="w-full sm:w-48 shrink-0">
-                                            <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1 mb-3">Product Image</label>
+                                        <div className="w-full sm:w-36 shrink-0">
+                                            <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1 mb-3">Product Image</label>
                                             <div
                                                 onClick={() => document.getElementById('prod-img').click()}
-                                                className="group relative w-full aspect-square rounded-[32px] bg-card-bg border-2 border-dashed border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-3 shadow-inner"
+                                                className="group relative w-full aspect-square rounded-[20px] bg-card-bg border border-card-border hover:border-indigo-500/50 transition-all cursor-pointer overflow-hidden flex items-center justify-center shadow-inner"
                                             >
                                                 {formData.image_url || (formData.image instanceof File) ? (
-                                                    <>
-                                                        <img
-                                                            src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image_url}
-                                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                                            alt="Preview"
-                                                        />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <Plus className="text-white rotate-45" size={32} />
-                                                        </div>
-                                                    </>
+                                                    <img
+                                                        src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image_url}
+                                                        className="w-full h-full object-cover transition-transform duration-700"
+                                                        alt="Preview"
+                                                    />
                                                 ) : (
-                                                    <>
-                                                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 group-hover:scale-110 transition-transform">
-                                                            <Package size={24} />
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                                                            <Package size={18} />
                                                         </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-text-muted transition-colors group-hover:text-indigo-500">Capture</span>
-                                                    </>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-300">Upload</span>
+                                                    </div>
                                                 )}
                                                 <input
                                                     id="prod-img"
