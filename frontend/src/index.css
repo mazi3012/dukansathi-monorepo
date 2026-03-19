@@ -123,3 +123,24 @@ body {
       rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
 }
+
+/* Map custom utility names to CSS variables so Tailwind class-like names
+   (e.g. text-text-main, text-text-muted, bg-card-bg) work with theming. */
+.text-text-main { color: var(--text-main); }
+.text-text-muted { color: var(--text-muted); }
+.bg-bg-main { background-color: var(--bg-main); }
+.bg-card-bg { background-color: var(--card-bg); }
+.border-card-border { border-color: var(--card-border); }
+.caret-indigo-500 { caret-color: #6366f1; }
+
+/* Support opacity variants used in the codebase */
+.text-text-muted\/30 { color: rgba(148, 163, 184, 0.3); }
+.bg-card-bg\/40 { background-color: rgba(255,255,255,0.4); }
+.bg-card-bg\/50 { background-color: rgba(255,255,255,0.5); }
+.bg-bg-main\/30 { background-color: rgba(248,250,252,0.3); }
+
+/* Ensure these mappings respect dark theme variables automatically */
+[data-theme='dark'] .text-text-muted\/30 { color: rgba(148,163,184,0.25); }
+[data-theme='dark'] .bg-card-bg\/40 { background-color: rgba(15,23,42,0.4); }
+[data-theme='dark'] .bg-card-bg\/50 { background-color: rgba(15,23,42,0.5); }
+[data-theme='dark'] .bg-bg-main\/30 { background-color: rgba(2,6,23,0.3); }
