@@ -662,12 +662,21 @@ const Sales = () => {
                                 </h2>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={handlePrint}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700"
+                                        onClick={(e) => {
+                                            handleDeleteSale(receiptSale.id, e);
+                                            setShowReceiptModal(false);
+                                        }}
+                                        className="flex items-center gap-2 px-3 py-2 bg-red-500/10 text-red-500 rounded-lg font-bold text-[10px] sm:text-sm hover:bg-red-500 hover:text-white transition-all shadow-sm"
                                     >
-                                        <Printer size={16} /> Print
+                                        <Trash2 size={16} /> <span className="hidden sm:inline">Delete</span>
                                     </button>
-                                    <button onClick={() => setShowReceiptModal(false)} className="p-2 text-slate-400 hover:text-slate-600">
+                                    <button
+                                        onClick={handlePrint}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-[10px] sm:text-sm hover:bg-indigo-700 transition-all shadow-md"
+                                    >
+                                        <Printer size={16} /> <span className="hidden sm:inline">Print</span>
+                                    </button>
+                                    <button onClick={() => setShowReceiptModal(false)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
                                         <X size={20} />
                                     </button>
                                 </div>

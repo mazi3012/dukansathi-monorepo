@@ -147,25 +147,25 @@ def get_voice_rules(language: str = "hinglish") -> str:
     """
     if language == "bangla":
         return (
-            "VOICE RULE: You are speaking to a Bengali shopkeeper. "
+            "VOICE RULE: You are 'Sathi' (সাথী), a Bengali shop assistant. "
             "Reply strictly in NATIVE BENGALI UNICODE SCRIPT (বাংলা). "
-            "BE EXTREMELY CONCISE. Small talk only. No long explanations. "
-            "Max 1 short sentence. Example: 'হয়েছে দাদা', 'নমস্কার, করছি', 'বিল রেডি'। "
+            "BE EXTREMELY CONCISE. Max 1 short sentence. "
             "Address user as 'dada'. Use 'টাকা' for amounts. "
-            "Cost-efficiency is priority: keep it very brief."
+            "Example: 'হয়েছে দাদা, আমি সাথী।', 'বিল রেডি দাদা'। "
         )
     elif language == "hinglish":
         return (
-            "VOICE RULE: Reply in Hinglish — mix of Hindi and English, ROMAN SCRIPT ONLY. "
-            "Use natural shop-owner phrases: 'Boss', 'Bhai', 'kar diya', 'dekh lo', 'sab set hai', 'ready hai'. "
-            "NEVER use Devanagari script. Amounts use 'rupees' or 'hazaar'. "
-            "Keep it conversational, 1-2 sentences. No markdown or bullets."
+            "VOICE RULE: You are 'Sathi', a Hinglish shop assistant. "
+            "Reply in Hinglish (Roman Script Only). Mix Hindi and English. "
+            "Use phrases: 'Boss', 'Bhai', 'kar diya', 'dekh lo', 'sab set hai'. "
+            "Example: 'Ji Boss, main Sathi hoon.', 'Sathi haazir hai Boss!' "
+            "NEVER use Devanagari script here."
         )
     else:  # english
         return (
-            "VOICE RULE: Reply in clear, friendly Indian English. "
-            "Be professional and direct. Use 'Boss' or 'Sir' when addressing the owner. "
-            "Amounts use '₹' symbol. Max 2 sentences. No markdown."
+            "VOICE RULE: You are 'Sathi', a professional shop assistant. "
+            "Reply in clear Indian English. Use 'Boss' or 'Sir'. "
+            "Example: 'I am Sathi, your shop assistant.', 'Sathi is ready to help, Boss.' "
         )
 
 
@@ -627,7 +627,11 @@ def categorize_query(msg_lower: str) -> str:
         "create", "add", "new", "make a", "draft", "register", "record", 
         "pay", "paid", "receive", "received", "recive", "recieve", "recived", "recieved",
         "payment", "bill", "invoice", "due", "dues", "baki", "udhar", "liya", "diya", "mila",
-        "restock", "restocked", "maal", "aaya", "peyalam", "pelam", "dilam", "nilam", "taka"
+        "restock", "restocked", "maal", "aaya", "peyalam", "pelam", "dilam", "nilam", "taka",
+        # Hindi (Devanagari) action words — for cases where native script slips through
+        "बिल", "बनाओ", "बनाएं", "करो", "जोड़ो", "नया", "इनवॉइस", "रसीद", "स्टॉक", "भुगतान",
+        # Bangla (Bengali) action words
+        "বিল", "বানাও", "তৈরি", "যোগ", "নতুন", "ইনভয়েস", "পেমেন্ট", "স্টক"
     ]
 
     # Context keywords for query categorization
@@ -635,6 +639,27 @@ def categorize_query(msg_lower: str) -> str:
 
     # Image context always routes to action agent for multimodal draft creation
     if '[image context:' in msg_lower or '[excel bulk data:' in msg_lower:
+        return "ACTION"
+
+    # Smart native-script routing:
+    # When Whisper transcribes in Devanagari or Bengali, we need to correctly distinguish
+    # between a QUERY (revenue? stock? customers?) and an ACTION (make bill, add product).
+    if re.search(r'[\u0900-\u097F\u0980-\u09FF]', msg_lower):
+        # Hindi/Bangla QUESTION/DATA words → route to BUSINESS (answer query)
+        native_question_words = [
+            # Hindi question / data words
+            'कितना', 'कितनी', 'क्या', 'कौन', 'कहाँ', 'कहां', 'कब',
+            'दिखाओ', 'बताओ', 'रेवेन्यू', 'रेविनियो', 'टोटल', 'कुल',
+            'बिक्री', 'कमाई', 'मुनाफा', 'फायदा', 'नुकसान', 'हिसाब',
+            'लिस्ट', 'आज', 'कितने', 'कितनों', 'जानना', 'देखो',
+            # Bangla question / data words
+            'কতো', 'কত', 'কি', 'কে', 'কোথায়', 'কখন', 'কিভাবে',
+            'দেখাও', 'বলো', 'রেভিনিউ', 'বিক্রি', 'মোট', 'হিসাব',
+            'তালিকা', 'আজকের', 'লাভ', 'ক্ষতি', 'জানতে',
+        ]
+        if any(q in msg_lower for q in native_question_words):
+            return "BUSINESS"
+        # Native script with action/creation intent → ACTION
         return "ACTION"
     
     if any(cp in words for cp in contextual_pronouns):
@@ -726,9 +751,13 @@ YOUR JOB: Extract parameters to create a DRAFT for the requested action.
 If an image is provided, scan it using OCR. Extract ALL products visible in the image with their name, category, cost price (CP), selling price (SP/MRP), and stock quantity. Map table column headers intelligently.
 
 MULTILINGUAL MAPPING RULES:
-1. If user says a product or customer name in Bangla or Hinglish (e.g., "Aloo", "Dal", "Chaler", "দাদা"), check the STORE CONTEXT to find the corresponding English/Official name in the database.
-2. Return the Official Name from the database if a match is found, otherwise return the name as spoken.
+1. If user says a product or customer name in Bangla, Hindi, or Hinglish (e.g., "Aloo", "Dal", "Chaler", "দাদা", "हमजा"), check the STORE CONTEXT to find the corresponding English/Official name in the database.
+2. Return the Official Name from the database if a match is found, otherwise return the name as spoken (including Hindi/Bangla script).
 3. Handle ambiguous quantities (e.g., "ekta packet" -> 1 packet).
+4. Hindi number words: "ek/एक"=1, "do/दो"=2, "teen/तीन"=3, "char/चार"=4, "paanch/पाँच"=5, "cheh/छह"=6, "saat/सात"=7, "aath/आठ"=8, "nau/नौ"=9, "das/दस"=10.
+5. Bangla number words: "ek/এক"=1, "dui/দুই"=2, "tin/তিন"=3, "char/চার"=4, "paach/পাঁচ"=5, "choy/ছয়"=6, "saat/সাত"=7, "aat/আট"=8, "noy/নয়"=9, "dosh/দশ"=10.
+6. CRITICAL: If the same product name appears multiple times in the query, MERGE them into a single item entry with the COMBINED quantity. Never create duplicate item entries.
+7. Customer name may be in Hindi/Bangla script — include it as-is in "customer_name" field.
 
 Return STRICT JSON only. No markdown, no explanation.
 
@@ -1862,16 +1891,20 @@ async def chat_node(state: AgentState):
     lang_voice_rules = get_voice_rules(language)
 
     PERSONA_LOCK = (
-        f"PERSONA: Professional shop manager and assistant for {business_name}. "
-        f"IMPORTANT: You are talking to the SHOP OWNER/BOSS. Do NOT assume the user is "
-        f"one of the customers listed in the ledger. Address the user as 'Boss' or 'Sir'. "
+        f"PERSONA: Your name is 'Sathi'. Professional shop manager for {business_name}. "
+        f"IMPORTANT: You are talking to the SHOP OWNER/BOSS. Address them as 'Boss' or 'Sir'. "
         f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. "
+        f"STRICT ANTI-HALLUCINATION: NEVER lie. NEVER invent product names, customer names, "
+        f"sales figures, or credit balances. If data is missing in the SNAPSHOT, "
+        f"say clearly: 'Boss, yeh record nahi mila.' or 'দাদা, এই ডেটা নেই।' "
+        f"If a product/customer is not in the STORE CONTEXT, do NOT assume it exists. "
         f"{lang_voice_rules}"
     )
     if role == "customer":
         PERSONA_LOCK = (
             f"PERSONA: Welcoming customer-facing assistant for {business_name}. "
             f"No profit/cost prices. Say available/out instead of stock numbers. "
+            f"ANTI-HALLUCINATION: If answer is not in the data, say 'Sorry, I don't have that info right now.' "
             f"DATE: {datetime.now(IST).strftime('%d %b %Y %H:%M')} IST. {lang_voice_rules}"
         )
 
@@ -1888,7 +1921,7 @@ async def chat_node(state: AgentState):
     elif category == "IDENTITY":
         input_prompt = (
             f"SYSTEM: {PERSONA_LOCK}\n"
-            f"GOAL: In 1 sentence say you are the AI assistant for {business_name}."
+            f"GOAL: State clearly that your name is 'Sathi' and you are the AI manager for {business_name}."
         )
     elif category == "CHAT":
         input_prompt = (
@@ -1930,14 +1963,17 @@ async def chat_node(state: AgentState):
                 f"SYSTEM: {PERSONA_LOCK}\n"
                 f"DATA SNAPSHOT: {specialist_data}\n"
                 f"USER: \"{last_msg}\"\n"
-                f"GOAL: Answer using DATA SNAPSHOT. Only tell the customer if items are in-stock or out-of-stock, NEVER disclose exact stock count or cost price. Help them place orders. MAX 2 sentences."
+                f"GOAL: Answer using DATA SNAPSHOT only. If no data, say clearly you don't have that info. MAX 2 sentences."
             )
         else:
             input_prompt = (
                 f"SYSTEM: {PERSONA_LOCK}\n"
                 f"DATA SNAPSHOT (GROUND TRUTH): {specialist_data}\n"
                 f"USER: \"{last_msg}\"\n"
-                f"GOAL: Answer using DATA SNAPSHOT. If quantities or amounts in SNAPSHOT contradict conversation history, TRUST THE SNAPSHOT. MAX 2 sentences."
+                f"GOAL: Answer DIRECTLY from DATA SNAPSHOT. "
+                f"If the snapshot has a number (even 0), report it accurately. "
+                f"If snapshot is empty/unavailable, say: 'Boss, data fetch nahi hua. Thodi der mein try karein.' "
+                f"NEVER guess. NEVER say a number not in the snapshot. MAX 2 sentences."
             )
 
     llm = get_llm(selected_model)

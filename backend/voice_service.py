@@ -85,7 +85,10 @@ async def transcribe_audio(audio_data: bytes, language: str = "hinglish") -> str
             model="whisper-large-v3",
             response_format="json",
             language=whisper_lang,
-            temperature=0.0
+            temperature=0.0,
+            # Prime Whisper with a short Hinglish/Roman example to prefer Roman script output.
+            # IMPORTANT: This must be example speech text, NOT instructions — Whisper echoes instructions.
+            prompt="Hamza ka bill banao do Maggi aur teen Parle-G. Aaj ka revenue kitna hua boss?" if whisper_lang in ("hi", "bn") else None
         )
         logger.info(f"[STT] Result: '{transcription.text}'")
         return transcription.text

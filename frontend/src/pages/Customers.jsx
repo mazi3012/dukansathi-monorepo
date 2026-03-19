@@ -375,11 +375,24 @@ const Customers = () => {
                                 </div>
                             </div>
 
-                            <div className="pt-8 border-t border-card-border/50 shrink-0">
+                            <div className="pt-8 border-t border-card-border/50 shrink-0 flex flex-col gap-3">
                                 <button onClick={handleSave} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm">
                                     {isEditModalOpen ? 'Update Customer' : 'Save Customer'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
+
+                                {isEditModalOpen && editingCustomer && (
+                                    <button
+                                        onClick={(e) => {
+                                            handleDeleteCustomer(editingCustomer.id, e);
+                                            setIsEditModalOpen(false);
+                                        }}
+                                        className="w-full py-4 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
+                                    >
+                                        <Trash2 size={16} />
+                                        Delete Customer Permanently
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     </div>
