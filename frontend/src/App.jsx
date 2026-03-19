@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import MainLayout from './layouts/MainLayout';
@@ -23,6 +23,13 @@ import { registerSW } from 'virtual:pwa-register';
 registerSW({ immediate: true });
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  useEffect(() => {
+    // Only show splash on first load
+    const timer = setTimeout(() => setShowSplash(false), 1400);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     // Initial sync and network status listeners
     const init = async () => {
@@ -59,11 +66,27 @@ function App() {
 
   return (
     <ChatProvider>
-      <BrowserRouter>
-        <AnimatedRoutes />
-      </BrowserRouter>
+      {showSplash ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"
+        >
+          <img src="/logo.svg" alt="Dukan Sathi Logo" className="w-32 h-32 drop-shadow-xl animate-bounce-slow" style={{ borderRadius: 32 }} />
+        </motion.div>
+      ) : (
+        <BrowserRouter>
+          <AnimatedRoutes />
+        </BrowserRouter>
+      )}
     </ChatProvider>
   );
+// Optional: Add a slow bounce animation for the logo
+// Add this to your global CSS if not present:
+// @keyframes bounce-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
+// .animate-bounce-slow { animation: bounce-slow 1.2s infinite; }
 }
 
 const AnimatedRoutes = () => {

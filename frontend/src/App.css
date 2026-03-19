@@ -1,3 +1,11 @@
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 1.2s infinite;
+}
 #root {
   max-width: 1280px;
   margin: 0 auto;

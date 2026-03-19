@@ -488,17 +488,17 @@ const Sales = () => {
 
             <AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center pointer-events-none">
+                    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center pointer-events-none">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
+                            className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
                             onClick={() => setShowModal(false)}
                         />
 
                         <motion.div
                             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                            className="bg-bg-main w-full max-w-2xl h-[95vh] sm:h-[90vh] sm:rounded-[40px] rounded-t-[40px] p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            className="bg-white w-full max-w-md h-[92vh] sm:h-[85vh] sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8">
