@@ -38,6 +38,16 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
             // Default to true
             localStorage.setItem('sync_enabled', 'true');
         }
+        // Prevent background scroll when drawer is open
+        if (isOpen) {
+            document.body.classList.add('overflow-hidden');
+        } else {
+            document.body.classList.remove('overflow-hidden');
+        }
+        // Cleanup on unmount
+        return () => {
+            document.body.classList.remove('overflow-hidden');
+        };
     }, [isOpen]); // Re-check when drawer opens
 
     const handleSyncToggle = () => {
@@ -56,7 +66,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-50 flex flex-col pointer-events-none">
+                <div className="fixed inset-0 z-[60] flex flex-col pointer-events-none">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -72,7 +82,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.98, y: 10 }}
                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-4 md:p-6 overflow-hidden"
+                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-4 md:p-6 overflow-hidden pb-24"
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-4">

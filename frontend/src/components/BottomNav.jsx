@@ -17,7 +17,7 @@ const NavItem = ({ to, icon: Icon, label }) => (
 
 const BottomNav = ({ isListening, ...props }) => {
     return (
-        <div className="fixed bottom-0 left-0 right-0 glass-card border-t border-card-border shadow-2xl pb-safe z-50 rounded-t-[32px]">
+        <div className="fixed bottom-0 left-0 right-0 glass-card border-t border-card-border shadow-2xl pb-safe z-[70] rounded-t-[32px]">
             <div className="relative flex items-center justify-between h-16 px-2 max-w-md mx-auto">
 
                 {/* Left Links */}
