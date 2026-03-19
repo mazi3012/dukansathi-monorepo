@@ -314,7 +314,7 @@ const Customers = () => {
 
             <AnimatePresence>
                 {(isAddModalOpen || isEditModalOpen) && (
-                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-16">
+                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-6 sm:pb-16">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
@@ -323,8 +323,8 @@ const Customers = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white dark:bg-slate-900 w-[95%] max-w-6xl sm:max-w-4xl h-[92vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
-                            style={{ maxHeight: 'calc(100vh - 6rem)' }}
+                            className="bg-white dark:bg-slate-900 w-[95%] max-w-6xl sm:max-w-4xl h-[97vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            style={{ maxHeight: 'calc(100vh - 3.5rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-10 shrink-0">
@@ -336,37 +336,37 @@ const Customers = () => {
                                         <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">
                                             {isEditModalOpen ? 'Edit Customer' : 'Add Customer'}
                                         </h2>
-                                        <p className="text-[10px] font-black text-gray-500 dark:text-gray-300 uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
                                     </div>
                                 </div>
-                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
+                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
                                     <Plus className="rotate-45" size={20} />
                                 </button>
                             </div>
 
                             <div className="space-y-6 overflow-y-auto pr-1 scrollbar-hide mb-4 flex-1">
                                     <div className="space-y-3">
-                                    <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Full Name</label>
-                                    <input placeholder="Ex: John Matrix" className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-gray-900 dark:text-gray-100 placeholder-text-muted/20 outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Full Name</label>
+                                    <input placeholder="Ex: John Matrix" className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
                                     <div className="space-y-3">
-                                    <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Phone Number</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Phone Number</label>
                                     <div className="relative group">
-                                        <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input placeholder="+91 XXXXX XXXXX" className="w-full h-10 pl-10 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-gray-900 dark:text-gray-100 placeholder-text-muted/20 outline-none" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                        <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-indigo-500 transition-colors" />
+                                        <input placeholder="+91 XXXXX XXXXX" className="w-full h-10 pl-10 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-8">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">Address</label>
-                                        <textarea placeholder="Client Primary Address..." rows={2} className="w-full px-3 py-2 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-gray-900 dark:text-gray-100 placeholder-text-muted/20 resize-none outline-none text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Address</label>
+                                        <textarea placeholder="Client Primary Address..." rows={2} className="w-full px-3 py-2 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 resize-none outline-none text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">GSTIN</label>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">GSTIN</label>
                                         <input
                                             placeholder="27AAAAA0000A1Z5"
                                             maxLength={15}
-                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-gray-900 dark:text-gray-100 uppercase font-mono placeholder-text-muted/20 outline-none"
+                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main uppercase font-mono placeholder-text-muted/20 outline-none"
                                             value={formData.gstin}
                                             onChange={e => {
                                                 const val = e.target.value.toUpperCase();
@@ -376,9 +376,9 @@ const Customers = () => {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] text-gray-500 dark:text-gray-300 font-black uppercase tracking-[0.2em] block ml-1">State</label>
+                                        <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">State</label>
                                         <select
-                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-gray-900 dark:text-gray-100 outline-none appearance-none"
+                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main outline-none appearance-none"
                                             value={formData.state}
                                             onChange={e => setFormData({ ...formData, state: e.target.value })}
                                         >
