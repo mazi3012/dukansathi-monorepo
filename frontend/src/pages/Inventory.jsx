@@ -396,7 +396,7 @@ const Inventory = () => {
             {/* Modal */}
             <AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-6 sm:pb-16">
+                    <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center pointer-events-none pt-16 pb-20 sm:pb-28">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/70 backdrop-blur-md pointer-events-auto"
@@ -406,8 +406,8 @@ const Inventory = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white dark:bg-slate-900 w-[95%] max-w-6xl sm:max-w-4xl h-[97vh] sm:h-auto sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
-                            style={{ maxHeight: 'calc(100vh - 3.5rem)' }}
+                            className="bg-card-bg w-[95%] max-w-6xl sm:max-w-4xl h-[92vh] sm:h-[85vh] sm:rounded-[28px] rounded-t-[24px] p-4 sm:p-8 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            style={{ maxHeight: 'calc(100vh - 7.5rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8 shrink-0">
@@ -473,16 +473,16 @@ const Inventory = () => {
                                                         <span className="text-[9px] font-bold uppercase tracking-widest text-text-muted">Upload</span>
                                                     </div>
                                                 )}
-                                                <input
-                                                    id="prod-img"
-                                                    type="file"
-                                                    className="hidden"
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files[0];
-                                                        if (file) setFormData({ ...formData, image: file });
-                                                    }}
-                                                />
+                                                    <input
+                                                        id="prod-img"
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files[0];
+                                                            if (file) setFormData({ ...formData, image: file });
+                                                        }}
+                                                    />
                                             </div>
                                         </div>
 

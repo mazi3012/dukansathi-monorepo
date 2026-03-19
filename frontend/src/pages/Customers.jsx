@@ -350,26 +350,26 @@ const Customers = () => {
                             <div className="space-y-6 overflow-y-auto pr-1 scrollbar-hide mb-4 flex-1">
                                     <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Full Name</label>
-                                    <input placeholder="Ex: John Matrix" className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    <input placeholder="Ex: John Matrix" className="w-full h-10 px-3 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
                                     <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Phone Number</label>
                                     <div className="relative group">
                                         <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-indigo-500 transition-colors" />
-                                        <input placeholder="+91 XXXXX XXXXX" className="w-full h-10 pl-10 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                        <input placeholder="+91 XXXXX XXXXX" className="w-full h-10 pl-10 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 outline-none" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-8">
                                     <div className="space-y-2">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">Address</label>
-                                        <textarea placeholder="Client Primary Address..." rows={2} className="w-full px-3 py-2 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 resize-none outline-none text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                        <textarea placeholder="Client Primary Address..." rows={2} className="w-full px-3 py-2 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main placeholder-text-muted/20 resize-none outline-none text-sm" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">GSTIN</label>
                                         <input
                                             placeholder="27AAAAA0000A1Z5"
                                             maxLength={15}
-                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main uppercase font-mono placeholder-text-muted/20 outline-none"
+                                            className="w-full h-10 px-3 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main uppercase font-mono placeholder-text-muted/20 outline-none"
                                             value={formData.gstin}
                                             onChange={e => {
                                                 const val = e.target.value.toUpperCase();
@@ -381,7 +381,7 @@ const Customers = () => {
                                     <div className="space-y-2">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] block ml-1">State</label>
                                         <select
-                                            className="w-full h-10 px-3 bg-white dark:bg-slate-800 rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main outline-none appearance-none"
+                                            className="w-full h-10 px-3 bg-card-bg rounded-xl border border-card-border focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-bold text-text-main outline-none appearance-none"
                                             value={formData.state}
                                             onChange={e => setFormData({ ...formData, state: e.target.value })}
                                         >
