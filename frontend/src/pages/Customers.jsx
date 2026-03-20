@@ -300,9 +300,18 @@ const Customers = () => {
                                         </button>
                                     </div>
 
-                                    {/* Mobile Arrow */}
-                                    <div className="sm:hidden text-text-muted/30">
-                                        <ChevronRight size={18} />
+                                    {/* Mobile Actions */}
+                                    <div className="sm:hidden flex items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteCustomer(c.id, e); }}
+                                            className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500/80 hover:bg-red-500 hover:text-white transition-all"
+                                            aria-label={`Delete ${c.name}`}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                        <div className="text-text-muted/30">
+                                            <ChevronRight size={18} />
+                                        </div>
                                     </div>
                                 </div>
                             </motion.div>
@@ -315,7 +324,7 @@ const Customers = () => {
 
             <AnimatePresence>
                 {(isAddModalOpen || isEditModalOpen) && (
-                    <div className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center pointer-events-none pt-12 pb-24 sm:pb-28">
+                    <div className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center pointer-events-none pt-[4.25rem] pb-[5.75rem] sm:pt-12 sm:pb-28">
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/60 dark:bg-black/40 backdrop-blur-md pointer-events-auto"
@@ -324,8 +333,8 @@ const Customers = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[80%] max-w-none h-[88vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
-                            style={{ maxHeight: 'calc(100vh - 9rem)' }}
+                            className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[80%] max-w-none h-[70vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
+                            style={{ maxHeight: 'calc(100vh - 10rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-6 shrink-0">
@@ -340,9 +349,22 @@ const Customers = () => {
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Enter customer details</p>
                                     </div>
                                 </div>
-                                <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
-                                    <Plus className="rotate-45" size={20} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {isEditModalOpen && editingCustomer && (
+                                        <button
+                                            onClick={(e) => {
+                                                handleDeleteCustomer(editingCustomer.id, e);
+                                            }}
+                                            className="h-10 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all flex items-center gap-1.5"
+                                        >
+                                            <Trash2 size={14} />
+                                            Delete
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="w-10 h-10 rounded-xl bg-card-bg border border-card-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-500/50 transition-all active:scale-95 shadow-sm">
+                                        <Plus className="rotate-45" size={20} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="space-y-4 overflow-y-auto pr-1 scrollbar-hide mb-3 flex-1">
@@ -397,18 +419,6 @@ const Customers = () => {
                                     {isEditModalOpen ? 'Update Customer' : 'Save Customer'}
                                     <ArrowUpRight size={20} strokeWidth={3} />
                                 </button>
-
-                                {isEditModalOpen && editingCustomer && (
-                                    <button
-                                        onClick={(e) => {
-                                            handleDeleteCustomer(editingCustomer.id, e);
-                                        }}
-                                        className="w-full py-3 bg-red-500/10 text-red-500 font-black rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-[10px]"
-                                    >
-                                        <Trash2 size={16} />
-                                        Delete Customer Permanently
-                                    </button>
-                                )}
                             </div>
                         </motion.div>
                     </div>
