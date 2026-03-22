@@ -381,7 +381,7 @@ Rate limited to **30 connections/minute per IP**.
 
 **Client → Server:**
 ```json
-{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "llama-4-scout-17b-16e-instruct-maas" }
+{ "type": "text", "content": "Add customer Rahul", "user_id": "...", "model": "gemini-3.1-flash-lite-preview" }
 { "type": "voice", "content": "<base64_audio>", "voice_id": "en-IN-PrabhatNeural" }
 { "type": "image", "content": "<base64_image>" }
 { "type": "excel", "content": "<base64_file>", "filename": "products.xlsx" }

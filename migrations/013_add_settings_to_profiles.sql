@@ -8,7 +8,7 @@ ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS voice_speed TEXT DEFAULT '+0%';
 
 ALTER TABLE profiles
-ADD COLUMN IF NOT EXISTS model_id TEXT DEFAULT 'llama-4-scout-17b-16e-instruct-maas';
+ADD COLUMN IF NOT EXISTS model_id TEXT DEFAULT 'gemini-3.1-flash-lite-preview';
 
 -- Comment on columns
 COMMENT ON COLUMN profiles.voice_id IS 'Preferred TTS Voice ID';

@@ -496,7 +496,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             client_user_id = data.get("user_id", "")
             voice_id = data.get("voice_id", "hi-IN-MadhurNeural")
             voice_rate = data.get("voice_rate", "+0%")
-            model_id = data.get("model", "llama-4-scout-17b-16e-instruct-maas")
+            model_id = data.get("model", "gemini-3.1-flash-lite-preview")
             ai_language = data.get("language", "hinglish")  # 'english' | 'hinglish' | 'bangla'
 
             # --- SERVER-SIDE USER AUTH ---
@@ -981,7 +981,7 @@ async def customer_websocket_endpoint(websocket: WebSocket, store_id: str):
             content = data.get("content", "")
             voice_id = data.get("voice_id", "en-IN-PrabhatNeural")
             voice_rate = data.get("voice_rate", "+0%")
-            model_id = "llama-4-scout-17b-16e-instruct-maas" # Enforce cloud model for customer bot
+            model_id = "gemini-3.1-flash-lite-preview" # Enforce cloud model for customer bot
             
             # The store_id acts as the user_token/user_id for DB context
             user_token = store_id

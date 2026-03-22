@@ -236,7 +236,7 @@ class AgentState(TypedDict):
 from functools import lru_cache
 
 @lru_cache(maxsize=4)
-def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
+def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
     """
     Get or create a cached LLM instance.
     - Gemini models -> Vertex AI native
@@ -322,7 +322,7 @@ def get_llm(model_name: str = "llama-4-scout-17b-16e-instruct-maas"):
 # llm = init_llama_llm()
 
 
-async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas", role: str = "owner") -> str:
+async def generate_sql_query(user_query: str, user_id: str, history_context: str = "", model: str = "gemini-3.1-flash-lite-preview", role: str = "owner") -> str:
     """
     Generate a SQL query from natural language using Llama
     """
@@ -377,7 +377,7 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
         sql = sql[:-1]
     return sql
 
-async def generate_sql_local(user_query: str, model: str = "llama-4-scout-17b-16e-instruct-maas") -> str:
+async def generate_sql_local(user_query: str, model: str = "gemini-3.1-flash-lite-preview") -> str:
     """
     Enhanced SQL generation for Local AI (SQLite).
     Supports products, customers, and sales queries.
@@ -719,7 +719,7 @@ async def get_store_directory(user_id: str) -> str:
             
     return "\n".join(parts)
 
-async def extract_action_params(user_query: str, history_context: str = "", model: str = "llama-4-scout-17b-16e-instruct-maas", user_id: str = None) -> str:
+async def extract_action_params(user_query: str, history_context: str = "", model: str = "gemini-3.1-flash-lite-preview", user_id: str = None) -> str:
     """
     Extract structured JSON parameters for an action.
     Uses Gemini Flash (vision model) when an image URL is detected,
@@ -777,7 +777,7 @@ If query is vague, return {{"type":"unknown","error":"Missing details"}}"""
             # llama-4-scout is TEXT ONLY and cannot process images.
             # Gemini Flash supports multimodal input natively via Vertex AI.
             print(f"DEBUG: Image detected. Using Gemini Flash for OCR. URL: {img_url[:60]}...")
-            vision_llm = get_llm("gemini-2.0-flash")
+            vision_llm = get_llm("gemini-3.1-flash-lite-preview")
             message_content = [
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": img_url}}
@@ -1335,7 +1335,7 @@ async def action_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
-    selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
+    selected_model = state.get("model", "gemini-3.1-flash-lite-preview")
     
     # User ID Resolution — allow anonymous chat but restrict actions
     user_id = user_token if user_token and len(user_token) < 50 else None
@@ -1748,7 +1748,7 @@ async def chat_node(state: AgentState):
     messages = state['messages']
     last_msg = messages[-1].content
     user_token = state.get('user_token', '')
-    selected_model = state.get("model", "llama-4-scout-17b-16e-instruct-maas")
+    selected_model = state.get("model", "gemini-3.1-flash-lite-preview")
     role = state.get("role", "owner")
     
     # User ID Resolution — allow anonymous fallback for chat
@@ -2099,7 +2099,7 @@ def _evict_stale_sessions():
 async def process_user_input(
     text: str,
     user_token: str,
-    model: str = "llama-4-scout-17b-16e-instruct-maas",
+    model: str = "gemini-3.1-flash-lite-preview",
     role: str = "owner",
     language: str = "hinglish",
 ) -> str:

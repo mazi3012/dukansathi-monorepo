@@ -127,7 +127,7 @@ const VoiceAssist = () => {
     // Load settings from localStorage with prioritization
     const getSettings = () => {
         const speed = localStorage.getItem('voice_speed') || '+0%';
-        const model = localStorage.getItem('model_id') || 'llama-4-scout-17b-16e-instruct-maas';
+        const model = localStorage.getItem('model_id') || 'gemini-3.1-flash-lite-preview';
         const isOffline = !navigator.onLine;
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const isPWA = window.matchMedia('(display-mode: standalone)').matches;
@@ -139,7 +139,7 @@ const VoiceAssist = () => {
         // Priority Fix: force cloud for PWA/Mobile if online and not a local model
         if (!isOffline && (isMobile || isPWA) && !isLocalModel) {
             activeMode = 'cloud';
-            activeModel = 'llama-4-scout-17b-16e-instruct-maas';
+            activeModel = 'gemini-3.1-flash-lite-preview';
         }
 
         if (activeMode === 'local' && !isLocalModel) {

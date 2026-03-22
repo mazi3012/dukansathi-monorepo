@@ -17,7 +17,7 @@ export const ChatProvider = ({ children }) => {
     const [voiceSpeed, setVoiceSpeed] = useState(localStorage.getItem('voice_speed') || '+0%');
     const [aiLanguage, setAiLanguage] = useState(localStorage.getItem('ai_language') || 'hinglish');
 
-    const model = 'llama-4-scout-17b-16e-instruct-maas';
+    const model = 'gemini-3.1-flash-lite-preview';
     const [isMuted, setIsMuted] = useState(localStorage.getItem('isMuted') === 'true');
     const isMutedRef = useRef(localStorage.getItem('isMuted') === 'true');
 
