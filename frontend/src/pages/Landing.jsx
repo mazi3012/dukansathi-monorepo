@@ -39,13 +39,30 @@ const Landing = () => {
                     <div className="flex items-center gap-3">
                         <img src={logo} alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                         <span className="font-bold text-white font-heading text-xl tracking-tight">Dukan Sathi</span>
-                        <div className="ml-2 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-bold text-indigo-400 tracking-wider">SMART DUKAN</div>
+                        <div className="ml-2 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-bold text-indigo-400 tracking-wider">SMART SHOP</div>
                     </div>
                     <Link to="/login" className="relative group px-6 py-2.5 bg-white/5 border border-white/10 text-white text-sm font-bold rounded-full overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
-                        <span className="relative z-10">Shuru Karein</span>
+                        <span className="relative z-10">Get Started</span>
                     </Link>
                 </div>
             </motion.nav>
+
+            {/* PWA Notification Bar */}
+            {isInstallable && !isInstalled && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 80, opacity: 1 }}
+                    className="fixed top-0 left-0 w-full z-40 bg-indigo-600 px-4 py-2 flex items-center justify-center gap-4 text-xs sm:text-sm font-bold shadow-lg"
+                >
+                    <span>🚀 Experience Dukan Sathi as an App!</span>
+                    <button 
+                        onClick={() => installApp()}
+                        className="bg-white text-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-50 transition-colors"
+                    >
+                        Install Now
+                    </button>
+                </motion.div>
+            )}
 
             {/* Hero Section */}
             <section className="relative pt-40 pb-20 px-4 max-w-6xl mx-auto">
@@ -60,20 +77,20 @@ const Landing = () => {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                         </span>
-                        Aapki Dukan ka Smart Assistant
+                        Your Smart Shop Assistant
                     </motion.div>
 
                     <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-heading font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300 leading-[1.1] mb-6 tracking-tight">
-                        Sirf Bolo aur Bill Banao. <br className="hidden md:block" /> Dukan Chalana Hua Aasaan.
+                        Just Speak to Create Bills. <br className="hidden md:block" /> Shop Management Made Easy.
                     </motion.h1>
 
                     <motion.p variants={itemVariants} className="text-slate-400 text-lg md:text-xl md:max-w-2xl mb-12 leading-relaxed">
-                        Voice-first billing aur inventory. Dukan Sathi ko Hindi, Hinglish ya Bangla mein order batayen, aur bill khud ban jayega. Udhaar ka khata aur stock sab ek jagah — zero typing!
+                        Voice-first billing and inventory. Tell Dukan Sathi your order in English, Hindi, or Bangla, and the bill generates automatically. Manage accounts and stock in one place — zero typing required!
                     </motion.p>
 
                     <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                         <Link to="/login" className="group relative px-8 py-4 bg-white text-slate-950 text-base font-bold rounded-2xl shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] transition-all flex items-center justify-center">
-                            Aaj Hi Shuru Karein
+                            Get Started Today
                             <ArrowRight className="inline ml-2 group-hover:translate-x-1 transition-transform" size={18} />
                         </Link>
 
@@ -95,7 +112,7 @@ const Landing = () => {
                             >
                                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
                                 <Download className="inline mr-2 relative z-10 group-hover:-translate-y-1 transition-transform" size={18} />
-                                <span className="relative z-10">App Install Karein</span>
+                                <span className="relative z-10">Download App</span>
                             </button>
                         )}
                     </motion.div>
@@ -116,15 +133,15 @@ const Landing = () => {
                                     <Mic size={24} />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold text-slate-200">Aapki Awaaz</div>
+                                    <div className="text-sm font-bold text-slate-200">Your Voice</div>
                                     <div className="text-xs text-green-400 flex items-center gap-1.5 mt-0.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                                        Sun raha hai...
+                                        Listening...
                                     </div>
                                 </div>
                             </div>
                             <div className="bg-indigo-600/20 border border-indigo-500/30 p-5 rounded-xl text-lg text-indigo-100 font-medium italic">
-                                "Ramesh bhai ka 2 Lux soap aur 1 kilo Aashirvaad aata ka bill bana do"
+                                "Create a bill for 2 Lux soaps and 1kg Aashirvaad atta for Ramesh"
                             </div>
                         </div>
 
@@ -140,7 +157,7 @@ const Landing = () => {
                             <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4 mt-2">
                                 <div>
                                     <div className="text-xl font-black text-indigo-600 leading-none mb-1">INVOICE DRAFT</div>
-                                    <div className="text-xs text-slate-500 font-bold tracking-wider uppercase">Grahak: Ramesh</div>
+                                    <div className="text-xs text-slate-500 font-bold tracking-wider uppercase">Customer: Ramesh</div>
                                 </div>
                                 <div className="bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded text-xs uppercase">DUE BILL</div>
                             </div>
@@ -180,9 +197,9 @@ const Landing = () => {
                             <Download size={40} />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-2xl font-bold mb-2">Dukan Sathi App Install Karein</h3>
+                            <h3 className="text-2xl font-bold mb-2">Install Dukan Sathi App</h3>
                             <p className="text-slate-400 text-sm leading-relaxed text-balance">
-                                Apne phone par Dukan Sathi app install karein. Kaam hota hai 2x fast, saara hisaab rehta hai offline-ready, aur app lagti hai ekdum native. Storage ki bhi bachat.
+                                Install the Dukan Sathi app on your phone. Experience 2x faster performance, offline-ready billing, and a smooth native interface while saving storage space.
                             </p>
                         </div>
                         <button
@@ -198,7 +215,7 @@ const Landing = () => {
                         >
                             <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
                             <Download size={20} className="relative z-10 group-hover:scale-110 transition-transform" />
-                            <span className="relative z-10">Install Karein</span>
+                            <span className="relative z-10">Install Now</span>
                         </button>
                     </motion.div>
                 )}
@@ -207,8 +224,8 @@ const Landing = () => {
             {/* Features Section */}
             <section className="relative py-24 px-6 max-w-6xl mx-auto z-10">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">Har Dukandaar Ki Zaroorat.</h2>
-                    <p className="text-slate-400 text-lg">Aapki bhasha mein, aapke business ke liye banaya gaya smart assistant.</p>
+                    <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">Everything Your Shop Needs.</h2>
+                    <p className="text-slate-400 text-lg">A smart assistant built for your business, in your language.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -223,12 +240,12 @@ const Landing = () => {
                         <div className="w-14 h-14 bg-indigo-500/20 border border-indigo-500/30 rounded-2xl flex items-center justify-center text-indigo-400 mb-6">
                             <Mic size={28} />
                         </div>
-                        <h3 className="text-3xl font-heading font-bold text-white mb-4">Awaaz Se Billing (Voice Billing)</h3>
+                        <h3 className="text-3xl font-heading font-bold text-white mb-4">Voice-Powered Billing</h3>
                         <p className="text-slate-400 text-lg max-w-md leading-relaxed mb-6">
-                            Grahak aaya, aapne bola, aur bill ban gaya! Bas Hindi, Hinglish ya Bangla mein bolkar order likhwayein. Dukan Sathi khud bill banayega, stock kam karega aur udhaar khate mein likh dega.
+                            Customer walks in, you speak, and the bill is ready! Simply dictate orders in English, Hindi, or Bangla. Dukan Sathi automatically creates the invoice, updates stock, and manages accounts.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            {["Tez Billing", "No Typing", "Aapki Bhasha"].map(tag => (
+                            {["Fast Billing", "No Typing", "Multilingual"].map(tag => (
                                 <span key={tag} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-slate-300 font-mono font-bold tracking-wider uppercase">{tag}</span>
                             ))}
                         </div>
@@ -245,8 +262,8 @@ const Landing = () => {
                         <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center text-blue-400 mb-6">
                             <Users size={24} />
                         </div>
-                        <h3 className="text-xl font-heading font-bold text-white mb-2">Grahak Aur Udhaar Khata</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">Kaunse grahak par kitna udhaar baki hai, sabka hisaab phone par ek click mein dekhein. Bill seedha PDF mein generate karein aur WhatsApp par bhej dein.</p>
+                        <h3 className="text-xl font-heading font-bold text-white mb-2">Customer & Credit Ledger</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">Track customer credit (Udhaar) with a single click. Generate PDF invoices instantly and share them directly via WhatsApp.</p>
                     </motion.div>
 
                     {/* Smart Inventory */}
@@ -260,8 +277,8 @@ const Landing = () => {
                         <div className="w-12 h-12 bg-green-500/20 border border-green-500/30 rounded-2xl flex items-center justify-center text-green-400 mb-6">
                             <BarChart3 size={24} />
                         </div>
-                        <h3 className="text-xl font-heading font-bold text-white mb-2">Smart Stock Management</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">Sab samaan ki inventory aur stock limits aasani se track karein. Samaan khatam hone ki jankari app par hi turant sunein aur offline sync ka maza lein.</p>
+                        <h3 className="text-xl font-heading font-bold text-white mb-2">Smart Inventory Tracking</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">Manage your products and set low-stock alerts with ease. Get instant updates on your inventory and enjoy seamless offline synchronization.</p>
                     </motion.div>
                 </div>
             </section>
@@ -284,24 +301,24 @@ const Landing = () => {
                     `}
                 </style>
                 <div className="text-center mb-16 px-6">
-                    <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">Bharat Ke Dukandaaron Ki Pasand</h2>
-                    <p className="text-slate-400 text-lg">Hazaaron dukaanein badal rahi hain apna tareeka. Aap bhi badaliye!</p>
+                    <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">Trusted by Thousands of Shop Owners</h2>
+                    <p className="text-slate-400 text-lg">Modernize your business today like thousands across India!</p>
                 </div>
 
                 <div className="relative w-full overflow-hidden flex [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]">
                     <div className="flex animate-slide items-center">
                         {[
-                            { name: "Ramesh Kumar", shop: "Ramesh Kirana Store", text: "Sab kuch bol kar ho jata hai. Typing ki jaroorat hi nahi. Time bahut bachta hai!" },
-                            { name: "Suresh Gupta", shop: "Gupta Electronics", text: "Udhaar ka hisaab rakhna itna aasaan kabhi nahi tha. Invoice PDF bhi turant nikal jata hai." },
-                            { name: "Priya Sharma", shop: "Priya Boutique", text: "Phone par chalne wala sabse badhiya app. Hindi aasaani se samajhta hai." },
-                            { name: "Abdul Rehman", shop: "A-Z General Store", text: "Stock manage karna ab minto ka kaam hai. App bahut simple aur fast hai." },
-                            { name: "Amit Patel", shop: "Patel Medicals", text: "Draft bill feature bahut accha hai. Pehle check karo, phir finalize karo. Excellent." },
+                            { name: "Ramesh Kumar", shop: "Ramesh General Store", text: "Everything is done via voice. No typing required. Saves me so much time!" },
+                            { name: "Suresh Gupta", shop: "Gupta Electronics", text: "Tracking credit (Udhaar) has never been this easy. Instant PDF invoices are a lifesaver." },
+                            { name: "Priya Sharma", shop: "Priya Boutique", text: "The best app for shop management. It understands my voice perfectly." },
+                            { name: "Abdul Rehman", shop: "A-Z General Store", text: "Inventory management takes only minutes now. The app is incredibly fast and simple." },
+                            { name: "Amit Patel", shop: "Patel Medicals", text: "The draft bill feature is excellent. Review first, then finalize. Outstanding work." },
                             /* Duplicates for seamless looping */
-                            { name: "Ramesh Kumar", shop: "Ramesh Kirana Store", text: "Sab kuch bol kar ho jata hai. Typing ki jaroorat hi nahi. Time bahut bachta hai!" },
-                            { name: "Suresh Gupta", shop: "Gupta Electronics", text: "Udhaar ka hisaab rakhna itna aasaan kabhi nahi tha. Invoice PDF bhi turant nikal jata hai." },
-                            { name: "Priya Sharma", shop: "Priya Boutique", text: "Phone par chalne wala sabse badhiya app. Hindi aasaani se samajhta hai." },
-                            { name: "Abdul Rehman", shop: "A-Z General Store", text: "Stock manage karna ab minto ka kaam hai. App bahut simple aur fast hai." },
-                            { name: "Amit Patel", shop: "Patel Medicals", text: "Draft bill feature bahut accha hai. Pehle check karo, phir finalize karo. Excellent." },
+                            { name: "Ramesh Kumar", shop: "Ramesh General Store", text: "Everything is done via voice. No typing required. Saves me so much time!" },
+                            { name: "Suresh Gupta", shop: "Gupta Electronics", text: "Tracking credit (Udhaar) has never been this easy. Instant PDF invoices are a lifesaver." },
+                            { name: "Priya Sharma", shop: "Priya Boutique", text: "The best app for shop management. It understands my voice perfectly." },
+                            { name: "Abdul Rehman", shop: "A-Z General Store", text: "Inventory management takes only minutes now. The app is incredibly fast and simple." },
+                            { name: "Amit Patel", shop: "Patel Medicals", text: "The draft bill feature is excellent. Review first, then finalize. Outstanding work." },
                         ].map((item, idx) => (
                             <div key={idx} className="w-[300px] shrink-0 px-3">
                                 <div className="bg-white/[0.03] border border-white/10 p-6 rounded-2xl flex flex-col justify-between h-[200px] hover:bg-white/[0.05] transition-colors">
@@ -327,16 +344,16 @@ const Landing = () => {
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-heading font-bold text-white mb-4">
-                            Business Grow Karein, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-400">Tension Chhodein</span>
+                            Grow Your Business, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-400">Reduce Stress</span>
                         </h2>
-                        <p className="text-slate-400 text-lg max-w-xl mx-auto">Sikho bina kisi training ke. Mobile ya computer, dono par barabar chalta hai.</p>
+                        <p className="text-slate-400 text-lg max-w-xl mx-auto">Zero training required. Works seamlessly on both mobile and desktop.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[
-                            { icon: <Mic size={24} />, color: "indigo", title: "Aapki Bhasha Samajhta Hai", desc: "Sirf English nahi, Hindi, Hinglish aur Kolkata Bangla mein apni dukan chalayein." },
-                            { icon: <Shield size={24} />, color: "green", title: "100% Surakshit Data", desc: "Aapka poora hisaab aur grahako ka data secure rehta hai aur wahi rahega." },
-                            { icon: <Zap size={24} />, color: "orange", title: "Tez Aur Aasaan", desc: "Koi technical knowledge ki zaroorat nahi. Aaj hi use karna shuru karein bina training ke." },
+                            { icon: <Mic size={24} />, color: "indigo", title: "Multilingual Support", desc: "Manage your shop in English, Hindi, Hinglish, or Bengali with natural voice commands." },
+                            { icon: <Shield size={24} />, color: "green", title: "100% Secure Data", desc: "Your accounts and customer data are encrypted and securely stored for your eyes only." },
+                            { icon: <Zap size={24} />, color: "orange", title: "Fast & Effortless", desc: "No technical knowledge required. Start managing your business today with zero training." },
                         ].map(({ icon, color, title, desc }) => (
                             <motion.div
                                 key={title}
@@ -359,7 +376,7 @@ const Landing = () => {
             {/* Footer */}
             <footer className="border-t border-white/5 py-12 text-center text-slate-500 text-sm">
                 <p className="mb-2 font-bold text-slate-400 text-xs tracking-wider uppercase">Made with ❤️ for Bharat 🇮🇳</p>
-                <p>© 2026 Dukan Sathi. Har dukandaar ki pehli pasand.</p>
+                <p>© 2026 Dukan Sathi. The preferred choice of every shop owner.</p>
             </footer>
         </div >
     );

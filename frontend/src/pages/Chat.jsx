@@ -8,6 +8,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import logo from '../assets/logo.svg';
 import PDFViewer from '../components/PDFViewer';
 import { TaxCalculator } from '../utils/gstUtils';
+import QRCode from 'qrcode';
 
 const formatWhatsAppNumber = (phone) => {
     if (!phone) return '';
@@ -646,25 +647,25 @@ const Chat = () => {
                     }
 
                     const showQr = businessProfile?.show_qr_on_invoice !== false;
-
                     let qrY = finalY + 35;
-                    if (qrY > 260) qrY = 250; // Force overlap slightly if desperate for space
+                    if (qrY > 260) qrY = 250;
 
                     if (showQr) {
                         try {
-                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrValue)}`;
-                            const img = new Image();
-                            img.crossOrigin = "anonymous";
-                            img.src = qrImageUrl;
-                            await new Promise((resolve, reject) => {
-                                img.onload = resolve;
-                                img.onerror = reject;
-                                setTimeout(() => reject(new Error('QR Timeout')), 5000);
+                            // Native QR Generation using 'qrcode' library
+                            const qrDataUrl = await QRCode.toDataURL(qrValue, {
+                                margin: 1,
+                                width: 200,
+                                color: {
+                                    dark: '#1e293b', // slate-800
+                                    light: '#ffffff'
+                                }
                             });
-                            // Smaller QR: 20x20
-                            doc.addImage(img, 'PNG', 175, qrY, 20, 20);
+                            
+                            // Add native QR image: 20x20 at x=175
+                            doc.addImage(qrDataUrl, 'PNG', 175, qrY, 20, 20);
                         } catch (qrErr) {
-                            console.warn("QR Code generation failed:", qrErr);
+                            console.warn("Native QR generation failed, falling back to placeholder:", qrErr);
                             doc.setDrawColor(226, 232, 240);
                             doc.rect(175, qrY, 20, 20);
                             doc.setFontSize(5);

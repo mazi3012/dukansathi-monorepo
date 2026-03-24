@@ -871,12 +871,14 @@ MULTILINGUAL MAPPING RULES:
 6. CRITICAL: If the same product name appears multiple times in the query, MERGE them into a single item entry with the COMBINED quantity. Never create duplicate item entries.
 7. Customer name may be in Hindi/Bangla script — include it as-is in "customer_name" field.
 
+8. CRITICAL: Identify if the user is requesting a GST invoice. If they say "GST", "Tax", "B2B", or provide a "GSTIN", set "invoice_type": "gst" in the JSON. Otherwise default to "regular" (Bill of Supply).
+
 Return STRICT JSON only. No markdown, no explanation.
 
 OPENCLAW SKILLS & RULES:
 {OPENCLAW_SKILLS}
 
-Example 1 - Bill: {{"type":"invoice_draft","customer_name":"Amit","customer_address":"Kolkata","customer_state":"West Bengal","items":[{{"product_name":"Rice","quantity":2}}]}}
+Example 1 - Bill: {{"type":"invoice_draft","invoice_type":"gst","customer_name":"Amit","customer_address":"Kolkata","customer_state":"West Bengal","items":[{{"product_name":"Rice","quantity":2}}]}}
 Example 2 - Restock: {{"type":"restock_draft","product_name":"Rice","quantity_to_add":50}}
 Example 3 - New Customer: {{"type":"customer_draft","name":"Rahul","phone":"9876543210","address":"New Delhi","state":"Delhi"}}
 {bulk_product_example}
