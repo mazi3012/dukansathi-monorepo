@@ -34,6 +34,100 @@ import re
 import hashlib
 import logging
 from .language_detector import detect_language
+import json
+import ast
+
+# --- Google GenAI SDK (for Gemini 3.1 Global Support) ---
+try:
+    from google import genai
+    from google.genai import types as genai_types
+    HAS_GOOGLE_GENAI = True
+except ImportError:
+    HAS_GOOGLE_GENAI = False
+
+class Gemini31ChatModel:
+    """
+    Lightweight wrapper for google-genai SDK to resolve Vertex AI 404/501 errors.
+    Mimics LangChain invoke/ainvoke interface.
+    """
+    def __init__(self, model_name, project_id, creds_path=None):
+        self.model_name = model_name
+        self.project_id = project_id
+        # Use Vertex AI mode with 'global' location as per documentation
+        self.client = genai.Client(
+            vertexai=True, 
+            project=project_id, 
+            location="global"
+        )
+        self.content = "" # For compatibility
+
+    def _convert_messages(self, messages):
+        genai_msgs = []
+        for m in messages:
+            role = "user" if isinstance(m, HumanMessage) else "model"
+            if isinstance(m.content, list):
+                # Handle multimodal (vision)
+                parts = []
+                for p in m.content:
+                    if p["type"] == "text":
+                        parts.append(genai_types.Part.from_text(text=p["text"]))
+                    elif p["type"] == "image_url":
+                        import base64
+                        import httpx
+                        url = p["image_url"]["url"]
+                        if url.startswith("data:image"):
+                             # Handle data URLs (e.g., data:image/png;base64,...)
+                             try:
+                                 header, encoded = url.split(",", 1)
+                                 mime_type = header.split(";")[0].split(":")[1]
+                                 if not mime_type.startswith("image/"):
+                                     mime_type = "image/jpeg"
+                                 parts.append(genai_types.Part.from_bytes(
+                                     data=base64.b64decode(encoded),
+                                     mime_type=mime_type
+                                 ))
+                             except Exception as e_b64:
+                                 logger.error(f"Error decoding base64 image: {e_b64}")
+                                 # Fallback
+                                 parts.append(genai_types.Part.from_text(text="[Error decoding image]"))
+                        else:
+                             # Fetch remote image
+                             resp = httpx.get(url)
+                             mime_type = resp.headers.get("Content-Type", "image/jpeg")
+                             if not mime_type.startswith("image/"):
+                                 mime_type = "image/jpeg"
+                             parts.append(genai_types.Part.from_bytes(
+                                 data=resp.content,
+                                 mime_type=mime_type
+                             ))
+                genai_msgs.append(genai_types.Content(role=role, parts=parts))
+            else:
+                genai_msgs.append(genai_types.Content(
+                    role=role, 
+                    parts=[genai_types.Part.from_text(text=m.content)]
+                ))
+        return genai_msgs
+
+    async def ainvoke(self, messages, **kwargs):
+        contents = self._convert_messages(messages)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2048
+            )
+        )
+        return AIMessage(content=response.text)
+
+    def invoke(self, messages, **kwargs):
+        # Synchronous version
+        contents = self._convert_messages(messages)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=contents
+        )
+        return AIMessage(content=response.text)
 
 # Configure logging
 logging.basicConfig(
@@ -241,7 +335,6 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
     Get or create a cached LLM instance.
     - Gemini models -> Vertex AI native
     - llama-4/maas -> Vertex AI Model Garden
-    - Everything else -> Local Ollama
     """
     try:
         # Determine model type
@@ -249,22 +342,10 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
         is_cloud_model = is_gemini or "llama-4" in model_name.lower() or "maas" in model_name.lower()
         
         if not is_cloud_model:
-            # Guard: Skip local LLM entirely in production
-            env = os.environ.get("ENV", "").lower()
-            if env != "development":
-                raise ValueError(f"Local LLM '{model_name}' not available in production. Use a cloud model.")
-            # Guard: Prevent NoneType model name
-            if not model_name or ChatOllama is None:
-                raise ValueError(f"ChatOllama not available or model_name is None (got: {model_name})")
-            # Dedicated Local configuration (Phi-3 Mini optimized)
-            print(f"DEBUG: Using Local LLM (Ollama) -> {model_name}")
-            
-            return ChatOllama(
-                model=model_name,
-                base_url="http://127.0.0.1:11434",
-                temperature=0.1,
-                num_predict=512,
-            )
+            print(f"WARN: Local LLMs are not supported in this environment. Defaulting to Gemini 3.1 Flash-Lite (preview) cloud model.")
+            model_name = "gemini-3.1-flash-lite-preview"
+            is_cloud_model = True
+            is_gemini = True
 
         # Load service account credentials
         creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
@@ -299,21 +380,52 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
         if is_gemini:
             actual_model_name = model_name
             print(f"DEBUG: Using Vertex AI Gemini (vision) -> {actual_model_name}")
-        # For Llama/MaaS: use Model Garden publisher prefix
-        elif "llama-4" in model_name.lower() and not model_name.startswith("publishers/"):
-            actual_model_name = f"publishers/meta/models/{model_name}"
-            print(f"DEBUG: Using Vertex AI Model Garden -> {actual_model_name}")
+        # For Llama/MaaS: use Model Garden publisher prefix if not already a full path
+        elif "llama-4" in model_name.lower():
+            if not model_name.startswith("publishers/") and not model_name.startswith("projects/"):
+                 # Attempt a more standard Llama 3/4 naming convention on Vertex if it's not a MaaS endpoint
+                 if "maas" in model_name.lower():
+                      actual_model_name = f"publishers/meta/models/{model_name}"
+                 else:
+                      actual_model_name = model_name
+            else:
+                 actual_model_name = model_name
+            print(f"DEBUG: Using Vertex AI Model Garden/Tuned -> {actual_model_name}")
         else:
             actual_model_name = model_name
         
-        return ChatVertexAI(
-            model_name=actual_model_name,
-            project=project_id,
-            location="us-east5",
-            credentials=creds,
-            temperature=0.7,
-            max_tokens=2048
-        )
+        # Use the NEW Google GenAI SDK for Gemini 3.1 to support the 'global' endpoint
+        if "3.1" in model_name and HAS_GOOGLE_GENAI:
+            # Special routing for vision vs text on 3.1 Global
+            # Note: image-preview model is required for multimodal on the global endpoint
+            target_model = model_name 
+            print(f"DEBUG: Using Unified Google Gen AI SDK (Global) -> {target_model}")
+            return Gemini31ChatModel(
+                model_name=target_model,
+                project_id=project_id,
+                creds_path=creds_path
+            )
+
+        try:
+            return ChatVertexAI(
+                model_name=actual_model_name,
+                project=project_id,
+                location="us-central1",
+                credentials=creds,
+                temperature=0.7,
+                max_tokens=2048
+            )
+        except Exception as e_init:
+             print(f"WARN: Model {actual_model_name} failed. Falling back to Gemini 3.1 global via specialized wrapper. Error: {e_init}")
+             if HAS_GOOGLE_GENAI:
+                 return Gemini31ChatModel(
+                    model_name="gemini-3.1-flash-lite-preview",
+                    project_id=project_id,
+                    creds_path=creds_path
+                 )
+             else:
+                 raise e_init
+
     except Exception as e:
         print(f"ERROR initializing LLM ({model_name}): {e}")
         raise e
@@ -776,8 +888,8 @@ If query is vague, return {{"type":"unknown","error":"Missing details"}}"""
             # ── IMAGE PATH: Use Gemini Flash (vision-capable Vertex AI model) ──
             # llama-4-scout is TEXT ONLY and cannot process images.
             # Gemini Flash supports multimodal input natively via Vertex AI.
-            print(f"DEBUG: Image detected. Using Gemini Flash for OCR. URL: {img_url[:60]}...")
-            vision_llm = get_llm("gemini-3.1-flash-lite-preview")
+            print(f"DEBUG: Image detected. Using Gemini 3.1 Flash-Image for OCR. URL: {img_url[:60]}...")
+            vision_llm = get_llm("gemini-3.1-flash-image-preview")
             message_content = [
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": img_url}}

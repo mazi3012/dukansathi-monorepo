@@ -55,6 +55,12 @@ logger = logging.getLogger(__name__)
 def print(*args, **kwargs):
     logger.info(" ".join(map(str, args)))
 
+# Ensure GOOGLE_APPLICATION_CREDENTIALS is an absolute path
+cred_env = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if cred_env and not os.path.isabs(cred_env):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(os.path.dirname(__file__), cred_env)
+    print(f"DEBUG: Set GOOGLE_APPLICATION_CREDENTIALS to absolute path: {os.environ['GOOGLE_APPLICATION_CREDENTIALS']}")
+
 # Add the ai-bot package AND backend directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai-bot'))
 sys.path.insert(0, os.path.dirname(__file__))
