@@ -1511,6 +1511,7 @@ async def action_node(state: AgentState):
                 tax_percent = 0
                 hsn_code = ""
                 official_name = prod_name
+                db_prod = None  # Initialize so it's always defined
                 
                 # Two flags: one for LLM source, one for data source
                 is_cloud_llm = "llama-4" in selected_model or "maas" in selected_model
@@ -1583,13 +1584,13 @@ async def action_node(state: AgentState):
                     except Exception as db_err:
                         logger.error(f"ERROR: DB Lookup failed for {prod_name}: {db_err}")
                 
-                 # Update item
+                # Update item with whatever we found (db_prod may still be None)
                 item["product_id"] = db_prod.get("id") if db_prod else None
                 item["price"] = price
                 item["tax_percent"] = tax_percent
                 item["hsn_code"] = hsn_code
                 item["product_name"] = official_name
-                item["total"] = price * qty # Basic line total
+                item["total"] = price * qty  # Basic line total
                 return item
 
             # Execute all item lookups in parallel
