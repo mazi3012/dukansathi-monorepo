@@ -54,9 +54,6 @@ export class BaseRepository {
 
     async upsert(data, isFromCloud = false) {
         const db = getDB();
-        const columns = Object.keys(data);
-        const placeholders = columns.map(() => '?').join(',');
-
         // Ensure updated_at and is_synced are handled
         if (!isFromCloud) {
             data.updated_at = new Date().toISOString();
@@ -64,6 +61,9 @@ export class BaseRepository {
         } else {
             data.is_synced = 1; // 1 for true
         }
+
+        const columns = Object.keys(data);
+        const placeholders = columns.map(() => '?').join(',');
 
         const sql = `INSERT OR REPLACE INTO ${this.tableName} (${columns.join(',')}) VALUES (${placeholders})`;
         db.run(sql, Object.values(data));
