@@ -319,8 +319,9 @@ const Sales = () => {
 
             // 4. Update Customer Balance locally via Ledger for audit trail
             if (selectedCustomerId && totals.balance > 0) {
+                const isGst = billType === 'GST';
                 const note = isGst 
-                    ? `Credit Sale: Inv #${saleData.id.toString().slice(-4)} (Taxable: ₹${totals.subtotal.toFixed(2)}, Tax: ₹${totals.tax.toFixed(2)})`
+                    ? `Credit Sale: Inv #${saleData.id.toString().slice(-4)} (Taxable: ₹${totals.subtotal.toFixed(2)}, Tax: ₹${totals.totalTax.toFixed(2)})`
                     : `Credit Sale: Inv #${saleData.id.toString().slice(-4)}`;
                 
                 await customerRepo.addLedgerEntry({
@@ -551,7 +552,11 @@ const Sales = () => {
                                                 labelKey="name"
                                             />
                                         </div>
-                                        <button className="w-14 h-14 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-all shadow-indigo-500/5">
+                                        <button 
+                                            onClick={() => window.location.href = '/customers'}
+                                            className="w-14 h-14 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-all shadow-indigo-500/5"
+                                            title="Add New Customer"
+                                        >
                                             <Plus size={24} />
                                         </button>
                                     </div>

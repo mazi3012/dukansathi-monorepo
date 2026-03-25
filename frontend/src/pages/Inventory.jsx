@@ -16,7 +16,6 @@ const Inventory = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false); // Added for new modal state
 
     // Full Schema Form State
     const initialFormState = {
@@ -272,7 +271,7 @@ const Inventory = () => {
                             />
                         </div>
                         <button
-                            onClick={() => setIsAddModalOpen(true)}
+                            onClick={handleAddNew}
                             className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
                         >
                             <Plus size={18} strokeWidth={3} />
@@ -307,7 +306,7 @@ const Inventory = () => {
                         </div>
                         <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Products Found</h3>
                         <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No products found. Add a new product to get started.</p>
-                        <button onClick={() => setIsAddModalOpen(true)} className="px-8 py-4 bg-indigo-500/10 text-indigo-500 font-extrabold rounded-2xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all shadow-lg hover:scale-105 active:scale-95">
+                        <button onClick={handleAddNew} className="px-8 py-4 bg-indigo-500/10 text-indigo-500 font-extrabold rounded-2xl border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all shadow-lg hover:scale-105 active:scale-95">
                             Add First Product
                         </button>
                     </div>
