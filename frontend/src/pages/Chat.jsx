@@ -268,7 +268,7 @@ const Chat = () => {
 
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
-                    const rawRate = parseFloat(item.price) || 0;
+                    const rawRate = parseFloat(item.price ?? item.unit_price) || 0;
                     const hsn = item.hsn_code || "1905"; // Default if missing
 
                     const isInterState = actionData.isOutOfState || false;
@@ -538,7 +538,7 @@ const Chat = () => {
                                 item.product_name || item.name || "Item",
                                 item.hsn_code || '---',
                                 q,
-                                item.unit_price.toFixed(2),
+                                (item.unit_price ?? 0).toFixed(2),
                                 taxable.toFixed(2),
                                 isOutOfState ? `(${item.tax_percent}%) ${igst.toFixed(2)}` : totalTaxAmt.toFixed(2),
                                 total.toFixed(2)
@@ -548,7 +548,7 @@ const Chat = () => {
                                 idx + 1,
                                 item.product_name || item.name || "Item",
                                 q,
-                                item.unit_price.toFixed(2),
+                                (item.unit_price ?? 0).toFixed(2),
                                 total.toFixed(2)
                             ];
                         }
@@ -695,7 +695,7 @@ const Chat = () => {
                         .upload(fileName, pdfBlob, {
                             contentType: 'application/pdf',
                             cacheControl: '3600',
-                            upsert: false
+                            upsert: true
                         });
 
                     if (uploadError) {
