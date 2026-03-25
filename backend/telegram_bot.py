@@ -42,9 +42,8 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# For generating PDFs
+# For generating PDFs (using platypus for professional layouts)
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 # Configure logging
 logging.basicConfig(
@@ -136,20 +135,46 @@ def format_draft_for_telegram(draft: dict) -> str:
     elif draft_type == "invoice_draft":
         customer = draft.get("customer_name", "Unknown")
         items = draft.get("items", [])
-        total = draft.get("total_amount", 0)
+        invoice_type = draft.get("invoice_type", "regular")
+        is_gst = invoice_type == "gst"
+        is_igst = draft.get("isOutOfState", False)
+
+        # Header
+        header_emoji = "🧾"
+        header_label = "GST Tax Invoice Draft" if is_gst else "Bill of Supply Draft"
         lines = [
-            "🧾 *Invoice Draft*",
+            f"{header_emoji} *{header_label}*",
             f"  Customer: {customer}",
-            "  Items:",
         ]
+        if is_igst:
+            lines.append("  🔄 *IGST (Inter-State) applicable*")
+
+        lines.append("  Items:")
+        subtotal = 0
+        total_tax = 0
         for item in items:
             name = item.get("product_name", "?")
-            qty = item.get("quantity", 0)
+            qty = float(item.get("quantity", 0))
             unit = item.get("unit", "pcs")
-            price = item.get("price", 0)
-            lines.append(f"    • {name} × {qty} {unit}  ₹{price * qty}")
-        lines.append(f"  *Total: ₹{total}*")
+            price = float(item.get("price", 0))
+            item_sub = qty * price
+            subtotal += item_sub
+            hsn = item.get("hsn_code", "")
+            hsn_str = f" (HSN:{hsn})" if hsn and is_gst else ""
+            lines.append(f"    • {name}{hsn_str} × {qty} {unit}  ₹{item_sub:.2f}")
+
+        if is_gst:
+            lines.append(f"  Taxable Value: ₹{subtotal:.2f}")
+            # Tax will be calculated at approval, just note it's GST
+            if is_igst:
+                lines.append("  Tax Type: IGST")
+            else:
+                lines.append("  Tax Type: CGST + SGST")
+
+        lines.append(f"  *Note: Final total calculated on approval*")
         lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
+        if is_gst:
+            lines.append("_Reply 'igst' to switch to inter-state IGST_")
         return "\n".join(lines)
 
     elif draft_type == "payment_draft":
@@ -170,64 +195,193 @@ def format_draft_for_telegram(draft: dict) -> str:
         return f"📋 Draft: {json.dumps(draft, indent=2)}"
 
 
-# ─── Draft Execution (Telegram Backend Replacement for Chat.jsx) ───
+# ─── GST Tax Calculation (Python Port of gstUtils.js) ─────────────────
 
-PENDING_DRAFTS = {}
+HSN_TAX_RATES = {
+    "0401": 0, "0713": 0, "1001": 0, "1006": 0, "0702": 0, "0703": 0, "2501": 0, "0805": 0,
+    "0402": 5, "0405": 5, "1101": 5, "1512": 5, "1701": 5, "1704": 5, "1904": 5,
+    "0901": 5, "2106": 5, "3004": 5, "4901": 5,
+    "1902": 12, "2009": 12, "2201": 12, "3401": 12, "3402": 12, "6810": 12,
+    "1905": 18, "2103": 18, "2104": 18, "2202": 18, "3305": 18, "3306": 18,
+    "3307": 18, "7318": 18, "7326": 18, "8544": 18, "8536": 18, "3926": 18,
+    "6109": 18,
+    "2402": 28, "2711": 28, "8703": 28, "3303": 28, "3304": 28, "2101": 28,
+}
 
-def generate_invoice_pdf(customer_name: str, items: list, total: float, invoice_id: str) -> BytesIO:
-    """Generates a simple PDF invoice in memory using reportlab."""
+def calculate_tax(selling_price: float, quantity: float, hsn_code: str, force_inter_state: bool = False) -> dict:
+    """Calculate GST for a line item. Returns taxable_value, cgst, sgst, igst, gst_rate, total."""
+    taxable = selling_price * quantity
+    rate = HSN_TAX_RATES.get(str(hsn_code), 0)
+    if force_inter_state:
+        igst = round((taxable * rate) / 100, 2)
+        cgst = sgst = 0.0
+    else:
+        half = rate / 2
+        cgst = round((taxable * half) / 100, 2)
+        sgst = round((taxable * half) / 100, 2)
+        igst = 0.0
+    return {"taxable": round(taxable, 2), "cgst": cgst, "sgst": sgst, "igst": igst, "rate": rate, "total": round(taxable + cgst + sgst + igst, 2)}
+
+
+# ─── PDF Generator (GST-Aware, Professional) ─────────────────────────
+
+def generate_invoice_pdf(
+    shop_name: str,
+    shop_address: str,
+    shop_gstin: str,
+    customer_name: str,
+    items: list,
+    sale_id,
+    is_gst: bool,
+    is_igst: bool,
+    subtotal: float,
+    cgst_total: float,
+    sgst_total: float,
+    igst_total: float,
+    grand_total: float,
+    amount_paid: float,
+    balance_due: float,
+    payment_status: str,
+    invoice_number: str = None
+) -> BytesIO:
+    """Generates a professional GST-aware PDF invoice in memory using reportlab."""
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    
-    # Header
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(50, height - 50, "DukanSathi Invoice")
-    
-    # Details
-    c.setFont("Helvetica", 12)
-    c.drawString(50, height - 90, f"Invoice #: DS-{invoice_id}")
-    c.drawString(50, height - 110, f"Customer: {customer_name}")
-    
-    # Table Header
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, height - 150, "Item")
-    c.drawString(300, height - 150, "Quantity")
-    c.drawString(400, height - 150, "Price")
-    c.drawString(500, height - 150, "Total")
-    
-    c.line(50, height - 155, 550, height - 155)
-    
-    # Items
-    c.setFont("Helvetica", 12)
-    y = height - 175
-    for item in items:
-        prod_name = item.get("product_name", "Unknown Item")
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                            topMargin=15*mm, bottomMargin=15*mm,
+                            leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # ── Title ──
+    title_style = ParagraphStyle('title', parent=styles['Heading1'], fontSize=18, spaceAfter=2)
+    sub_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=9, textColor=colors.grey)
+    inv_label = "TAX INVOICE" if is_gst else "BILL OF SUPPLY"
+    inv_no = invoice_number or f"DS-{sale_id}"
+
+    header_data = [
+        [Paragraph(f"<b>{shop_name}</b>", title_style),
+         Paragraph(f"<b>{inv_label}</b>", ParagraphStyle('inv', parent=styles['Normal'], fontSize=14, alignment=TA_RIGHT))],
+        [Paragraph(shop_address or "", sub_style),
+         Paragraph(f"Invoice #: {inv_no}", ParagraphStyle('r', parent=sub_style, alignment=TA_RIGHT))],
+    ]
+    if is_gst and shop_gstin:
+        header_data.append([
+            Paragraph(f"GSTIN: <b>{shop_gstin}</b>", sub_style),
+            Paragraph(f"Date: {datetime.now().strftime('%d %b %Y')}", ParagraphStyle('r', parent=sub_style, alignment=TA_RIGHT))
+        ])
+    else:
+        header_data.append([
+            Paragraph("", sub_style),
+            Paragraph(f"Date: {datetime.now().strftime('%d %b %Y')}", ParagraphStyle('r', parent=sub_style, alignment=TA_RIGHT))
+        ])
+
+    t_header = Table(header_data, colWidths=[260, 200])
+    t_header.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+    ]))
+    story.append(t_header)
+    story.append(Spacer(1, 8*mm))
+
+    # ── Billed To ──
+    story.append(Paragraph("BILLED TO", sub_style))
+    story.append(Paragraph(f"<b>{customer_name}</b>", styles['Normal']))
+    story.append(Spacer(1, 6*mm))
+
+    # ── Items Table ──
+    if is_gst:
+        tax_label = "IGST Amt" if is_igst else "GST Amt"
+        col_names = ["#", "Description", "HSN", "Qty", "Unit Rate", "Taxable", tax_label, "Total"]
+        col_widths = [15, 130, 40, 25, 50, 50, 45, 45]
+    else:
+        col_names = ["#", "Description", "Qty", "Unit Rate", "Total"]
+        col_widths = [15, 190, 30, 60, 65]
+
+    table_data = [col_names]
+    for idx, item in enumerate(items):
+        name = item.get("product_name", "Item")
         qty = float(item.get("quantity", 0))
-        unit = item.get("unit", "pcs")
         price = float(item.get("price", 0))
-        item_total = qty * price
-        
-        c.drawString(50, y, str(prod_name)[:30])
-        c.drawString(300, y, f"{qty} {unit}")
-        c.drawString(400, y, f"Rs {price:.2f}")
-        c.drawString(500, y, f"Rs {item_total:.2f}")
-        y -= 20
-        
-    c.line(50, y - 5, 550, y - 5)
-    
-    # Total
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(400, y - 30, "Grand Total:")
-    c.drawString(500, y - 30, f"Rs {total:.2f}")
-    
-    # Footer
-    c.setFont("Helvetica-Oblique", 10)
-    c.drawString(50, 50, "Thank you for your business! - Generated by DukanSathi AI")
-    
-    c.save()
+        hsn = item.get("hsn_code", "-")
+        taxable = item.get("_taxable", qty * price)
+        cgst = item.get("_cgst", 0)
+        sgst = item.get("_sgst", 0)
+        igst_amt = item.get("_igst", 0)
+        tax_rate = item.get("_rate", 0)
+        item_total = item.get("_total", taxable)
+
+        if is_gst:
+            tax_display = f"({tax_rate}%) {igst_amt:.2f}" if is_igst else f"{(cgst+sgst):.2f}"
+            row = [str(idx+1), name[:25], str(hsn), str(qty), f"{price:.2f}",
+                   f"{taxable:.2f}", tax_display, f"{item_total:.2f}"]
+        else:
+            row = [str(idx+1), name[:30], str(qty), f"{price:.2f}", f"{item_total:.2f}"]
+        table_data.append(row)
+
+    t_items = Table(table_data, colWidths=col_widths)
+    t_items.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('GRID', (0,0), (-1,-1), 0.3, colors.lightgrey),
+        ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t_items)
+    story.append(Spacer(1, 6*mm))
+
+    # ── Totals Summary ──
+    summary_rows = [["Taxable Value:", f"Rs. {subtotal:.2f}"]]
+    if is_gst:
+        if is_igst:
+            summary_rows.append(["IGST:", f"Rs. {igst_total:.2f}"])
+        else:
+            summary_rows.append(["CGST:", f"Rs. {cgst_total:.2f}"])
+            summary_rows.append(["SGST:", f"Rs. {sgst_total:.2f}"])
+    summary_rows.append(["Grand Total:", f"Rs. {grand_total:.2f}"])
+    if balance_due > 0:
+        summary_rows.append([f"Amount Paid ({payment_status.title()}):", f"Rs. {amount_paid:.2f}"])
+        summary_rows.append(["Balance Due:", f"Rs. {balance_due:.2f}"])
+
+    bold_right = ParagraphStyle('br', parent=styles['Normal'], alignment=TA_RIGHT, fontName='Helvetica-Bold')
+    right = ParagraphStyle('r', parent=styles['Normal'], alignment=TA_RIGHT)
+    summary_data = [[Paragraph(r[0], right), Paragraph(r[1], bold_right)] for r in summary_rows]
+    t_summary = Table(summary_data, colWidths=[350, 110], hAlign='RIGHT')
+    t_summary.setStyle(TableStyle([
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        # Highlight Grand Total row
+        ('TEXTCOLOR', (0, sum(1 for r in summary_rows if 'Grand' in r[0])-1), (-1, sum(1 for r in summary_rows if 'Grand' in r[0])-1), colors.HexColor('#4f46e5')),
+        ('FONTNAME', (0, sum(1 for r in summary_rows if 'Grand' in r[0])-1), (-1, sum(1 for r in summary_rows if 'Grand' in r[0])-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, sum(1 for r in summary_rows if 'Grand' in r[0])-1), (-1, sum(1 for r in summary_rows if 'Grand' in r[0])-1), 12),
+        # Red for balance due
+        ('TEXTCOLOR', (0, len(summary_rows)-1), (-1, len(summary_rows)-1), colors.red) if balance_due > 0 else ('TEXTCOLOR', (0,0),(0,0), colors.black),
+    ]))
+    story.append(t_summary)
+
+    story.append(Spacer(1, 8*mm))
+    story.append(Paragraph("Thank you for your business!", ParagraphStyle('footer', parent=sub_style, alignment=TA_CENTER)))
+    story.append(Paragraph("This is a computer generated invoice — Dukan Sathi AI", ParagraphStyle('footer2', parent=sub_style, alignment=TA_CENTER, fontSize=7)))
+
+    doc.build(story)
     buffer.seek(0)
     return buffer
+
+
+func_get_profile = lambda user_id: supabase.table("profiles").select(
+    "business_name,business_address,gstin,is_gst_registered,state_name"
+).eq("id", user_id).limit(1).execute() if supabase else None
+
 
 async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]:
     """
@@ -282,7 +436,6 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             customer_id = cust_res.data[0]["id"]
             
             if is_payment:
-                # Payment received (reduces due)
                 update_result = supabase.rpc("receive_payment", {
                     "p_user_id": user_id,
                     "p_customer_id": customer_id,
@@ -291,7 +444,6 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 new_balance = update_result.data if update_result and update_result.data is not None else 0
                 return f"✅ Recorded ₹{amount} payment for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
             else:
-                # Udhar/Credit given (increases due)
                 update_result = supabase.rpc("add_customer_credit", {
                     "p_user_id": user_id,
                     "p_customer_id": customer_id,
@@ -301,6 +453,26 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 return f"✅ Added ₹{amount} Udhar for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
 
         elif draft_type == "invoice_draft":
+            # ── 1. Fetch business profile (GST settings) ──
+            profile = {}
+            try:
+                pr = func_get_profile(user_id)
+                if pr and pr.data:
+                    profile = pr.data[0]
+            except Exception:
+                pass
+
+            is_gst = (
+                draft.get("invoice_type") == "gst" 
+                or (draft.get("invoice_type") != "regular" and profile.get("is_gst_registered", False))
+            )
+            is_igst = draft.get("isOutOfState", False)
+
+            shop_name = profile.get("business_name", "My Shop")
+            shop_address = profile.get("business_address", "")
+            shop_gstin = profile.get("gstin", "")
+
+            # ── 2. Find / create customer ──
             customer_name = draft.get("customer_name", "Walk-in")
             customer_id = None
             if customer_name and customer_name.lower() != "walk-in":
@@ -310,50 +482,149 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 else:
                     new_cust = supabase.table("customers").insert({"user_id": user_id, "name": customer_name}).execute()
                     customer_id = new_cust.data[0]["id"] if new_cust.data else None
-            
+
+            # ── 3. Calculate taxes for each item ──
             items = draft.get("items", [])
-            total = sum([float(item.get("quantity", 0)) * float(item.get("price", 0)) for item in items])
-            
+            subtotal = 0.0
+            total_cgst = 0.0
+            total_sgst = 0.0
+            total_igst = 0.0
+            enriched_items = []
+
+            for item in items:
+                qty = float(item.get("quantity", 0))
+                price = float(item.get("price", 0))
+                hsn = item.get("hsn_code", "1905")
+                tc = calculate_tax(price, qty, hsn, force_inter_state=is_igst) if is_gst else {
+                    "taxable": qty * price, "cgst": 0, "sgst": 0, "igst": 0, "rate": 0, "total": qty * price
+                }
+                subtotal += tc["taxable"]
+                total_cgst += tc["cgst"]
+                total_sgst += tc["sgst"]
+                total_igst += tc["igst"]
+                enriched_items.append({
+                    **item,
+                    "_taxable": tc["taxable"],
+                    "_cgst": tc["cgst"],
+                    "_sgst": tc["sgst"],
+                    "_igst": tc["igst"],
+                    "_rate": tc["rate"],
+                    "_total": tc["total"]
+                })
+
+            grand_total = round(subtotal + total_cgst + total_sgst + total_igst, 2)
+            payment_status = draft.get("payment_status", "paid")
+            amount_paid = float(draft.get("amount_paid", grand_total if payment_status == "paid" else 0))
+            balance_due = round(max(0, grand_total - amount_paid), 2)
+
+            # ── 4. Get next bill number ──
+            count_res = supabase.table("sales").select("id", count="exact").eq("user_id", user_id).execute()
+            next_num = (count_res.count or 0) + 1
+            invoice_number = f"Bill-{next_num}"
+
+            # ── 5. Insert sale header ──
             sale_res = supabase.table("sales").insert({
                 "user_id": user_id,
                 "customer_id": customer_id,
-                "invoice_type": "regular",
-                "subtotal": total,
-                "total_amount": total,
-                "payment_status": "paid",
+                "invoice_type": "gst" if is_gst else "regular",
+                "invoice_number": invoice_number,
+                "subtotal": subtotal,
+                "cgst_amount": total_cgst,
+                "sgst_amount": total_sgst,
+                "igst_amount": total_igst,
+                "total_tax_amount": total_cgst + total_sgst + total_igst,
+                "total_amount": grand_total,
+                "payment_status": "paid" if payment_status == "paid" else ("partial" if balance_due > 0 and amount_paid > 0 else "credit"),
+                "amount_paid": amount_paid,
+                "balance_due": balance_due,
+                "is_out_of_state": is_igst,
             }).execute()
             
-            # Defensive check to avoid 500 crashes
-            if not sale_res or not hasattr(sale_res, 'data') or not sale_res.data:
+            if not sale_res or not getattr(sale_res, 'data', None):
                 return "❌ Failed to create invoice record.", None
                 
             sale_id = sale_res.data[0].get("id")
             if not sale_id: 
                 return "❌ Failed to create invoice record.", None
-            
-            for item in items:
-                prod_name = item.get("product_name")
-                qty = int(item.get("quantity", 0))
+
+            # ── 6. Insert sale items & decrement stock ──
+            for item in enriched_items:
+                prod_name = item.get("product_name", "")
+                qty = float(item.get("quantity", 0))
                 price = float(item.get("price", 0))
-                
+                hsn = item.get("hsn_code")
                 prod_res = supabase.table("products").select("id").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
                 prod_id = prod_res.data[0]["id"] if prod_res.data else None
-                
+
                 supabase.table("sale_items").insert({
                     "user_id": user_id,
                     "sale_id": sale_id,
                     "product_id": prod_id,
-                    "quantity": qty,
+                    "quantity": int(qty),
                     "unit_price": price,
-                    "total_price": float(qty * price)
+                    "hsn_code": hsn if is_gst else None,
+                    "taxable_amount": item["_taxable"],
+                    "cgst_percent": item["_rate"] / 2 if not is_igst else 0,
+                    "cgst_amount": item["_cgst"],
+                    "sgst_percent": item["_rate"] / 2 if not is_igst else 0,
+                    "sgst_amount": item["_sgst"],
+                    "igst_percent": item["_rate"] if is_igst else 0,
+                    "igst_amount": item["_igst"],
+                    "total_price": item["_total"]
                 }).execute()
-                
+
                 if prod_id:
-                     try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": qty}).execute()
-                     except: pass
-            
-            pdf_buffer = generate_invoice_pdf(customer_name, items, total, str(sale_id))
-            return "✅ Invoice created successfully!", pdf_buffer
+                    try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": int(qty)}).execute()
+                    except: pass
+
+            # ── 7. Handle udhar/credit ledger ──
+            if balance_due > 0 and customer_id:
+                try:
+                    supabase.rpc("add_customer_credit", {
+                        "p_user_id": user_id, "p_customer_id": customer_id, "p_amount": balance_due
+                    }).execute()
+                    supabase.table("customer_ledger").insert({
+                        "user_id": user_id, "customer_id": customer_id,
+                        "amount": balance_due, "type": "credit", "mode": "Invoice",
+                        "note": f"Pending from Invoice #{invoice_number}"
+                    }).execute()
+                except Exception as ledger_err:
+                    logger.warning(f"Ledger update failed: {ledger_err}")
+
+            # ── 8. Generate PDF ──
+            pdf_buffer = generate_invoice_pdf(
+                shop_name=shop_name,
+                shop_address=shop_address,
+                shop_gstin=shop_gstin,
+                customer_name=customer_name,
+                items=enriched_items,
+                sale_id=sale_id,
+                is_gst=is_gst,
+                is_igst=is_igst,
+                subtotal=subtotal,
+                cgst_total=total_cgst,
+                sgst_total=total_sgst,
+                igst_total=total_igst,
+                grand_total=grand_total,
+                amount_paid=amount_paid,
+                balance_due=balance_due,
+                payment_status=payment_status,
+                invoice_number=invoice_number
+            )
+
+            tax_note = ""
+            if is_gst:
+                if is_igst:
+                    tax_note = f"\n🔄 IGST: ₹{total_igst:.2f}"
+                else:
+                    tax_note = f"\n📊 CGST: ₹{total_cgst:.2f} | SGST: ₹{total_sgst:.2f}"
+
+            status_line = f"\n💰 Amount Paid: ₹{amount_paid:.2f}"
+            if balance_due > 0:
+                status_line += f"\n🔴 Balance Due: ₹{balance_due:.2f}"
+
+            result = f"✅ Invoice #{invoice_number} created!\n👤 {customer_name}\n💵 Grand Total: ₹{grand_total:.2f}{tax_note}{status_line}"
+            return result, pdf_buffer
             
         return "❌ Unknown draft type.", None
     except Exception as e:
@@ -377,7 +648,7 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     user_token = get_user_token_for_chat(chat_id)
     text_lower = text.strip().lower()
 
-    # --- 1. Check Draft Approvals ---
+    # --- 1. Check Draft Approvals / IGST Toggle ---
     if text_lower in ["approve", "confirm", "yes", "ok", "done", "save", "ha", "haan"]:
         if chat_id in PENDING_DRAFTS:
             draft = PENDING_DRAFTS[chat_id]
@@ -400,6 +671,19 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
             except: pass
             return
+
+    elif text_lower == "igst" and chat_id in PENDING_DRAFTS:
+        # Toggle inter-state IGST on the pending invoice draft
+        draft = PENDING_DRAFTS[chat_id]
+        if draft.get("type") == "invoice_draft":
+            draft["isOutOfState"] = not draft.get("isOutOfState", False)
+            PENDING_DRAFTS[chat_id] = draft
+            status = "ON ✅" if draft["isOutOfState"] else "OFF ❌"
+            draft_msg = format_draft_for_telegram(draft)
+            await update.message.reply_text(f"🔄 IGST toggled {status}\n\n{draft_msg}", parse_mode="Markdown")
+        else:
+            await update.message.reply_text("ℹ️ IGST toggle only works for invoice drafts.")
+        return
 
     elif text_lower in ["cancel", "no", "discard", "abort", "nahi"]:
         if chat_id in PENDING_DRAFTS:
