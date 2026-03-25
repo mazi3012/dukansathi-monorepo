@@ -170,27 +170,33 @@ const Inventory = () => {
 
             // Handle Image Upload if new image selected
             if (formData.image instanceof File) {
-                toast.loading("Uploading optimized photo...", { id: 'img-up' });
+                toast.loading("Optimizing & uploading photo...", { id: 'img-up' });
                 try {
                     const compressed = await compressImage(formData.image);
-                    const uploadFormData = new FormData();
-                    uploadFormData.append('file', compressed);
 
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
+                    // Direct Supabase Storage upload (no backend needed)
+                    const user = await authService.getCurrentUser();
+                    const userId = user?.id || 'anon';
+                    const ext = 'jpg'; // compressImage always produces JPEG
+                    const fileName = `${userId}/${Date.now()}.${ext}`;
 
-                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/upload-product-image`, {
-                        method: 'POST',
-                        body: uploadFormData,
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-                    const data = await res.json();
-                    if (data.url) {
-                        payload.image_url = data.url;
-                    }
-                    toast.success("Photo uploaded", { id: 'img-up' });
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('product-images')
+                        .upload(fileName, compressed, {
+                            contentType: 'image/jpeg',
+                            cacheControl: '3600',
+                            upsert: true
+                        });
+
+                    if (uploadError) throw uploadError;
+
+                    // Get the public URL
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('product-images')
+                        .getPublicUrl(fileName);
+
+                    payload.image_url = publicUrl;
+                    toast.success("Photo uploaded!", { id: 'img-up' });
                 } catch (imgErr) {
                     console.error("Image upload failed:", imgErr);
                     toast.error("Photo upload failed, saving without photo", { id: 'img-up' });
