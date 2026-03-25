@@ -278,7 +278,7 @@ const Chat = () => {
                         hsnCode: hsn,
                         sellerGstin: sellerGstin,
                         buyerGstin: buyerGstin,
-                        placeOfSupply: isInterState ? 'OUT_OF_STATE' : (placeOfSupply || businessProfile?.state_name)
+                        placeOfSupply: isInterState ? 'OUT_OF_STATE' : (actionData.state_code || actionData.customer_state || businessProfile?.state_name)
                     });
 
                     // Force 0 tax if not a GST session
@@ -603,7 +603,7 @@ const Chat = () => {
                     doc.text(`Rs. ${totalSubtotal.toFixed(2)}`, rightAlignX, finalY, { align: 'right' });
 
                     if (isGst) {
-                        const isOutOfState = actionData.isOutOfState || false;
+                        const isOutOfState = totalIgst > 0 || actionData.isOutOfState || false;
 
                         if (isOutOfState) {
                             doc.text(`IGST:`, 140, finalY + 6);

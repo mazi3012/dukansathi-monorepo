@@ -149,21 +149,37 @@ export const validateGSTIN = (gstin) => {
 };
 
 /**
+ * Reverse mapping: State Name to Code
+ */
+export const STATE_NAME_TO_CODES = Object.entries(GST_STATE_CODES).reduce((acc, [code, name]) => {
+    acc[name.toLowerCase()] = code;
+    return acc;
+}, {});
+
+/**
  * Check if the transaction is Inter-State (IGST) or Intra-State (CGST+SGST)
  * @param {string} sellerGstin 
  * @param {string} buyerGstin 
- * @param {string} placeOfSupplyStateCode (Optional) 
+ * @param {string} placeOfSupply (Can be State Code "18" or State Name "Assam")
  * @returns {boolean} True if inter-state
  */
-export const isInterState = (sellerGstin, buyerGstin, placeOfSupplyStateCode = null) => {
+export const isInterState = (sellerGstin, buyerGstin, placeOfSupply = null) => {
     if (!sellerGstin) return false;
 
     const sellerCode = sellerGstin.substring(0, 2);
     let buyerCode = buyerGstin ? buyerGstin.substring(0, 2) : null;
 
-    // If customer is unregistered or no gstin, use Place of Supply or default to Seller's state
+    // If customer is unregistered or no gstin, determine buyerCode from placeOfSupply
     if (!buyerCode) {
-        buyerCode = placeOfSupplyStateCode || sellerCode;
+        if (!placeOfSupply) {
+            buyerCode = sellerCode;
+        } else if (/^\d{2}$/.test(placeOfSupply)) {
+            // It's already a 2-digit code
+            buyerCode = placeOfSupply;
+        } else {
+            // It's likely a state name, try to map it
+            buyerCode = STATE_NAME_TO_CODES[placeOfSupply.toLowerCase()] || sellerCode;
+        }
     }
 
     return sellerCode !== buyerCode;

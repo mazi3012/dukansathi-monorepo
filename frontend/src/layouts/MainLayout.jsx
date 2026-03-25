@@ -137,7 +137,7 @@ const MainLayout = () => {
             )}
 
             {/* Main Content Area */}
-            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative z-10 ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-14 md:pt-0'}`}>
+            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-14 md:pt-0'}`}>
                 {/* Persistent Chat Layer */}
                 <div 
                     className={`h-[100dvh] flex flex-col w-full pb-0 ${location.pathname === '/chat' ? 'block' : 'hidden'}`}

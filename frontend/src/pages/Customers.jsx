@@ -333,7 +333,7 @@ const Customers = () => {
                         <motion.div
                             initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[80%] max-w-none h-[70vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
+                            className="bg-card-bg w-[95%] sm:w-[92%] md:w-[88%] lg:w-[75%] max-w-4xl h-[70vh] sm:h-[82vh] sm:rounded-[22px] rounded-t-[20px] p-3 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-40 overflow-hidden"
                             style={{ maxHeight: 'calc(100vh - 10rem)' }}
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />

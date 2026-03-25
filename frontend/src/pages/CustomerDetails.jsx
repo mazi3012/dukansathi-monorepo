@@ -184,6 +184,9 @@ const CustomerDetails = () => {
                         <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">{customer.name}</h1>
                         <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors flex items-center gap-2">
                             Customer Profile • {customer.phone || 'Unknown'}
+                            <span className={`ml-2 px-2 py-0.5 rounded-full border ${customer.credit_balance > 0 ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
+                                {customer.credit_balance > 0 ? 'Due' : 'Advance'}: ₹{Math.abs(customer.credit_balance).toLocaleString('en-IN')}
+                            </span>
                         </p>
                     </div>
                 </div>
@@ -224,6 +227,24 @@ const CustomerDetails = () => {
             <div className="p-6 relative z-10">
                 {activeTab === 'due' && (
                     <div className="space-y-6">
+                        {/* Total Balance Card */}
+                        <div className={`glass-card p-6 rounded-[32px] border flex justify-between items-center relative overflow-hidden transition-all duration-500 ${customer.credit_balance > 0 ? 'border-red-500/30 bg-red-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`}>
+                            <div className="relative z-10">
+                                <h3 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">Total Outstanding</h3>
+                                <div className={`text-4xl font-black tracking-tighter ${customer.credit_balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    ₹{Math.abs(customer.credit_balance).toLocaleString('en-IN')}
+                                </div>
+                                <p className="text-[9px] font-bold text-text-muted mt-1 uppercase tracking-wider">
+                                    {customer.credit_balance > 0 ? 'Customer owes you' : 'You owe customer / Advance'}
+                                </p>
+                            </div>
+                            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center relative z-10 ${customer.credit_balance > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                                {customer.credit_balance > 0 ? <ArrowDownLeft size={32} strokeWidth={2.5} /> : <ArrowUpRight size={32} strokeWidth={2.5} />}
+                            </div>
+                            {/* Decorative Glow */}
+                            <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-3xl opacity-20 ${customer.credit_balance > 0 ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                        </div>
+
                         <div className="flex gap-4">
                             <button
                                 onClick={() => { setDueType('credit'); setIsDueModalOpen(true); }}
