@@ -28,6 +28,14 @@ const ChatInvoiceCard = ({ msg }) => {
         items = msg.items_summary.split('\n').filter(line => line.trim());
     }
 
+    const isGst = msg.invoice_type === 'gst';
+    const subtotal = parseFloat(msg.subtotal) || 0;
+    const cgst = parseFloat(msg.cgst_amount) || 0;
+    const sgst = parseFloat(msg.sgst_amount) || 0;
+    const igst = parseFloat(msg.igst_amount) || 0;
+    const totalTax = cgst + sgst + igst;
+    const isOutOfState = msg.is_out_of_state || igst > 0;
+
     return (
         <div className="w-full bg-card-bg backdrop-blur-md rounded-2xl overflow-hidden border border-card-border shadow-lg relative group transition-all duration-300 hover:shadow-indigo-500/10 hover:border-indigo-500/30">
             {/* Header with Gradient */}
@@ -37,8 +45,9 @@ const ChatInvoiceCard = ({ msg }) => {
                         <FileSpreadsheet size={16} />
                     </div>
                     <span className="font-heading font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">
-                        {msg.invoice_type === 'gst' ? "TAX INVOICE" : "BILL OF SUPPLY"}
+                        {isGst ? "TAX INVOICE" : "BILL OF SUPPLY"}
                     </span>
+                    {isGst && <span className="text-[9px] bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">GST</span>}
                 </div>
                 <div className="flex flex-col items-end">
                     <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Invoice No.</span>
@@ -61,7 +70,7 @@ const ChatInvoiceCard = ({ msg }) => {
                 </div>
 
                 {/* Items List */}
-                <div className="mb-6 space-y-3">
+                <div className="mb-4 space-y-3">
                     <p className="text-text-muted text-[10px] font-bold uppercase tracking-widest mb-2 border-b border-card-border/50 pb-2">Purchase Summary</p>
                     <div className="space-y-3">
                         {items.length > 0 ? (
@@ -89,8 +98,39 @@ const ChatInvoiceCard = ({ msg }) => {
                     </div>
                 </div>
 
+                {/* Tax Breakdown — Only for GST invoices */}
+                {isGst && totalTax > 0 && (
+                    <div className="mb-4 py-3 px-3 rounded-xl bg-indigo-50/20 dark:bg-indigo-500/5 border border-indigo-500/10 space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-bold text-text-muted">
+                            <span>TAXABLE VALUE</span>
+                            <span>₹{subtotal.toFixed(2)}</span>
+                        </div>
+                        {isOutOfState ? (
+                            <div className="flex justify-between text-[10px] font-bold text-indigo-500">
+                                <span>IGST (Inter-State)</span>
+                                <span>+ ₹{igst.toFixed(2)}</span>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex justify-between text-[10px] font-bold text-indigo-500">
+                                    <span>CGST (Central)</span>
+                                    <span>+ ₹{cgst.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] font-bold text-indigo-500">
+                                    <span>SGST (State)</span>
+                                    <span>+ ₹{sgst.toFixed(2)}</span>
+                                </div>
+                            </>
+                        )}
+                        <div className="flex justify-between text-[10px] font-bold text-text-muted border-t border-indigo-500/10 pt-1.5">
+                            <span>TOTAL TAX</span>
+                            <span>₹{totalTax.toFixed(2)}</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Total */}
-                <div className="pt-5 border-t border-card-border flex justify-between items-center group/total">
+                <div className="pt-4 border-t border-card-border flex justify-between items-center group/total">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">Payment Status</span>
                         <span className={`text-xs font-bold flex items-center gap-1 mt-0.5 ${msg.payment_status === 'paid' ? 'text-emerald-500' : (msg.balance_due > 0 && msg.amount_paid > 0 ? 'text-orange-500' : 'text-red-500')}`}>
@@ -271,14 +311,15 @@ const Chat = () => {
                     const rawRate = parseFloat(item.price ?? item.unit_price) || 0;
                     const hsn = item.hsn_code || "1905"; // Default if missing
 
-                    const isInterState = actionData.isOutOfState || false;
+                    const forceInterState = actionData.isOutOfState || false;
                     const taxCalc = TaxCalculator.calculate({
                         sellingPrice: rawRate,
                         quantity: qty,
                         hsnCode: hsn,
                         sellerGstin: sellerGstin,
                         buyerGstin: buyerGstin,
-                        placeOfSupply: isInterState ? 'OUT_OF_STATE' : (actionData.state_code || actionData.customer_state || businessProfile?.state_name)
+                        placeOfSupply: forceInterState ? null : (actionData.state_code || actionData.customer_state || businessProfile?.state_name),
+                        forceInterState
                     });
 
                     // Force 0 tax if not a GST session
@@ -718,6 +759,11 @@ const Chat = () => {
                         customer_phone: customerPhone,
                         customer_name: actionData.customer_name || 'Customer',
                         invoice_id: sale.id,
+                        invoice_type: isGstSession ? 'gst' : 'regular',
+                        subtotal: totalSubtotal.toFixed(2),
+                        cgst_amount: totalCgst.toFixed(2),
+                        sgst_amount: totalSgst.toFixed(2),
+                        igst_amount: totalIgst.toFixed(2),
                         grand_total: grandTotal.toFixed(2),
                         payment_status: status,
                         amount_paid: amtPaid.toFixed(2),
