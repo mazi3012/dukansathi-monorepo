@@ -26,36 +26,30 @@
 
 ---
 
-## 🏗️ Architecture: Hybrid OpenClaw™ Engine
+## 🏗️ Architecture: Gemini-First Cloud Engine
 
-DukanSathi is built on a **Hybrid-Edge** architecture that intelligently balances cloud power with local privacy and performance.
+DukanSathi is built on a **Cloud-Native** architecture that prioritizes the power of Gemini 3.1 for natural language understanding, multimodal vision, and complex business logic.
 
 ### System Architecture
 
 ```mermaid
 graph TD
-    A["👤 User (Voice/Text/Image)"] --> B["📱 React PWA Frontend"]
+    A["👤 User (Voice/Text/Image/File)"] --> B["📱 React PWA Frontend"]
     
     B <-->|WebSocket| C["⚡ FastAPI Backend"]
     
-    C --> D{"🌐 Online?"}
-    
-    D -->|Yes| E["🤖 Cloud AI Engine<br/>Enterprise-grade AI"]
-    D -->|Offline| F["🤖 Local Engine<br/>On-device Processing"]
+    C --> E["🤖 Gemini 3.1 Cloud Engine<br/>Multimodal / Vision / SQL Gen"]
     
     E --> G["📊 Supabase<br/>PostgreSQL + Storage"]
-    F --> H["💾 SQLite<br/>Local Database"]
     
-    C --> I["🎙️ Whisper STT<br/>Speech-to-Text"]
-    C --> J["🔊 AI Voice TTS<br/>Text-to-Speech"]
+    C --> I["🎙️ Whisper STT<br/>(Groq / Whisper-v3)"]
+    C --> J["🔊 AI Voice TTS<br/>(Edge-TTS / 10+ Voices)"]
     
     C --> K["🤖 Telegram Bot<br/>Cloud Run Webhook"]
     
     G -->|"RLS Protected"| B
-    H -->|"Sync when online"| G
     
-    style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style F fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style E fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style G fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
 ```
 
@@ -63,15 +57,15 @@ graph TD
 
 ```mermaid
 graph LR
-    A["User Input"] --> B["🛡️ Safety Guard<br/>SQL Injection Filter"]
-    B --> C["🔀 Router Node<br/>Categorize Intent"]
+    A["User Input<br/>(Text/Voice/Vision/File)"] --> B["🛡️ Safety Guard<br/>Regex + SQL Injection Filter"]
+    B --> C["🔀 Router Node<br/>Identify Intent<br/>(BUSINESS / ACTION / CHAT)"]
     
-    C -->|"ACTION"| D["⚡ Action Node<br/>Fast Regex → LLM Fallback"]
-    C -->|"CHAT/Q&A"| E["💬 Chat Node<br/>SQL Data Retrieval + AI"]
-    C -->|"BLOCKED"| F["🚫 Reject"]
+    C -->|"ACTION / VISION"| D["⚡ Action Node<br/>Multimodal Processing<br/>Draft Generation"]
+    C -->|"BUSINESS / Q&A"| E["💬 Chat Node<br/>SQL RAG + Database Retrieval"]
+    C -->|"GREETING / CHAT"| F["👋 Persona Node<br/>Friendly Interaction"]
     
-    D --> G["📝 Draft Card<br/>Product / Invoice / Payment"]
-    E --> H["💬 AI Response<br/>Voice + Text"]
+    D --> G["📝 Smart Draft<br/>Product / Invoice / Payment"]
+    E --> H["💡 AI Insight<br/>Sales / Profit / Inventory"]
     
     G -->|"User Approves"| I["✅ Execute via RPC"]
     G -->|"User Rejects"| J["❌ Discard"]
@@ -79,6 +73,7 @@ graph LR
     style B fill:#ffebee,stroke:#c62828,stroke-width:2px
     style D fill:#e8f5e9,stroke:#2e7d32
     style E fill:#e3f2fd,stroke:#1565c0
+    style F fill:#fff3e0,stroke:#ef6c00
 ```
 
 ---
@@ -102,7 +97,7 @@ graph LR
 | 🔒 Private invoice storage (signed URLs) | ✅ |
 | 🛡️ SQL injection protection (regex guard) | ✅ |
 | ⚡ WebSocket rate limiting | ✅ |
-| 🔄 Offline mode (SQLite synchronization) | ✅ |
+| 🔄 Local data caching (SQLite synchronization) | ✅ |
 
 ---
 
@@ -116,13 +111,13 @@ graph LR
 |-------|-----------|
 | **Frontend** | React 18 + Vite 6 (Vanilla CSS, Mobile-first) |
 | **Backend** | FastAPI 0.115 (Python 3.11+) |
-| **AI (Cloud)** | Enterprise-grade LLM |
-| **AI (Local)** | Lightweight Edge LLM |
+| **AI (Cloud)** | Gemini 3.1 Flash Lite (via Vertex AI Global) |
+| **AI (Local)** | Removed (Phased out for reliability) |
 | **Agent Framework** | LangGraph (multi-node state machine) |
 | **Speech-to-Text** | Whisper STT |
 | **Text-to-Speech** | AI Voice Engine (10+ voices) |
 | **Database** | Supabase (PostgreSQL + RLS + Storage) |
-| **Offline DB** | SQLite (local-first) |
+| **Local DB** | SQLite (Edge Caching & Sync) |
 | **Auth** | Supabase Auth (Google OAuth + OTP) |
 | **Bot** | Telegram Bot API |
 | **Frontend Deploy** | Vercel |
@@ -135,18 +130,17 @@ graph LR
 ```
 dukanv22/
 ├── backend/                    # FastAPI server
-│   ├── main.py                 # Entry point: WebSocket, REST, CORS, Rate Limiting
-│   ├── voice_service.py        # STT (Groq Whisper) + TTS (Edge-TTS)
-│   ├── local_ai.py             # Ollama local LLM integration
-│   ├── local_db.py             # SQLite offline database
-│   ├── security.py             # Rate limiting & security headers middleware
+│   ├── main.py                 # FastAPI: WebSocket, REST, Auth, Rate Limiting
+│   ├── voice_service.py        # STT (Groq Whisper-v3) + TTS (Edge-TTS)
+│   ├── local_db.py             # SQLite: Local data caching & persistence
+│   ├── security.py             # Rate limiting & middleware
 │   ├── telegram_bot.py         # Telegram bot handler (webhook + polling)
 │   ├── setup_routes.py         # System setup endpoints
 │   └── requirements.txt
 │
 ├── ai-bot/
 │   └── dukansathi_ai/
-│       ├── agent_graph.py      # LangGraph AI agent (router → action/chat nodes)
+│       ├── agent_graph.py      # Brain: Gemini 3.1 LangGraph State Machine
 │       └── language_detector.py # Hindi/English detection
 │
 ├── frontend/
