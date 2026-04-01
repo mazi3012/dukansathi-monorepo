@@ -9,6 +9,8 @@ import logo from '../assets/logo.svg';
 import PDFViewer from '../components/PDFViewer';
 import { TaxCalculator } from '../utils/gstUtils';
 import QRCode from 'qrcode';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { Sparkles, Lock } from 'lucide-react';
 
 const formatWhatsAppNumber = (phone) => {
     if (!phone) return '';
@@ -175,6 +177,7 @@ const Chat = () => {
         pendingAttachment,
         setPendingAttachment
     } = useChat();
+    const { tier } = useSubscription();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -1394,122 +1397,96 @@ const Chat = () => {
 
                         <button
                             onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                            disabled={isThinking || !isConnected}
+                            disabled={isThinking || !isConnected || tier === 'free'}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showAttachmentMenu
-                                ? 'bg-indigo-500/10 text-indigo-500'
+                                ? 'bg-indigo-500/10 text-indigo-500 shadow-inner'
                                 : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'
-                                } disabled:opacity-50`}
+                                } disabled:opacity-30`}
                             title="Attach File"
                         >
                             <Plus size={20} strokeWidth={1.5} className={`transition-transform duration-200 ${showAttachmentMenu ? 'rotate-45' : ''}`} />
                         </button>
-                        <button
-                            onClick={toggleMute}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'}`}
-                        >
-                            {isMuted ? <VolumeX size={20} strokeWidth={1.5} /> : <Volume2 size={20} strokeWidth={1.5} />}
-                        </button>
                     </div>
 
-                    {/* Hidden Inputs */}
-                    <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        ref={cameraInputRef}
-                        onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
-                    />
-                    <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        ref={fileInputRef}
-                        onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])}
-                    />
-                    <input
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        className="hidden"
-                        ref={excelInputRef}
-                        onChange={(e) => e.target.files[0] && sendExcel(e.target.files[0])}
-                    />
-
-                    {/* Text Field & Preview Container */}
-                    <div className="flex-1 flex flex-col justify-end bg-card-bg/50 border border-card-border rounded-3xl pb-0 shadow-sm overflow-hidden transition-all duration-300">
-                        {/* Attachment Preview Area */}
-                        {pendingAttachment && (
-                            <div className="px-3 pt-3 pb-1 flex items-center gap-2 max-w-full">
-                                <div className="relative group bg-black/10 dark:bg-white/10 rounded-xl p-1.5 flex items-center gap-3 pr-4 border border-card-border">
-                                    {pendingAttachment.type === 'image' ? (
-                                        <img src={pendingAttachment.previewUrl} alt="Preview" className="w-10 h-10 object-cover rounded-lg" />
-                                    ) : (
-                                        <div className="w-10 h-10 bg-amber-500/20 text-amber-500 rounded-lg flex items-center justify-center">
-                                            <FileSpreadsheet size={20} />
-                                        </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-text-main truncate max-w-[120px] md:max-w-[200px]">
-                                            {pendingAttachment.file.name}
-                                        </p>
-                                        <p className="text-[10px] text-text-muted mt-0.5">
-                                            {(pendingAttachment.file.size / 1024).toFixed(1)} KB
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setPendingAttachment(null)}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600"
-                                    >
-                                        <Plus size={14} className="rotate-45" />
-                                    </button>
+                    {/* Content Area: UI Restriction for Free Tier */}
+                    {tier === 'free' ? (
+                        <div className="flex-1 flex items-center justify-between bg-indigo-500/5 border border-indigo-500/20 rounded-3xl px-4 py-2.5 shadow-inner">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0">
+                                    <Lock size={14} />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">AI is a Pro feature</span>
+                                    <span className="text-[10px] text-text-muted truncate">Upgrade for AI Billing & Sathi Assistant</span>
                                 </div>
                             </div>
-                        )}
-
-                        <textarea
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (isOnline) handleSend();
-                                }
-                            }}
-                            placeholder={!isConnected ? "Connecting to AI..." : (isThinking ? "Wait for AI to finish..." : "Message Dukan Sathi...")}
-                            disabled={!isOnline || isThinking}
-                            className="w-full bg-transparent text-text-main caret-indigo-500 text-sm md:text-base placeholder:text-text-muted px-4 py-2.5 md:py-3 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px] rounded-3xl disabled:opacity-50"
-                            rows={1}
-                            style={{ height: input ? 'auto' : '44px' }}
-                        />
-                    </div>
-
-                    {/* Submit / Mic Button */}
-                    <div className="shrink-0 pb-0.5">
-                        {input.trim() || pendingAttachment ? (
                             <button
-                                onClick={handleSend}
-                                disabled={isThinking}
-                                className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                                onClick={() => navigate('/plans')}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 shrink-0"
                             >
-                                <Send size={18} className="translate-x-[2px]" />
+                                <div className="flex items-center gap-1">
+                                    Upgrade <Sparkles size={10} fill="currentColor" />
+                                </div>
                             </button>
-                        ) : (
-                            <button
-                                onClick={() => {
-                                    if (isListening) stopRecording();
-                                    else startRecording();
-                                }}
-                                disabled={isThinking}
-                                className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening
-                                    ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse'
-                                    : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'
-                                    } disabled:opacity-50 disabled:active:scale-100`}
-                            >
-                                <Mic size={18} />
-                            </button>
-                        )}
-                    </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Hidden Inputs */}
+                            <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])} />
+                            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => e.target.files[0] && sendImage(e.target.files[0])} />
+                            <input type="file" accept=".xlsx,.xls,.csv" className="hidden" ref={excelInputRef} onChange={(e) => e.target.files[0] && sendExcel(e.target.files[0])} />
 
+                            <div className="flex-1 flex flex-col justify-end bg-card-bg/50 border border-card-border rounded-3xl pb-0 shadow-sm overflow-hidden transition-all duration-300 text-left">
+                                {pendingAttachment && (
+                                    <div className="px-3 pt-2 pb-1 flex items-center gap-2 max-w-full">
+                                        <div className="relative group bg-black/10 dark:bg-white/10 rounded-xl p-1.5 flex items-center gap-3 pr-4 border border-card-border">
+                                            {pendingAttachment.type === 'image' ? (
+                                                <img src={pendingAttachment.previewUrl} alt="Preview" className="w-8 h-8 object-cover rounded-lg" />
+                                            ) : (
+                                                <div className="w-8 h-8 bg-amber-500/20 text-amber-500 rounded-lg flex items-center justify-center">
+                                                    <FileSpreadsheet size={16} />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-medium text-text-main truncate max-w-[120px]">{pendingAttachment.file.name}</p>
+                                            </div>
+                                            <button onClick={() => setPendingAttachment(null)} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"><Plus size={10} className="rotate-45" /></button>
+                                        </div>
+                                    </div>
+                                )}
+                                <textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            if (isOnline) handleSend();
+                                        }
+                                    }}
+                                    placeholder={!isConnected ? "Connecting..." : (isThinking ? "Thinking..." : "Message...")}
+                                    disabled={!isOnline || isThinking}
+                                    className="w-full bg-transparent text-text-main caret-indigo-500 text-sm placeholder:text-text-muted px-4 py-2.5 focus:outline-none resize-none overflow-hidden min-h-[44px] max-h-[120px]"
+                                    rows={1}
+                                    style={{ height: input ? 'auto' : '44px' }}
+                                />
+                            </div>
+
+                            {/* Submit / Mic Button */}
+                            <div className="shrink-0 pb-0.5">
+                                {input.trim() || pendingAttachment ? (
+                                    <button onClick={handleSend} disabled={isThinking} className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"><Send size={18} className="translate-x-[2px]" /></button>
+                                ) : (
+                                    <button
+                                        onClick={() => isListening ? stopRecording() : startRecording()}
+                                        disabled={isThinking}
+                                        className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse' : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'} disabled:opacity-50`}
+                                    >
+                                        <Mic size={18} />
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
             </footer>
         </div>

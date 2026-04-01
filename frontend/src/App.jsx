@@ -15,9 +15,11 @@ import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
 import { ChatProvider } from './contexts/ChatContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { initSQLite } from './lib/sqlite';
 import { syncEngine } from './lib/db/syncEngine';
 import { registerSW } from 'virtual:pwa-register';
+import Plans from './pages/Plans';
 
 // Register PWA Service Worker
 registerSW({ immediate: true });
@@ -65,8 +67,9 @@ function App() {
   }, []);
 
   return (
-    <ChatProvider>
-      {showSplash ? (
+    <SubscriptionProvider>
+      <ChatProvider>
+        {showSplash ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -80,8 +83,9 @@ function App() {
         <BrowserRouter>
           <AnimatedRoutes />
         </BrowserRouter>
-      )}
-    </ChatProvider>
+        )}
+      </ChatProvider>
+    </SubscriptionProvider>
   );
 // Optional: Add a slow bounce animation for the logo
 // Add this to your global CSS if not present:
@@ -109,6 +113,7 @@ const AnimatedRoutes = () => {
           <Route path="sales" element={<Sales />} />
           <Route path="settings" element={<Settings />} />
           <Route path="connections" element={<Connections />} />
+          <Route path="plans" element={<Plans />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

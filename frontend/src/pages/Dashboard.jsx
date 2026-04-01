@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Package, Users, Activity, Loader } from 'lucide-react';
+import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Package, Users, Activity, Loader, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardSkeleton } from '../components/Skeleton';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { getDB } from '../lib/sqlite';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -103,6 +104,7 @@ const ActionButton = ({ icon: Icon, label, color, gradient, onClick, active = fa
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const { tier, usage, limits, getUsagePercent } = useSubscription();
     const [timeframe, setTimeframe] = useState('today'); // 'today' | 'all'
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
@@ -420,6 +422,48 @@ const Dashboard = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Subscription Usage Card */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.7, type: 'spring', stiffness: 100 }}
+                        className="glass-card p-5 rounded-3xl"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Zap size={16} className="text-indigo-500" />
+                                <h2 className="text-sm font-bold text-text-main">Usage — <span className="capitalize text-indigo-500">{tier}</span> Plan</h2>
+                            </div>
+                            {tier === 'free' && (
+                                <Link to="/plans" className="text-[10px] font-black text-indigo-500 uppercase tracking-widest border border-indigo-500/30 px-3 py-1 rounded-lg hover:bg-indigo-500 hover:text-white transition-all">Upgrade</Link>
+                            )}
+                        </div>
+                        <div className="space-y-3">
+                            {[
+                                { label: 'Products', key: 'products', icon: Package },
+                                { label: 'Customers', key: 'customers', icon: Users },
+                                { label: 'Bills (Month)', key: 'bills', icon: ShoppingBag },
+                            ].map(({ label, key, icon: Icon }) => {
+                                const pct = getUsagePercent(key);
+                                const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-indigo-500';
+                                return (
+                                    <div key={key}>
+                                        <div className="flex justify-between text-[10px] font-black text-text-muted uppercase tracking-wider mb-1.5">
+                                            <span className="flex items-center gap-1.5"><Icon size={10} />{label}</span>
+                                            <span className={pct >= 90 ? 'text-red-500' : ''}>{usage[key]} / {limits[key]}</span>
+                                        </div>
+                                        <div className="h-1.5 bg-card-border rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${color}`}
+                                                style={{ width: `${pct}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
                 </div>
 
                 {/* Right Column (Recent Activity) */}

@@ -12,10 +12,14 @@ import { saleRepo } from '../lib/db/saleRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { getDB, persistDB } from '../lib/sqlite';
 import { authService } from '../lib/authService';
+import { useNavigate } from 'react-router-dom';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import toast from 'react-hot-toast';
 
 
 const Sales = () => {
+    const navigate = useNavigate();
+    const { canAdd, usage, limits, refreshSubscription } = useSubscription();
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [timeframe, setTimeframe] = useState('today'); // 'today' | 'all'
@@ -264,6 +268,7 @@ const Sales = () => {
     };
 
     const handleGenerateInvoice = async () => {
+        if (!canAdd('bills', navigate)) return;
         try {
             const user = await authService.getCurrentUser();
             const userId = user ? user.id : 'anon';
@@ -330,6 +335,7 @@ const Sales = () => {
 
             // Success
             toast.success("Invoice Created Locally!");
+            refreshSubscription(); // Update bill counts
             // Reset form
             setItems([{ id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0, tax_type: 'exclusive' }]);
             setAdditionalDiscount('');
@@ -407,8 +413,12 @@ const Sales = () => {
                         </div>
                         <h3 className="text-2xl font-heading font-black text-text-main mb-2 transition-colors">No Sales Yet</h3>
                         <p className="text-text-muted font-bold max-w-sm mx-auto mb-8 transition-colors">No transactions found. Create a new bill to get started.</p>
-                        <button onClick={() => setShowModal(true)} className="px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all">
+                        <button 
+                            onClick={() => { if (canAdd('bills', navigate)) setShowModal(true); }} 
+                            className="px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
                             Create First Bill
+                            <span className="text-[10px] opacity-70">({usage.bills}/{limits.bills})</span>
                         </button>
                     </div>
                 ) : (
@@ -476,10 +486,18 @@ const Sales = () => {
             </div>
 
             <button
-                onClick={() => setShowModal(true)}
-                className="fixed right-4 bottom-20 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+                onClick={() => { if (canAdd('bills', navigate)) setShowModal(true); }}
+                disabled={usage.bills >= limits.bills}
+                className={`fixed right-4 bottom-24 w-16 h-16 rounded-full shadow-2xl flex flex-col items-center justify-center active:scale-95 transition-all z-[100] ${
+                    usage.bills >= limits.bills 
+                    ? 'bg-gray-500/50 cursor-not-allowed' 
+                    : 'bg-indigo-600 hover:scale-110'
+                }`}
             >
-                <Plus size={28} />
+                <Plus size={28} className="text-white" />
+                <span className="text-[8px] font-black text-white/80 uppercase tracking-tighter">
+                    {usage.bills}/{limits.bills}
+                </span>
             </button>
 
             <AnimatePresence>
@@ -635,8 +653,16 @@ const Sales = () => {
                             </div>
 
                             <div className="pt-8">
-                                <button onClick={handleGenerateInvoice} className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-widest">
-                                    Save Bill
+                                <button 
+                                    onClick={handleGenerateInvoice} 
+                                    disabled={usage.bills >= limits.bills}
+                                    className={`w-full py-5 font-black rounded-2xl shadow-2xl transition-all flex items-center justify-center gap-3 uppercase tracking-widest ${
+                                        usage.bills >= limits.bills
+                                        ? 'bg-gray-500/30 text-gray-400 cursor-not-allowed'
+                                        : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:scale-[1.02] active:scale-[0.98]'
+                                    }`}
+                                >
+                                    {usage.bills >= limits.bills ? 'Limit Reached' : 'Save Bill'}
                                 </button>
                             </div>
                         </motion.div>

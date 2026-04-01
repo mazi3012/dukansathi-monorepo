@@ -24,7 +24,8 @@ import { useNavigate } from 'react-router-dom';
 import { syncEngine } from '../lib/db/syncEngine';
 import logo from '../assets/logo.svg';
 import { usePWA } from '../hooks/usePWA';
-import { Download } from 'lucide-react';
+import { Download, CreditCard, Sparkles } from 'lucide-react';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -33,6 +34,7 @@ const Sidebar = () => {
     const [isAutoSyncEnabled, setIsAutoSyncEnabled] = React.useState(true);
     const [syncStatus, setSyncStatus] = React.useState({ status: 'idle', message: '' });
     const { isInstallable, installApp } = usePWA();
+    const { tier, usage, limits } = useSubscription();
 
     React.useEffect(() => {
         const fetchUser = async () => {
@@ -80,6 +82,7 @@ const Sidebar = () => {
         { path: '/inventory', icon: Package, label: 'Inventory' },
         { path: '/customers', icon: Users, label: 'Customers' },
         { path: '/connections', icon: LinkIcon, label: 'Connections' },
+        { path: '/plans', icon: CreditCard, label: 'Plans & Usage' },
         { path: '/settings', icon: Settings, label: 'Settings' },
     ];
 
@@ -91,7 +94,17 @@ const Sidebar = () => {
                 <img src={logo} alt="DukanSathi Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
                 <div className="relative z-10">
                     <h1 className="font-heading font-extrabold text-xl text-text-main tracking-tight transition-colors">Dukan Sathi</h1>
-                    <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/20">BETA</span>
+                    <div className="flex gap-2 items-center">
+                        <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/20">BETA</span>
+                        <span className={`text-[9px] uppercase tracking-tighter font-extrabold px-1.5 py-0.5 rounded-md border ${
+                            tier === 'free' ? 'bg-slate-500/10 text-slate-500 border-slate-500/20' :
+                            tier === 'starter' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                            tier === 'pro' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 shadow-[0_0_10px_rgba(79,70,229,0.2)]' :
+                            'bg-purple-500/10 text-purple-500 border-purple-500/20 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
+                        }`}>
+                            {tier}
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -118,6 +131,13 @@ const Sidebar = () => {
                                     `}
                                 />
                                 <span className="relative z-10 font-medium text-sm">{item.label}</span>
+                                {item.path === '/plans' && tier === 'free' && (
+                                    <motion.div
+                                        animate={{ scale: [1, 1.2, 1] }}
+                                        transition={{ repeat: Infinity, duration: 2 }}
+                                        className="ml-auto w-2 h-2 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)] z-10"
+                                    />
+                                )}
                                 {!isActive && (
                                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                 )}

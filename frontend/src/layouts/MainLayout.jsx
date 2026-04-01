@@ -10,10 +10,12 @@ import { DashboardSkeleton } from '../components/Skeleton';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.svg';
+import { useSubscription } from '../contexts/SubscriptionContext';
 
 const MainLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { tier } = useSubscription();
     const [isListening, setIsListening] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
@@ -161,7 +163,13 @@ const MainLayout = () => {
             {location.pathname !== '/chat' && (
                 <div className="md:hidden">
                     <BottomNav
-                        onCenterClick={() => navigate('/chat')}
+                        onCenterClick={() => {
+                            if (tier === 'free') {
+                                navigate('/plans');
+                            } else {
+                                navigate('/chat');
+                            }
+                        }}
                     />
                 </div>
             )}

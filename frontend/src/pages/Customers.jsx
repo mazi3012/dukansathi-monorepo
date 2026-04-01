@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, Phone, User, ArrowUpRight, Filter, MoreVertical, Users, Trash2, Edit2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -7,9 +7,12 @@ import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import { customerRepo } from '../lib/db/customerRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { authService } from '../lib/authService';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import toast from 'react-hot-toast';
 
 const Customers = () => {
+    const navigate = useNavigate();
+    const { canAdd, usage, limits, refreshSubscription } = useSubscription();
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -210,11 +213,17 @@ const Customers = () => {
                             />
                         </div>
                         <button
-                            onClick={() => setIsAddModalOpen(true)}
-                            className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
+                            onClick={() => { if (canAdd('customers', navigate)) setIsAddModalOpen(true); }}
+                            disabled={usage.customers >= limits.customers}
+                            className={`flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl shadow-2xl transition-all uppercase tracking-widest text-[10px] ${
+                                usage.customers >= limits.customers
+                                    ? 'bg-gray-500/30 text-gray-400 cursor-not-allowed'
+                                    : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
+                            }`}
                         >
                             <Plus size={18} strokeWidth={3} />
                             Add Customer
+                            <span className="ml-1 text-[9px] opacity-70">{usage.customers}/{limits.customers}</span>
                         </button>
                     </div>
                 </header>

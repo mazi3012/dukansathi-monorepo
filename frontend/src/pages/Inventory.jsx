@@ -6,9 +6,13 @@ import { supabase } from '../lib/supabase';
 import { productRepo } from '../lib/db/productRepository';
 import { syncEngine } from '../lib/db/syncEngine';
 import { authService } from '../lib/authService';
+import { useNavigate } from 'react-router-dom';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import toast from 'react-hot-toast';
 
 const Inventory = () => {
+    const navigate = useNavigate();
+    const { canAdd, usage, limits, getUsagePercent, refreshSubscription } = useSubscription();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(''); // Changed from 'search' to 'searchTerm'
@@ -111,7 +115,7 @@ const Inventory = () => {
 
     // Handlers
     const handleAddNew = () => {
-        // Default to GST mode if user is registered, else simple
+        if (!canAdd('products', navigate)) return;
         setFormData({
             ...initialFormState,
             isGst: userProfile?.is_gst_registered || false
@@ -213,7 +217,8 @@ const Inventory = () => {
             }
 
             setShowModal(false);
-            fetchData(); // Refresh list from local DB
+            fetchData();
+            refreshSubscription(); // Update usage counts in header
 
             // Push to cloud immediately if online
             if (navigator.onLine) {
@@ -278,10 +283,16 @@ const Inventory = () => {
                         </div>
                         <button
                             onClick={handleAddNew}
-                            className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
+                            disabled={usage.products >= limits.products}
+                            className={`flex items-center justify-center gap-3 px-8 py-4 font-black rounded-2xl shadow-2xl transition-all uppercase tracking-widest text-[10px] ${
+                                usage.products >= limits.products
+                                    ? 'bg-gray-500/30 text-gray-400 cursor-not-allowed'
+                                    : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
+                            }`}
                         >
                             <Plus size={18} strokeWidth={3} />
                             Add Product
+                            <span className="ml-1 text-[9px] opacity-70">{usage.products}/{limits.products}</span>
                         </button>
                     </div>
                 </header>

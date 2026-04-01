@@ -128,6 +128,10 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
 ]
 
+# Subscription Service
+from subscription_service import SubscriptionService
+sub_service = SubscriptionService(supabase)
+
 # Also allow any Cloud Run preview/service URL
 cloud_run_url = os.getenv("CLOUD_RUN_URL", "")
 if cloud_run_url:
@@ -438,8 +442,71 @@ async def tts_preview(request: TTSRequest, user_id: str = Depends(verify_local_a
             
         return {"audio_base64": base64_audio}
     except Exception as e:
-        print(f"Preview Error: {e}")
+        logger.error(f"Preview Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Subscription & Usage Routes ---
+
+@app.get("/api/subscription/usage")
+async def get_usage_token(user_id: str = Depends(verify_local_auth)):
+    """Get current usage stats and a signed JWT usage token"""
+    stats = await sub_service.get_usage_stats(user_id)
+    if not stats:
+        raise HTTPException(status_code=500, detail="Failed to fetch usage stats")
+    
+    token = sub_service.generate_usage_token(user_id, stats)
+    return {
+        "token": token,
+        "stats": stats
+    }
+
+@app.post("/api/subscription/create")
+async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_auth)):
+    """Create a new Razorpay subscription (Trial included)"""
+    try:
+        subscription = await sub_service.create_checkout_session(user_id, plan_id)
+        
+        # Save subscription ID to profile
+        supabase.table("profiles").update({
+            "razorpay_subscription_id": subscription["id"],
+            "subscription_status": "pending" # Until webhook confirms
+        }).eq("id", user_id).execute()
+        
+        return subscription
+    except Exception as e:
+        logger.error(f"Subscription creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/subscription/webhook")
+async def razorpay_webhook(request: Request):
+    """Handle Razorpay webhook for subscription updates"""
+    payload = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature")
+    
+    if not sub_service.verify_webhook(payload, signature):
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    
+    data = await request.json()
+    event = data.get("event")
+    sub_id = data["payload"]["subscription"]["entity"]["id"]
+    status = data["payload"]["subscription"]["entity"]["status"]
+    
+    # Map Razorpay events to local status
+    if event == "subscription.activated":
+        # Determine tier from plan_id (Mapping needed)
+        plan_id = data["payload"]["subscription"]["entity"]["plan_id"]
+        # Example mapping (real ones should come from RZP dashboard)
+        tiers = {
+            "plan_SYJ1J3QjtX1mAK": "starter",
+            "plan_SYJ1ZJWBFTgZWx": "pro",
+            "plan_SYJ1a3OcE6bwDB": "ultra"
+        }
+        tier = tiers.get(plan_id)
+        await sub_service.update_user_subscription(sub_id, "active", tier)
+    elif event in ["subscription.pending", "subscription.halted", "subscription.cancelled"]:
+        await sub_service.update_user_subscription(sub_id, status)
+        
+    return {"status": "ok"}
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
@@ -526,6 +593,21 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             # Use verified ID for all operations
             user_id = verified_user_id or "anon"
             user_token = user_id  # Agent expects user_token = user_id
+            
+            # --- TIER ENFORCEMENT ---
+            user_tier = "free"
+            if user_id != "anon":
+                profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+                user_tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
+            
+            # Block AI for Free Tier
+            if user_tier == "free" and message_type in ["text", "voice", "image", "excel"]:
+                await websocket.send_json({
+                    "type": "error",
+                    "content": "AI Assistant is a Pro feature. Please upgrade to a paid plan to use AI & Voice billing.",
+                    "code": "UPGRADE_REQUIRED"
+                })
+                continue
             
             # Safe user_id for file paths (never use client-supplied values)
             safe_user_id = user_id if user_id and len(user_id) > 10 else "anon"
@@ -692,6 +774,15 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                 
                 try:
                     if action == "approve_customer" and draft_data:
+                        # 0. Subscription Limit Check
+                        if not await sub_service.check_limit(user_id, "customers"):
+                            await websocket.send_json({
+                                "type": "error",
+                                "content": "Boss, your Customer limit is reached! Upgrade your plan to add more customers.",
+                                "code": "UPGRADE_REQUIRED"
+                            })
+                            continue
+
                         # Validate customer name
                         customer_name = draft_data.get("name", "").strip()
                         if not customer_name:
@@ -714,21 +805,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                                 "content": f"Customer {customer_name} added successfully Boss!"
                             })
                         else:
-                             # Fallback to Local DB if Supabase fails or returns empty (and we want local persistence)
-                             # Or if we want to save to local DB ANYWAY for offline sync.
-                             if local_db:
-                                 local_id = local_db.save_customer_local({
-                                     "name": customer_name,
-                                     "phone": draft_data.get("phone"),
-                                     "credit_balance": 0
-                                 }, user_id)
-                                 if local_id:
-                                      await websocket.send_json({
-                                        "type": "text",
-                                        "content": f"Customer {customer_name} saved LOCALLY Boss! (Sync pending)"
-                                    })
-                                      continue
-
+                             # Fallback to local sync
                              await websocket.send_json({
                                 "type": "error",
                                 "content": "Failed to add customer."
@@ -834,6 +911,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                                         errors.append(f"Failed to restock {item.get('name')}")
                                 
                                 elif item_action == "add":
+                                    # 0. Subscription Limit Check
+                                    if not await sub_service.check_limit(user_id, "products"):
+                                        errors.append(f"Limit reached! Cannot add {item.get('name')}. Please upgrade.")
+                                        continue
+
                                     # Insert new product
                                     res = supabase.table("products").insert({
                                         "user_id": safe_user_id,
@@ -1096,7 +1178,10 @@ async def upload_product_image(request: Request, file: UploadFile = File(...), u
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(f"upload:{client_ip}", max_requests=10, window_seconds=60):
         raise HTTPException(status_code=429, detail="Too many uploads. Try again later.")
-    
+    # 0. Subscription Limit Check
+    if not await sub_service.check_limit(user_id, "products"):
+        raise HTTPException(status_code=403, detail="Product limit reached! Upgrade your plan to add more products.")
+
     try:
         # Log upload attempt
         logger.info(f"[UPLOAD] Attempting image upload. MIME: {file.content_type}, Name: {file.filename}")

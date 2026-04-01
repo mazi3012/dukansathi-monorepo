@@ -490,7 +490,32 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
     if str(user_id).startswith("telegram_"):
         return "❌ You must connect your account to save data. Go to your Web App Settings -> Telegram and link your account first!", None
     
+    # --- SUBSCRIPTION ENFORCEMENT ---
+    from subscription_service import TIER_LIMITS
+    profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+    tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
+    limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
+
     draft_type = draft.get("type")
+
+    # Check Product/Customer Limits
+    if draft_type == "product_draft":
+        count_res = supabase.table("products").select("id", count="exact").eq("user_id", user_id).execute()
+        if count_res.count >= limits["products"]:
+            return f"❌ Limit reached! You have used all {limits['products']} products allowed in your {tier.title()} plan. Please upgrade to add more.", None
+    
+    elif draft_type == "customer_draft":
+        count_res = supabase.table("customers").select("id", count="exact").eq("user_id", user_id).execute()
+        if count_res.count >= limits["customers"]:
+            return f"❌ Limit reached! You have used all {limits['customers']} customers allowed in your {tier.title()} plan. Please upgrade to add more.", None
+
+    elif draft_type == "invoice_draft":
+        # Monthly Bill Count
+        from datetime import datetime
+        first_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        sales_res = supabase.table("sales").select("id", count="exact").eq("user_id", user_id).gte("created_at", first_of_month).execute()
+        if sales_res.count >= limits["bills"]:
+            return f"❌ Monthly Bill Limit reached! Your {tier.title()} plan allows {limits['bills']} bills per month. Please upgrade for more.", None
     
     try:
         if draft_type == "product_draft":
@@ -794,6 +819,22 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
 
 async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     """Shared helper to process text (from message or voice), check for draft approvals, and call AI."""
+    user_id = get_user_token_for_chat(chat_id)
+    
+    # --- TIER CHECK ---
+    from subscription_service import TIER_LIMITS
+    profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+    tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
+    
+    if tier == "free":
+        await update.message.reply_text(
+            "🤖 *AI Assistant is a Pro Feature*\n\n"
+            "Free users can only use manual entry on the web app. "
+            "Please upgrade to any paid plan to use Sathi AI & Voice on Telegram!",
+            parse_mode="Markdown"
+        )
+        return
+
     try:
         from dukansathi_ai.agent_graph import process_user_input
     except Exception as e:
