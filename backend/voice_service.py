@@ -7,6 +7,7 @@ Purpose: Cloud-only Speech-to-Text (Groq Whisper) and Text-to-Speech
 
 import os
 import io
+import re
 import base64
 import asyncio
 from typing import Optional
@@ -223,3 +224,22 @@ async def synthesize_speech(text: str, voice_id: str = "hi-IN-MadhurNeural", spe
 
 # Backward compatibility alias
 speak_text = synthesize_speech
+
+def clean_text_for_tts(text: str) -> str:
+    """Remove JSON blocks and special markers from text for clean speech"""
+    if not text:
+        return ""
+    
+    # 1. Remove $$ACTION_JSON$$ ... $$END_JSON$$ blocks (Robust regex)
+    cleaned = re.sub(r'\$\$\s*ACTION_JSON\s*\$\$.*?\$\$\s*END_JSON\s*\$\$', '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 2. Remove Markdown code blocks (e.g. ```json ... ```)
+    cleaned = re.sub(r'```.*?```', '', cleaned, flags=re.DOTALL)
+
+    # 3. Clean up extra whitespace/newlines
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    
+    # 4. Handle simple Hindi/English abbreviations if needed (e.g., ₹ -> rupees)
+    cleaned = cleaned.replace('₹', 'rupees')
+    
+    return cleaned

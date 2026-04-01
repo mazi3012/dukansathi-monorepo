@@ -8,6 +8,7 @@ import { saleRepo } from '../lib/db/saleRepository';
 import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
 import { syncEngine } from '../lib/db/syncEngine';
+import { getDB } from '../lib/sqlite';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -106,6 +107,7 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         revenue: 0,
+        profit: 0,
         ordersCount: 0,
         lowStockCount: 0,
         totalCustomers: 0
@@ -133,6 +135,29 @@ const Dashboard = () => {
 
             const revenue = filteredSales.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
             const ordersCount = filteredSales.length;
+
+            // 1.1 Profit Calculation (Local SQLite Join)
+            let profit = 0;
+            try {
+                const db = getDB();
+                const profitSql = timeframe === 'today' 
+                    ? `SELECT SUM((si.unit_price - IFNULL(p.cost_price, 0)) * si.quantity) as total_profit 
+                       FROM sale_items si 
+                       JOIN products p ON si.product_id = p.id 
+                       JOIN sales s ON si.sale_id = s.id 
+                       WHERE s.created_at >= ?`
+                    : `SELECT SUM((si.unit_price - IFNULL(p.cost_price, 0)) * si.quantity) as total_profit 
+                       FROM sale_items si 
+                       JOIN products p ON si.product_id = p.id`;
+                
+                const params = timeframe === 'today' ? [today.toISOString()] : [];
+                const res = db.exec(profitSql, params);
+                if (res.length > 0 && res[0].values[0][0] !== null) {
+                    profit = parseFloat(res[0].values[0][0]);
+                }
+            } catch (err) {
+                console.error("Profit calculation failed:", err);
+            }
 
             // 2. Low Stock Count
             const allProducts = await productRepo.getAll();
@@ -173,6 +198,7 @@ const Dashboard = () => {
             setSalesData(Object.values(weeklyAggregated));
             setStats({
                 revenue,
+                profit,
                 ordersCount,
                 lowStockCount,
                 totalCustomers
@@ -301,41 +327,58 @@ const Dashboard = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 px-4 md:px-6 relative z-10">
                 <StatCard
-                    title={timeframe === 'today' ? "Today's Revenue" : "Total Revenue"}
-                    value={`₹${stats.revenue.toLocaleString('en-IN')}`}
+                    title="Revenue Today"
+                    value={`₹${stats.revenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                    change="+12.5%"
                     icon={TrendingUp}
+                    colorClass="text-indigo-500"
+                    gradientClass="from-indigo-500 to-blue-500"
+                    isLoading={loading}
+                />
+
+                <StatCard
+                    title="Profit Today"
+                    value={`₹${stats.profit.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                    change="+8.2%"
+                    icon={Activity}
+                    colorClass="text-emerald-500"
+                    gradientClass="from-emerald-500 to-teal-500"
                     delay={0.1}
                     isLoading={loading}
-                    colorClass="text-indigo-600"
-                    gradientClass="from-indigo-500 to-purple-500"
                 />
+
                 <StatCard
-                    title={timeframe === 'today' ? "Bills Today" : "Total Bills"}
-                    value={stats.ordersCount}
+                    title="Orders"
+                    value={stats.ordersCount.toString()}
+                    change="+4"
                     icon={ShoppingBag}
+                    colorClass="text-orange-500"
+                    gradientClass="from-orange-500 to-amber-500"
                     delay={0.2}
                     isLoading={loading}
-                    colorClass="text-blue-600"
-                    gradientClass="from-blue-500 to-cyan-500"
                 />
-                <StatCard
-                    title="Low Inventory"
-                    value={stats.lowStockCount}
-                    icon={AlertTriangle}
-                    delay={0.3}
-                    isLoading={loading}
-                    colorClass="text-amber-500"
-                    gradientClass="from-amber-400 to-orange-500"
-                />
-                <StatCard
-                    title="Customers"
-                    value={stats.totalCustomers}
-                    icon={Users}
-                    delay={0.4}
-                    isLoading={loading}
-                    colorClass="text-emerald-600"
-                    gradientClass="from-emerald-400 to-teal-500"
-                />
+
+                    <StatCard
+                        title="Low Stock"
+                        value={stats.lowStockCount.toString()}
+                        change={stats.lowStockCount > 10 ? "Critical" : "Stable"}
+                        icon={AlertTriangle}
+                        colorClass={stats.lowStockCount > 0 ? "text-rose-500" : "text-slate-400"}
+                        gradientClass="from-rose-500 to-pink-500"
+                        delay={0.3}
+                        isLoading={loading}
+                    />
+
+                    <StatCard
+                        title="Customers"
+                        value={stats.totalCustomers.toString()}
+                        change="+2"
+                        icon={Users}
+                        colorClass="text-sky-500"
+                        gradientClass="from-sky-500 to-indigo-500"
+                        delay={0.4}
+                        isLoading={loading}
+                    />
             </div>
 
             {/* Main Content Split */}

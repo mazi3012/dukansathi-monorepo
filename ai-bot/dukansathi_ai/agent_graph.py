@@ -370,7 +370,15 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
                 except Exception as e:
                     print(f"WARN: Could not fetch default GCP project: {e}")
             if not project_id:
-                raise ValueError("GCP Project ID not found.")
+                groq_key = os.getenv("GROQ_API_KEY")
+                if groq_key:
+                    try:
+                        from langchain_groq import ChatGroq
+                        print("WARN: GCP Project not found. Using Groq as Fallback AI.")
+                        return ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.7, max_tokens=2048, groq_api_key=groq_key)
+                    except ImportError:
+                        pass
+                raise ValueError("GCP Project ID not found and no Groq fallback available.")
             creds = None
         else:
             creds = service_account.Credentials.from_service_account_file(creds_path)
@@ -473,11 +481,17 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     Example 2: "List all customers" OR "Show all customers"
     SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
     
-    Example 3: "Customers with pending dues"
+    Example 3: "Customers with pending dues" OR "kiske paas udhar hai"
     SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' AND credit_balance > 0 ORDER BY credit_balance DESC LIMIT 50
     
     Example 4: "Show products"
     SQL: SELECT name, selling_price, stock_quantity FROM products WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
+
+    Example 5: "aaj koto takar jinish bikri holo" OR "aaj ka total revenue" OR "today's total sales"
+    SQL: SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}' AND created_at::date = CURRENT_DATE
+
+    Example 6: "mera profit kya hai aaj ka" OR "aaj koto labh holo" OR "today's profit"
+    SQL: SELECT SUM((si.unit_price - p.cost_price) * si.quantity) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND s.created_at::date = CURRENT_DATE
     """
     
     # Use Flash for SQL gen as it's faster
@@ -576,9 +590,10 @@ def _is_safe_select(sql: str) -> bool:
             return False
     return True
 
-async def execute_sql(sql: str) -> str:
+async def execute_sql(sql: str, user_id: str) -> str:
     """
     Execute SQL using the Supabase RPC function — read-only SELECT queries only.
+    Enforces RLS by passing user_id to the secure execution context.
     """
     if not supabase:
         return "Database is currently unavailable."
@@ -587,8 +602,9 @@ async def execute_sql(sql: str) -> str:
         return "I can only run read-only lookup queries. That request cannot be processed."
         
     try:
-        logger.info(f"Executing validated SQL: {sql[:200]}")
-        response = supabase.rpc("exec_sql_read_only", {"query": sql}).execute()
+        logger.info(f"Executing secure SQL for {user_id}: {sql[:200]}")
+        # Use the new secure RPC to enforce RLS
+        response = supabase.rpc("exec_sql_secure", {"p_query": sql, "p_user_id": user_id}).execute()
         return str(response.data)
     except Exception as e:
         logger.error(f"SQL Execution failed: {e}")
@@ -740,10 +756,11 @@ def categorize_query(msg_lower: str) -> str:
         "pay", "paid", "receive", "received", "recive", "recieve", "recived", "recieved",
         "payment", "bill", "invoice", "due", "dues", "baki", "udhar", "liya", "diya", "mila",
         "restock", "restocked", "maal", "aaya", "peyalam", "pelam", "dilam", "nilam", "taka",
+        "report", "list", "summary of", "table of", "details of", "all products", "all customers", "all sales",
         # Hindi (Devanagari) action words — for cases where native script slips through
-        "बिल", "बनाओ", "बनाएं", "करो", "जोड़ो", "नया", "इनवॉइस", "रसीद", "स्टॉक", "भुगतान",
+        "बिल", "बनाओ", "बनाएं", "करो", "जोड़ो", "नया", "इनवॉइस", "रसीद", "स्टॉक", "भुगतान", "रिपोर्ट", "लिस्ट", "सूची",
         # Bangla (Bengali) action words
-        "বিল", "বানাও", "তৈরি", "যোগ", "নতুন", "ইনভয়েস", "পেমেন্ট", "স্টক"
+        "বিল", "বানাও", "তৈরি", "যোগ", "নতুন", "ইনভয়েস", "পেমেন্ট", "স্টক", "রিপোর্ট", "লিস্ট", "তালিকা"
     ]
 
     # Context keywords for query categorization
@@ -828,6 +845,15 @@ async def get_store_directory(user_id: str) -> str:
                     parts.append(f"AVAILABLE CUSTOMERS: [{', '.join([r['name'] for r in c_res.data])}]")
         except Exception as e:
             logger.error(f"Error fetching directory from Supabase: {e}")
+            
+        # Fetch Agent Memory
+        try:
+            m_res = supabase.table("agent_memory").select("memory_key, memory_value").eq("user_id", user_id).limit(100).execute()
+            if m_res.data:
+                memory_statements = [f"- {r['memory_key']}: {r['memory_value']}" for r in m_res.data]
+                parts.append("BUSINESS MEMORIES & PREFERENCES:\n" + "\n".join(memory_statements))
+        except Exception as e:
+            logger.warning(f"Feature agent_memory not found yet, skipping: {e}")
             
     return "\n".join(parts)
 
@@ -1468,9 +1494,13 @@ async def action_node(state: AgentState):
     # If message contains image context, skip fast_parse to hit LLM OCR path
     has_image_context = '[image context:' in last_msg.lower() or '[excel bulk data:' in last_msg.lower()
     
+    # REPORT/LIST DETECTION:
+    report_keywords = ["report", "list", "summary of", "table of", "details of", "all products", "all customers", "all sales", "রিপোর্ট", "লিস্ট", "তালিকা", "रिपोर्ट", "लिस्ट", "सूची"]
+    is_report_request = any(k in last_msg.lower() for k in report_keywords)
+    
     # FAST PATH: Try regex parser first (instant, works for both cloud and local)
     # Skip fast path for image/excel bulk payloads — LLM handles OCR extraction
-    action_json_str = None if has_image_context else fast_parse_action(last_msg)
+    action_json_str = None if (has_image_context or is_report_request) else fast_parse_action(last_msg)
     if action_json_str:
         print(f"DEBUG: FAST PARSE SUCCESS (action_node): {action_json_str}")
     else:
@@ -1481,6 +1511,52 @@ async def action_node(state: AgentState):
             action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model, user_id=user_id)
         
     print(f"DEBUG: Extracted JSON: {action_json_str}")
+
+    # --- SPECIAL HANDLING: REPORT GENERATION ---
+    if is_report_request:
+        try:
+            # For reports, we generate a SQL query, execute it, and check row count
+            sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model)
+            results_raw = await execute_sql(sql_query, user_id)
+            
+            # results_raw is typically a stringified JSON array or error
+            import json as py_json
+            try:
+                data = py_json.loads(results_raw)
+            except:
+                data = []
+
+            if isinstance(data, list) and len(data) >= 5:
+                # GENERATE REPORT DRAFT
+                headers = list(data[0].keys()) if data else []
+                rows = [list(row.values()) for row in data]
+                
+                report_title = "Business Report"
+                if "stock" in last_msg.lower() or "inventory" in last_msg.lower(): report_title = "Inventory Report"
+                elif "due" in last_msg.lower() or "credit" in last_msg.lower(): report_title = "Outstanding Dues"
+                elif "customer" in last_msg.lower(): report_title = "Customer List"
+                elif "sale" in last_msg.lower() or "revenue" in last_msg.lower(): report_title = "Sales History"
+
+                report_draft = {
+                    "type": "report_draft",
+                    "title": report_title,
+                    "headers": headers,
+                    "rows": rows,
+                    "summary": f"Found {len(data)} items for your request.",
+                    "no_tts": True # Explicitly disable TTS for this message in frontend
+                }
+                return {"messages": [AIMessage(content=py_json.dumps(report_draft))]}
+            else:
+                # FALLBACK TO CHAT (BUSINESS PATH): Re-route to chat_node or just answer directly
+                # For simplicity, we'll answer directly using the data context
+                llm = get_llm(selected_model)
+                PERSONA_LOCK = f"PERSONA: Your name is 'Sathi'. Professional shop manager. Boss asked: {last_msg}. DATA: {results_raw}. GOAL: Answer briefly. MAX 2 sentences."
+                answer = await llm.ainvoke([HumanMessage(content=PERSONA_LOCK)])
+                return {"messages": [answer]}
+
+        except Exception as e:
+            logger.error(f"Report generation failed: {e}")
+            # Fallback will occur naturally
 
     # Setup Logger
     import logging
@@ -1726,6 +1802,8 @@ async def action_node(state: AgentState):
                 draft_obj["draft_type"] = "payment"
             elif "restock" in draft_obj["type"]:
                 draft_obj["draft_type"] = "restock"
+            elif "report" in draft_obj["type"]:
+                draft_obj["draft_type"] = "report"
             elif "bulk_product" in draft_obj["type"]:
                 draft_obj["draft_type"] = "bulk_product"
             else:
@@ -1795,7 +1873,7 @@ async def action_node(state: AgentState):
             if not amount or float(amount) <= 0:
                 return False, "Payment amount is missing or zero."
             if ptype not in ("payment", "due", "credit"):
-                return False, f"Invalid payment_type '{ptype}'. Must be 'payment' or 'due'."
+                return False, f"Invalid payment_type '{ptype}'. Must be 'payment', 'due', or 'credit'."
             return True, ""
         
         elif dtype == "customer_draft":
@@ -1815,7 +1893,7 @@ async def action_node(state: AgentState):
         
         elif dtype == "restock_draft":
             pname = d.get("product_name", "")
-            qty = d.get("quantity_to_add", 0)
+            qty = d.get("quantity_to_add", d.get("stock_quantity", 0))
             if not pname or not str(pname).strip():
                 return False, "Product name is missing for restock."
             if not qty or qty <= 0:
@@ -2052,7 +2130,7 @@ async def chat_node(state: AgentState):
             # CLOUD PATH: Use Supabase (full real-time data)
             try:
                 sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
-                cloud_results = await execute_sql(sql_query)
+                cloud_results = await execute_sql(sql_query, user_id)
                 specialist_data = cloud_results
                 
                 # Fallback to local context only if cloud is explicitly empty/errored

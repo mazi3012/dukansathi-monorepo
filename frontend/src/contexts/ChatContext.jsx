@@ -146,9 +146,12 @@ export const ChatProvider = ({ children }) => {
                 };
                 if (data.attachment) aiMessage.attachment = data.attachment;
 
-                // Parse AI messages that are JSON (Invoices)
+                // Parse AI messages that are JSON (Invoices, Reports, etc.)
+                let noTts = data.no_tts || false;
                 try {
                     const parsed = JSON.parse(data.content);
+                    
+                    // Handle Invoice PDF data
                     if (parsed.pdf_url) {
                         aiMessage.pdf_url = parsed.pdf_url;
                         aiMessage.customer_name = parsed.customer_name;
@@ -160,11 +163,21 @@ export const ChatProvider = ({ children }) => {
                         aiMessage.amount_paid = parsed.amount_paid;
                         aiMessage.balance_due = parsed.balance_due;
                     }
+
+                    // Handle Report Drafts
+                    if (parsed.type === 'report_draft') {
+                        aiMessage.attachment = parsed;
+                        aiMessage.text = parsed.summary || data.content; // Use summary as text
+                        if (parsed.no_tts) noTts = true;
+                    }
                 } catch (e) { }
 
                 setMessages(prev => [...prev, aiMessage]);
-                if (data.audio) playAudio(data.audio);
-                else speakNative(data.content);
+                
+                if (!noTts) {
+                    if (data.audio) playAudio(data.audio);
+                    else speakNative(aiMessage.text || data.content);
+                }
 
                 // Trigger sync immediately after AI action to refresh local DB
                 if (navigator.onLine) {

@@ -37,7 +37,7 @@ const Sales = () => {
     const [customerName, setCustomerName] = useState(''); // Text for display/input
 
     const [items, setItems] = useState([
-        { id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0 }
+        { id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0, tax_type: 'exclusive' }
     ]);
     const [additionalDiscount, setAdditionalDiscount] = useState('');
     const [amountPaid, setAmountPaid] = useState('');
@@ -65,7 +65,9 @@ const Sales = () => {
                     hsnCode: item.hsn || null,
                     sellerGstin: userProfile.gstin,
                     buyerGstin: null,
-                    placeOfSupply: isInterStateSale ? 'IGST' : null
+                    placeOfSupply: isInterStateSale ? 'IGST' : null,
+                    taxRate: item.tax_percent || 0,
+                    isInclusive: item.tax_type === 'inclusive'
                 });
                 cgst = taxCalc.cgst_amount;
                 sgst = taxCalc.sgst_amount;
@@ -181,7 +183,7 @@ const Sales = () => {
 
             // Fetch items from Local SQLite
             const sql = `
-                SELECT si.*, p.name as product_name, p.tax_percent, p.hsn_code 
+                SELECT si.*, p.name as product_name, p.tax_percent, p.hsn_code, p.tax_type 
                 FROM sale_items si 
                 LEFT JOIN products p ON si.product_id = p.id 
                 WHERE si.sale_id = ?
@@ -193,7 +195,7 @@ const Sales = () => {
                 const items = result[0].values.map(v => {
                     const obj = {};
                     columns.forEach((col, i) => obj[col] = v[i]);
-                    obj.products = { name: obj.product_name, tax_percent: obj.tax_percent, hsn_code: obj.hsn_code };
+                    obj.products = { name: obj.product_name, tax_percent: obj.tax_percent, hsn_code: obj.hsn_code, tax_type: obj.tax_type };
                     return obj;
                 });
                 setReceiptItems(items);
@@ -246,7 +248,7 @@ const Sales = () => {
     };
 
     const handleAddItem = () => {
-        setItems([...items, { id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0 }]);
+        setItems([...items, { id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0, tax_type: 'exclusive' }]);
     };
 
     const handleRemoveItem = (index) => {
@@ -335,9 +337,9 @@ const Sales = () => {
 
             // Success
             toast.success("Invoice Created Locally!");
-            setShowModal(false);
-            setItems([{ id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0 }]);
-            setAmountPaid('');
+            // Reset form
+            setItems([{ id: Date.now(), product_id: null, name: '', hsn: '', qty: 1, price: '', tax_percent: 0, tax_type: 'exclusive' }]);
+            setAdditionalDiscount('');
             setCustomerName('');
             setSelectedCustomerId(null);
             fetchHistory(); // Refresh from local DB
@@ -590,6 +592,7 @@ const Sales = () => {
                                                                     if (billType === 'GST') {
                                                                         newItems[index].hsn = val.hsn_code || '';
                                                                         newItems[index].tax_percent = val.tax_percent || 0;
+                                                                        newItems[index].tax_type = val.tax_type || 'exclusive';
                                                                     }
                                                                     setItems(newItems);
                                                                 } else {

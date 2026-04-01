@@ -177,6 +177,20 @@ def format_draft_for_telegram(draft: dict) -> str:
             lines.append("_Reply 'igst' to switch to inter-state IGST_")
         return "\n".join(lines)
 
+    elif draft_type == "restock_draft":
+        product = draft.get("product_name", "Unknown Product")
+        qty = draft.get("quantity", 0)
+        cost = draft.get("cost_price")
+        lines = [
+            "📦 *Restock Draft*",
+            f"🔹 Product: {product}",
+            f"🔹 Qty to Add: {qty}"
+        ]
+        if cost:
+            lines.append(f"🔹 New Cost Price: ₹{cost}")
+        lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
+        return "\n".join(lines)
+
     elif draft_type == "payment_draft":
         customer = draft.get("customer_name", "Unknown")
         amount = draft.get("amount", 0)
@@ -189,6 +203,27 @@ def format_draft_for_telegram(draft: dict) -> str:
             f"  Amount: ₹{amount}",
             "\n_Reply 'approve' to confirm or 'cancel' to discard_"
         ]
+        return "\n".join(lines)
+
+    elif draft_type == "report_draft":
+        title = draft.get("title", "Report")
+        data = draft.get("data", [])
+        summary = draft.get("summary", "")
+        
+        lines = [f"📊 *{title}*"]
+        if summary:
+            lines.append(f"\n{summary}")
+        
+        if data and len(data) > 0:
+            lines.append("\nPreview (First 5 items):")
+            for i, row in enumerate(data[:5]):
+                row_str = " | ".join([f"{v}" for v in row.values()][:3]) # Show first 3 columns
+                lines.append(f"• {row_str}")
+            
+            if len(data) > 5:
+                lines.append(f"\n_... and {len(data)-5} more items in CSV below_")
+        
+        lines.append("\n_Reply 'approve' to receive full CSV document_")
         return "\n".join(lines)
 
     else:
@@ -208,19 +243,39 @@ HSN_TAX_RATES = {
     "2402": 28, "2711": 28, "8703": 28, "3303": 28, "3304": 28, "2101": 28,
 }
 
-def calculate_tax(selling_price: float, quantity: float, hsn_code: str, force_inter_state: bool = False) -> dict:
-    """Calculate GST for a line item. Returns taxable_value, cgst, sgst, igst, gst_rate, total."""
-    taxable = selling_price * quantity
-    rate = HSN_TAX_RATES.get(str(hsn_code), 0)
+def calculate_tax(price: float, quantity: float, tax_percent: float, tax_type: str = "exclusive", force_inter_state: bool = False) -> dict:
+    """
+    Calculate GST for a line item.
+    - Exclusive: Taxable = price * qty, Total = Taxable + Tax
+    - Inclusive: Total = price * qty, Taxable = Total / (1 + rate/100)
+    """
+    total_amount = price * quantity
+    rate = float(tax_percent or 0)
+    
+    if tax_type == "inclusive" and rate > 0:
+        taxable = total_amount / (1 + (rate / 100))
+        tax_amt = total_amount - taxable
+    else:
+        taxable = total_amount
+        tax_amt = (taxable * rate) / 100
+
     if force_inter_state:
-        igst = round((taxable * rate) / 100, 2)
+        igst = round(tax_amt, 2)
         cgst = sgst = 0.0
     else:
-        half = rate / 2
-        cgst = round((taxable * half) / 100, 2)
-        sgst = round((taxable * half) / 100, 2)
+        half = tax_amt / 2
+        cgst = round(half, 2)
+        sgst = round(half, 2)
         igst = 0.0
-    return {"taxable": round(taxable, 2), "cgst": cgst, "sgst": sgst, "igst": igst, "rate": rate, "total": round(taxable + cgst + sgst + igst, 2)}
+        
+    return {
+        "taxable": round(taxable, 2),
+        "cgst": cgst,
+        "sgst": sgst,
+        "igst": igst,
+        "rate": rate,
+        "total": round(taxable + cgst + sgst + igst, 2)
+    }
 
 
 # ─── PDF Generator (GST-Aware, Professional) ─────────────────────────
@@ -424,7 +479,21 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             }).execute()
             return f"✅ Customer '{name}' saved successfully!", None
 
-        elif draft_type == "payment_draft":
+        elif draft_type == "restock_draft":
+            name = draft.get("product_name")
+            qty = int(draft.get("quantity", 0))
+            cost = draft.get("cost_price")
+            
+            p_res = supabase.table("products").select("id").ilike("name", name).eq("user_id", user_id).limit(1).execute()
+            if not p_res.data:
+                return f"❌ Product '{name}' not found.", None
+            
+            p_id = p_res.data[0]["id"]
+            upd = {"stock_quantity": supabase.table("products").select("stock_quantity").eq("id", p_id).execute().data[0]["stock_quantity"] + qty}
+            if cost: upd["cost_price"] = float(cost)
+            
+            supabase.table("products").update(upd).eq("id", p_id).execute()
+            return f"✅ Restocked {qty} units of '{name}'!", None
             customer_name = draft.get("customer_name", "")
             amount = abs(float(draft.get("amount", 0)))
             is_payment = draft.get("payment_type") == "payment"
@@ -453,35 +522,40 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 return f"✅ Added ₹{amount} Udhar for {customer_name}. \nNew udhar balance: ₹{new_balance}", None
 
         elif draft_type == "invoice_draft":
-            # ── 1. Fetch business profile (GST settings) ──
-            profile = {}
-            try:
-                pr = func_get_profile(user_id)
-                if pr and pr.data:
-                    profile = pr.data[0]
-            except Exception:
-                pass
-
-            is_gst = (
-                draft.get("invoice_type") == "gst" 
-                or (draft.get("invoice_type") != "regular" and profile.get("is_gst_registered", False))
-            )
-            is_igst = draft.get("isOutOfState", False)
-
+            pr = func_get_profile(user_id)
+            if pr and pr.data:
+                profile = pr.data[0]
+            
+            shop_state = profile.get("state_name", "Unknown").lower().strip()
             shop_name = profile.get("business_name", "My Shop")
             shop_address = profile.get("business_address", "")
             shop_gstin = profile.get("gstin", "")
 
-            # ── 2. Find / create customer ──
+            # ── 2. Find / create customer & detect IGST ──
             customer_name = draft.get("customer_name", "Walk-in")
             customer_id = None
+            customer_state = "unknown"
+            
             if customer_name and customer_name.lower() != "walk-in":
-                cust_res = supabase.table("customers").select("id").ilike("name", customer_name).eq("user_id", user_id).limit(1).execute()
+                cust_res = supabase.table("customers").select("id, state").ilike("name", customer_name).eq("user_id", user_id).limit(1).execute()
                 if cust_res.data:
                     customer_id = cust_res.data[0]["id"]
+                    customer_state = str(cust_res.data[0].get("state") or "").lower().strip()
                 else:
                     new_cust = supabase.table("customers").insert({"user_id": user_id, "name": customer_name}).execute()
                     customer_id = new_cust.data[0]["id"] if new_cust.data else None
+
+            # Automatic IGST detection (matching web app logic)
+            is_igst = draft.get("isOutOfState", False)
+            if not is_igst and customer_state != "unknown" and shop_state != "unknown":
+                if customer_state and shop_state and customer_state != shop_state:
+                    is_igst = True
+                    logger.info(f"DEBUG: Auto-detected Inter-State (IGST) for {customer_name}: {customer_state} vs {shop_state}")
+
+            is_gst = (
+                draft.get("invoice_type") == "gst" 
+                or (profile.get("is_gst_registered", False) and draft.get("invoice_type") != "regular")
+            )
 
             # ── 3. Calculate taxes for each item ──
             items = draft.get("items", [])
@@ -493,17 +567,37 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
 
             for item in items:
                 qty = float(item.get("quantity", 0))
-                price = float(item.get("price", 0))
-                hsn = item.get("hsn_code", "1905")
-                tc = calculate_tax(price, qty, hsn, force_inter_state=is_igst) if is_gst else {
-                    "taxable": qty * price, "cgst": 0, "sgst": 0, "igst": 0, "rate": 0, "total": qty * price
+                prod_name = item.get("product_name", "")
+                
+                # RE-FETCH LIVE DATA TO ENSURE ACCURACY (Hinglish/Inclusive fix)
+                v_price = float(item.get("price", 0))
+                v_tax_percent = 0
+                v_tax_type = "exclusive" 
+                v_hsn = item.get("hsn_code", "")
+                v_prod_id = None
+
+                p_res = supabase.table("products").select("id, selling_price, tax_percent, tax_type, hsn_code").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
+                if p_res.data:
+                    p = p_res.data[0]
+                    v_prod_id = p["id"]
+                    v_price = float(p.get("selling_price") or v_price)
+                    v_tax_percent = float(p.get("tax_percent") or 0)
+                    v_tax_type = p.get("tax_type", "exclusive")
+                    v_hsn = p.get("hsn_code", v_hsn)
+
+                tc = calculate_tax(v_price, qty, v_tax_percent, v_tax_type, force_inter_state=is_igst) if is_gst else {
+                    "taxable": qty * v_price, "cgst": 0, "sgst": 0, "igst": 0, "rate": 0, "total": qty * v_price
                 }
+                
                 subtotal += tc["taxable"]
                 total_cgst += tc["cgst"]
                 total_sgst += tc["sgst"]
                 total_igst += tc["igst"]
                 enriched_items.append({
                     **item,
+                    "product_id": v_prod_id,
+                    "price": v_price,
+                    "hsn_code": v_hsn,
                     "_taxable": tc["taxable"],
                     "_cgst": tc["cgst"],
                     "_sgst": tc["sgst"],
@@ -623,9 +717,26 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             if balance_due > 0:
                 status_line += f"\n🔴 Balance Due: ₹{balance_due:.2f}"
 
-            result = f"✅ Invoice #{invoice_number} created!\n👤 {customer_name}\n💵 Grand Total: ₹{grand_total:.2f}{tax_note}{status_line}"
-            return result, pdf_buffer
+        elif draft_type == "report_draft":
+            title = draft.get("title", "Report")
+            data = draft.get("data", [])
+            if not data:
+                return "❌ The report contains no data.", None
             
+            # Generate CSV in memory
+            import csv
+            import io as _io
+            output = _io.StringIO()
+            if len(data) > 0:
+                keys = data[0].keys()
+                dict_writer = csv.DictWriter(output, keys)
+                dict_writer.writeheader()
+                dict_writer.writerows(data)
+            
+            csv_bytes = _io.BytesIO(output.getvalue().encode('utf-8'))
+            csv_bytes.name = f"{title.replace(' ', '_')}.csv"
+            return f"✅ Report '{title}' generated successfully!", csv_bytes
+
         return "❌ Unknown draft type.", None
     except Exception as e:
         err_msg = str(e)
@@ -657,11 +768,16 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             await update.message.reply_text("⏳ Saving to database...")
             result_msg, file_buffer = await execute_draft(user_token, draft)
             
-            # Output PDF format if a buffer was returned
+            # Output format if a buffer was returned
             if file_buffer:
+                # Dynamic filename based on draft type
+                ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
+                base_name = draft.get("customer_name") or draft.get("title") or "Document"
+                safe_name = base_name.replace(" ", "_").replace("/", "-")
+                
                 await update.message.reply_document(
                     document=file_buffer,
-                    filename=f"Invoice_{draft.get('customer_name', 'Walkin')}.pdf",
+                    filename=f"{safe_name}{ext}",
                     caption=result_msg
                 )
             else:
@@ -728,8 +844,36 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             # Plain text response
             await update.message.reply_text(ai_response)
 
+        # --- 3. Output Voice (TTS) ---
+        # If the input was voice, or user requested it, respond with voice
+        try:
+            from telegram_bot import clean_text_for_tts
+            from voice_service import synthesize_speech
+            
+            # Fetch user profile for voice preference
+            voice_id = "hi-IN-MadhurNeural"
+            voice_rate = "1.0"
+            pr = func_get_profile(user_token)
+            if pr and pr.data:
+                voice_id = pr.data[0].get("voice_id", voice_id)
+                voice_rate = pr.data[0].get("voice_speed", "+0%")
+
+            clean_text = clean_text_for_tts(ai_response)
+            if clean_text and len(clean_text) > 1:
+                audio_b64 = await synthesize_speech(clean_text, voice_id=voice_id, rate=voice_rate)
+                if audio_b64:
+                    audio_bytes = base64.b64decode(audio_b64)
+                    await update.message.reply_voice(
+                        voice=audio_bytes,
+                        caption="🔊 Listen to update" if len(ai_response) > 200 else None
+                    )
+        except Exception as tts_err:
+            logger.warning(f"Voice output failed: {tts_err}")
+
     except Exception as e:
         logger.error(f"[TG] Error processing message: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         await update.message.reply_text("Sorry Boss, I'm having trouble right now. Please try again.")
 
 
@@ -949,7 +1093,8 @@ def start_telegram_bot():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # stop_signals=False avoids 'set_wakeup_fd only works in main thread' in background threads
+    app.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=False, close_loop=False)
 
 
 if __name__ == "__main__":

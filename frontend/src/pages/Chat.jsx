@@ -319,7 +319,9 @@ const Chat = () => {
                         sellerGstin: sellerGstin,
                         buyerGstin: buyerGstin,
                         placeOfSupply: forceInterState ? null : (actionData.state_code || actionData.customer_state || businessProfile?.state_name),
-                        forceInterState
+                        forceInterState,
+                        taxRate: item.tax_percent !== undefined ? parseFloat(item.tax_percent) : null,
+                        isInclusive: item.tax_type === 'inclusive'
                     });
 
                     // Force 0 tax if not a GST session
@@ -889,6 +891,12 @@ const Chat = () => {
                         return;
                     }
 
+                    // Strict matching: Ask for confirmation if the matched name isn't exactly the same 
+                    if (customer.name.toLowerCase().trim() !== actionData.customer_name.toLowerCase().trim()) {
+                        const confirmed = window.confirm(`🤖 AI matched "${actionData.customer_name}" to customer "${customer.name}". Apply payment to ${customer.name}?`);
+                        if (!confirmed) return;
+                    }
+
                     const amount = Math.abs(parseFloat(actionData.amount) || 0);
                     const isPayment = actionData.payment_type === 'payment';
                     const oldBalance = parseFloat(customer.credit_balance) || 0;
@@ -998,6 +1006,32 @@ const Chat = () => {
                     console.error('Restock error:', err);
                     alert('Failed to restock: ' + err.message);
                 }
+            }
+
+            // 7. MEMORY DRAFT
+            if (actionData.type === 'memory_draft') {
+                try {
+                    const { error } = await supabase.from('agent_memory').upsert({
+                        user_id: user.id,
+                        memory_key: actionData.memory_key,
+                        memory_value: actionData.memory_value,
+                        updated_at: new Date()
+                    }, { onConflict: 'user_id, memory_key' });
+                    
+                    if (error) {
+                        alert("Failed to save memory: " + error.message);
+                        return;
+                    }
+
+                    setMessages(prev => [
+                        ...prev.map(m => m.attachment ? { ...m, attachment: null } : m),
+                        { type: 'bot', text: `🧠 Memory Saved!\n\nI will remember: ${actionData.memory_key} = ${actionData.memory_value}` }
+                    ]);
+                } catch (err) {
+                    console.error("Memory save error:", err);
+                    alert("Failed to save memory.");
+                }
+                return;
             }
 
             // 6. BULK PRODUCT DRAFT (Image/Excel OCR result)

@@ -200,9 +200,22 @@ export const TaxCalculator = {
      * @param {string} params.placeOfSupply - State Code (Optional)
      * @returns {Object} JSON calculation details
      */
-    calculate: ({ sellingPrice, quantity, hsnCode, sellerGstin, buyerGstin = null, placeOfSupply = null, forceInterState = false }) => {
-        const taxableValue = sellingPrice * quantity;
-        const totalGstRate = HSN_TAX_RATES[hsnCode] || 0;
+    calculate: ({ sellingPrice, quantity, hsnCode, sellerGstin, buyerGstin = null, placeOfSupply = null, forceInterState = false, taxRate = null, isInclusive = false }) => {
+        // Use explicitly provided taxRate, otherwise fallback to HSN dictionary
+        const totalGstRate = (taxRate !== null && taxRate !== undefined && taxRate !== '') ? parseFloat(taxRate) : (HSN_TAX_RATES[hsnCode] || 0);
+
+        let taxableValue = 0;
+        let totalTaxAmount = 0;
+
+        if (isInclusive && totalGstRate > 0) {
+            // Reverse calculate tax base from the MRP/Inclusive price
+            taxableValue = (sellingPrice * quantity) / (1 + (totalGstRate / 100));
+            totalTaxAmount = (sellingPrice * quantity) - taxableValue;
+        } else {
+            // Standard Exclusive calculation
+            taxableValue = sellingPrice * quantity;
+            totalTaxAmount = (taxableValue * totalGstRate) / 100;
+        }
 
         // forceInterState lets the user manually override auto GSTIN detection
         const isInterSet = forceInterState || isInterState(sellerGstin, buyerGstin, placeOfSupply);
@@ -212,11 +225,11 @@ export const TaxCalculator = {
         let igstAmount = 0;
 
         if (isInterSet) {
-            igstAmount = (taxableValue * totalGstRate) / 100;
+            igstAmount = totalTaxAmount;
         } else {
-            const splitRate = totalGstRate / 2;
-            cgstAmount = (taxableValue * splitRate) / 100;
-            sgstAmount = (taxableValue * splitRate) / 100;
+            const splitTax = totalTaxAmount / 2;
+            cgstAmount = splitTax;
+            sgstAmount = splitTax;
         }
 
         const grandTotal = taxableValue + cgstAmount + sgstAmount + igstAmount;

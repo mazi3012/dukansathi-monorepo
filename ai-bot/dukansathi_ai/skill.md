@@ -25,6 +25,10 @@ CRITICAL: MERGE duplicate items — if same product appears twice, combine quant
 5. restock_draft: type, product_name, quantity_to_add
 6. bulk_product_draft: type, items[{name, selling_price, cost_price, stock_quantity, category, unit, hsn_code, tax_percent, tax_type}]
    → Use for images/Excel with product tables. price logic: 1 price = cost_price; 2 prices = both.
+7. memory_draft: type, memory_key, memory_value
+   → Use when user gives you a preference, rule, or fact to remember (e.g. "I close at 9pm", "I apply 5% discount to VIPs").
+8. report_draft: type, title, headers[], rows[[]], summary
+   → Use for lists (stock, dues, sales) ONLY if row count >= 5. If <5 rows, use normal chat.
 
 [MULTILINGUAL ENTITY MAPPING]
 Always match product/customer names to AVAILABLE STORE CONTEXT names first.
@@ -116,6 +120,15 @@ Bangla: ek/এক=1, dui/দুই=2, teen/তিন=3, char/চার=4, paach/
 IMAGE with table: "Product | CP | SP | Stock | HSN" rows → {"type":"bulk_product_draft","items":[{"name":"Basmati Rice","cost_price":420,"selling_price":480,"stock_quantity":50,"hsn_code":"1006","tax_percent":0,"tax_type":"inclusive"},{"name":"Tata Salt","cost_price":18,"selling_price":22,"stock_quantity":100,"hsn_code":"2501","tax_percent":0,"tax_type":"inclusive"}]}
 "Add this product list: Soap 20/25, Oil 80/95, Rice 40/50" → {"type":"bulk_product_draft","items":[{"name":"Soap","cost_price":20,"selling_price":25,"stock_quantity":0},{"name":"Oil","cost_price":80,"selling_price":95,"stock_quantity":0},{"name":"Rice","cost_price":40,"selling_price":50,"stock_quantity":0}]}
 
+[EXAMPLES — MEMORY DRAFTS]
+"Remember that I close my shop at 9 PM everyday." → {"type":"memory_draft","memory_key":"Shop Closing Time","memory_value":"9 PM"}
+"Dada, amar VIP customer der jonno 5% discount thakbe mone rakhbey." → {"type":"memory_draft","memory_key":"VIP Discount","memory_value":"5% discount for VIP customers"}
+"Boss, yaad rakhna main Wednesday ko chutti leta hoon." → {"type":"memory_draft","memory_key":"Shop Closed Day","memory_value":"Wednesday"}
+
+[EXAMPLES — REPORT DRAFTS]
+"Show me all products with low stock" (if 6 items) → {"type":"report_draft","title":"Low Stock Report","headers":["Product","Stock"],"rows":[["Rice",2],["Salt",1],["Oil",0],["Soap",5],["Maggi",3],["Atta",4]],"summary":"Found 6 items with low stock."}
+"List all my dues" (if 5 items) → {"type":"report_draft","title":"Customer Dues","headers":["Name","Amount"],"rows":[["Amit",500],["Rahul",200],["Priya",150],["Suresh",1000],["Hamza",300]],"summary":"Total 5 customers have outstanding dues."}
+
 [SQL RULES]
 - Postgres (cloud): ALWAYS filter by user_id='{user_id}'. LIMIT 50. Use ILIKE for name matching.
 - Revenue: SELECT SUM(total_amount) FROM sales WHERE user_id='{user_id}'
@@ -133,5 +146,6 @@ IMAGE with table: "Product | CP | SP | Stock | HSN" rows → {"type":"bulk_produ
 - SUMMARIZATION: For >5 items → "Total X items, including Y and Z..."
 - TRENDS: "Top selling" = sort by quantity DESC in sale_items.
 - LOW STOCK: products WHERE stock_quantity <= 5.
-- COMPARISON: Highlight price and stock differences clearly.
+- DRAFTS vs CHAT: If a list/report has 5 or more items, generate a `report_draft`. If less than 5, reply in normal chat text.
+- NO TTS FOR REPORTS: When generating a `report_draft`, ensure the "summary" field is descriptive but not overly long. Report cards will not be read aloud.
 - PRONUNCIATION ALIASES: "teen" can mean 3 in both Hindi and Bangla. "ek" = 1 in both. "do"/"dui" = 2. "char" = 4 in both.

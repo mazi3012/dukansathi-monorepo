@@ -70,6 +70,11 @@ export class SaleRepository extends BaseRepository {
                 item.total_price,
                 now, now
             ]);
+
+            // Deduct stock locally for each item sold
+            if (item.product_id) {
+                await this.updateStock(item.product_id, -item.quantity);
+            }
         }
 
         await persistDB();
