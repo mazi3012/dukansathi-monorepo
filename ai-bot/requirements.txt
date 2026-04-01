@@ -14,4 +14,4 @@ google-cloud-aiplatform>=1.76.0
 
 # Utilities
 python-dotenv==1.0.0
-pydantic>=2.9,<2.10  # Compatible with langchain-google-vertexai
+pydantic>=2.9.2  # Consistent with backend requirement

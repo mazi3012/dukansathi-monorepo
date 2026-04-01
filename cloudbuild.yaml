@@ -12,5 +12,8 @@ steps:
 substitutions:
   _IMAGE_NAME: 'gcr.io/${PROJECT_ID}/dukansathi-backend'
 
+options:
+  machineType: 'E2_HIGH_CPU_8'
+
 images:
   - '${_IMAGE_NAME}'
