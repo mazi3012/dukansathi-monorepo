@@ -286,6 +286,7 @@ def calculate_tax(price: float, quantity: float, tax_percent: float, tax_type: s
         taxable = total_amount
         tax_amt = (taxable * rate) / 100
 
+    # Ensure consistent intermediate rounding for sub-taxes
     if force_inter_state:
         igst = round(tax_amt, 2)
         cgst = sgst = 0.0
@@ -303,6 +304,19 @@ def calculate_tax(price: float, quantity: float, tax_percent: float, tax_type: s
         "rate": rate,
         "total": round(taxable + cgst + sgst + igst, 2)
     }
+
+def normalize_state(state_name: str) -> str:
+    """Standardize state names for more robust IGST detection."""
+    if not state_name: return "unknown"
+    s = state_name.lower().strip().replace(".", "").replace("&", "and")
+    # Common aliases
+    aliases = {
+        "wb": "west bengal", "up": "uttar pradesh", "mh": "maharashtra",
+        "ka": "karnataka", "tn": "tamil nadu", "dl": "delhi",
+        "hr": "haryana", "pb": "punjab", "ts": "telangana",
+        "ap": "andhra pradesh", "gj": "gujarat", "rj": "rajasthan"
+    }
+    return aliases.get(s, s)
 
 
 # ─── PDF Generator (GST-Aware, Professional) ─────────────────────────
@@ -521,6 +535,8 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             
             supabase.table("products").update(upd).eq("id", p_id).execute()
             return f"✅ Restocked {qty} units of '{name}'!", None
+
+        elif draft_type == "payment_draft":
             customer_name = draft.get("customer_name", "")
             amount = abs(float(draft.get("amount", 0)))
             is_payment = draft.get("payment_type") == "payment"
@@ -553,7 +569,7 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             if pr and pr.data:
                 profile = pr.data[0]
             
-            shop_state = profile.get("state_name", "Unknown").lower().strip()
+            shop_state = normalize_state(profile.get("state_name", "Unknown"))
             shop_name = profile.get("business_name", "My Shop")
             shop_address = profile.get("business_address", "")
             shop_gstin = profile.get("gstin", "")
@@ -567,7 +583,7 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 cust_res = supabase.table("customers").select("id, state").ilike("name", customer_name).eq("user_id", user_id).limit(1).execute()
                 if cust_res.data:
                     customer_id = cust_res.data[0]["id"]
-                    customer_state = str(cust_res.data[0].get("state") or "").lower().strip()
+                    customer_state = normalize_state(str(cust_res.data[0].get("state") or ""))
                 else:
                     new_cust = supabase.table("customers").insert({"user_id": user_id, "name": customer_name}).execute()
                     customer_id = new_cust.data[0]["id"] if new_cust.data else None
@@ -575,7 +591,7 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             # Automatic IGST detection (matching web app logic)
             is_igst = draft.get("isOutOfState", False)
             if not is_igst and customer_state != "unknown" and shop_state != "unknown":
-                if customer_state and shop_state and customer_state != shop_state:
+                if customer_state != shop_state:
                     is_igst = True
                     logger.info(f"DEBUG: Auto-detected Inter-State (IGST) for {customer_name}: {customer_state} vs {shop_state}")
 
@@ -598,9 +614,9 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                 
                 # RE-FETCH LIVE DATA TO ENSURE ACCURACY (Hinglish/Inclusive fix)
                 v_price = float(item.get("price", 0))
-                v_tax_percent = 0
-                v_tax_type = "exclusive" 
                 v_hsn = item.get("hsn_code", "")
+                v_tax_percent = HSN_TAX_RATES.get(v_hsn, 0) # Use HSN fallback as initial value
+                v_tax_type = "exclusive" 
                 v_prod_id = None
 
                 p_res = supabase.table("products").select("id, selling_price, tax_percent, tax_type, hsn_code").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
@@ -608,7 +624,8 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                     p = p_res.data[0]
                     v_prod_id = p["id"]
                     v_price = float(p.get("selling_price") or v_price)
-                    v_tax_percent = float(p.get("tax_percent") or 0)
+                    # Use specific product rate if available, otherwise HSN fallback
+                    v_tax_percent = float(p.get("tax_percent") or v_tax_percent)
                     v_tax_type = p.get("tax_type", "exclusive")
                     v_hsn = p.get("hsn_code", v_hsn)
 
