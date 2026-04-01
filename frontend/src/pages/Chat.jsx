@@ -442,10 +442,10 @@ const Chat = () => {
                         igst_amount: item.igst_amount,
                         total_price: item.total_amount
                     });
-                    // Decrement stock only if product was found
-                    if (item.product_id) {
-                        await supabase.rpc('decrement_stock', { p_id: item.product_id, qty: item.quantity });
-                    }
+                    // Decrement stock is now handled automatically by a database trigger on sale_items insertion
+                    // if (item.product_id) {
+                    //     await supabase.rpc('decrement_stock', { p_id: item.product_id, qty: item.quantity });
+                    // }
                 }
 
                 // --- PDF GENERATION & UPLOAD ---

@@ -38,6 +38,7 @@ from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -73,8 +74,42 @@ except Exception:
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://dukansathi.vercel.app")
 
+# Global Draft State
+PENDING_DRAFTS = {}
 
 # ─── Helpers ───────────────────────────────────────────────
+
+def extract_json(text: str) -> dict:
+    """Safely extract and parse JSON from an AI response even if wrapped in markdown."""
+    try:
+        if isinstance(text, dict):
+            return text
+        
+        # Remove markdown ticks
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+            
+        # Brace counting fallback
+        start_idx = text.find('{')
+        if start_idx != -1:
+            brace_count = 0
+            for i in range(start_idx, len(text)):
+                char = text[i]
+                if char == '{': brace_count += 1
+                elif char == '}': brace_count -= 1
+                if brace_count == 0:
+                    json_str = text[start_idx:i+1]
+                    try:
+                        return json.loads(json_str)
+                    except:
+                        pass
+                    break
+        return json.loads(text)
+    except Exception as e:
+        logger.warning(f"Failed to extract JSON: {e}")
+        return None
 
 def get_user_token_for_chat(chat_id: int) -> str:
     """
@@ -118,7 +153,6 @@ def format_draft_for_telegram(draft: dict) -> str:
             lines.append(f"  Cost Price: ₹{cost}")
         if stock:
             lines.append(f"  Stock: {stock} {unit}")
-        lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
         return "\n".join(lines)
 
     elif draft_type == "customer_draft":
@@ -127,8 +161,7 @@ def format_draft_for_telegram(draft: dict) -> str:
         lines = [
             "👤 *Customer Draft*",
             f"  Name: {name}",
-            f"  Phone: {phone}",
-            "\n_Reply 'approve' to confirm or 'cancel' to discard_"
+            f"  Phone: {phone}"
         ]
         return "\n".join(lines)
 
@@ -172,9 +205,6 @@ def format_draft_for_telegram(draft: dict) -> str:
                 lines.append("  Tax Type: CGST + SGST")
 
         lines.append(f"  *Note: Final total calculated on approval*")
-        lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
-        if is_gst:
-            lines.append("_Reply 'igst' to switch to inter-state IGST_")
         return "\n".join(lines)
 
     elif draft_type == "restock_draft":
@@ -188,7 +218,6 @@ def format_draft_for_telegram(draft: dict) -> str:
         ]
         if cost:
             lines.append(f"🔹 New Cost Price: ₹{cost}")
-        lines.append("\n_Reply 'approve' to confirm or 'cancel' to discard_")
         return "\n".join(lines)
 
     elif draft_type == "payment_draft":
@@ -200,8 +229,7 @@ def format_draft_for_telegram(draft: dict) -> str:
         lines = [
             f"{emoji} *{label} Draft*",
             f"  Customer: {customer}",
-            f"  Amount: ₹{amount}",
-            "\n_Reply 'approve' to confirm or 'cancel' to discard_"
+            f"  Amount: ₹{amount}"
         ]
         return "\n".join(lines)
 
@@ -223,7 +251,6 @@ def format_draft_for_telegram(draft: dict) -> str:
             if len(data) > 5:
                 lines.append(f"\n_... and {len(data)-5} more items in CSV below_")
         
-        lines.append("\n_Reply 'approve' to receive full CSV document_")
         return "\n".join(lines)
 
     else:
@@ -667,9 +694,10 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                     "total_price": item["_total"]
                 }).execute()
 
-                if prod_id:
-                    try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": int(qty)}).execute()
-                    except: pass
+                # Decrement stock is now handled automatically by a database trigger on sale_items insertion
+                # if prod_id:
+                #     try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": int(qty)}).execute()
+                #     except: pass
 
             # ── 7. Handle udhar/credit ledger ──
             if balance_due > 0 and customer_id:
@@ -820,27 +848,43 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
 
         logger.info(f"[TG] AI Response: {ai_response[:100]}")
 
-        # Parse the response — might be JSON with draft or plain text
-        try:
-            response_data = json.loads(ai_response)
-            if isinstance(response_data, dict):
-                display_text = response_data.get("text", ai_response)
-                draft = response_data.get("draft")
-
-                # Send the text response
+        # Parse the response using robust extraction
+        response_data = extract_json(ai_response)
+        
+        if response_data and isinstance(response_data, dict) and (response_data.get("draft") or response_data.get("type")):
+            # It's a structured response (either wrapped in {"text":..., "draft":...} or just the draft itself)
+            display_text = response_data.get("text", "I've prepared a draft for you, Boss:")
+            draft = response_data.get("draft") or (response_data if response_data.get("type") else None)
+            
+            if display_text and display_text != "I've prepared a draft for you, Boss:":
                 await update.message.reply_text(display_text)
-
-                # If there's a draft, format and send it
-                if draft and isinstance(draft, dict) and draft.get("type"):
-                    PENDING_DRAFTS[chat_id] = draft
-                    draft_message = format_draft_for_telegram(draft)
-                    await update.message.reply_text(
-                        draft_message,
-                        parse_mode="Markdown"
-                    )
-            else:
-                await update.message.reply_text(ai_response)
-        except (json.JSONDecodeError, ValueError):
+            
+            if draft:
+                PENDING_DRAFTS[chat_id] = draft
+                draft_message = format_draft_for_telegram(draft)
+                
+                # Create Interactive Buttons
+                keyboard = [
+                    [
+                        InlineKeyboardButton("✅ Approve", callback_data="draft_approve"),
+                        InlineKeyboardButton("❌ Discard", callback_data="draft_discard")
+                    ]
+                ]
+                
+                # Special button for IGST if it's an invoice
+                if draft.get("type") == "invoice_draft":
+                    is_igst = draft.get("isOutOfState", False)
+                    toggle_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
+                    keyboard.append([InlineKeyboardButton(toggle_label, callback_data="draft_igst_toggle")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    draft_message,
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
+                )
+        else:
             # Plain text response
             await update.message.reply_text(ai_response)
 
@@ -850,6 +894,11 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             from telegram_bot import clean_text_for_tts
             from voice_service import synthesize_speech
             
+            # Fetch text for TTS (either display text or the whole response)
+            tts_text = ai_response
+            if response_data and isinstance(response_data, dict):
+                tts_text = response_data.get("text", ai_response)
+
             # Fetch user profile for voice preference
             voice_id = "hi-IN-MadhurNeural"
             voice_rate = "1.0"
@@ -858,14 +907,14 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
                 voice_id = pr.data[0].get("voice_id", voice_id)
                 voice_rate = pr.data[0].get("voice_speed", "+0%")
 
-            clean_text = clean_text_for_tts(ai_response)
+            clean_text = clean_text_for_tts(tts_text)
             if clean_text and len(clean_text) > 1:
                 audio_b64 = await synthesize_speech(clean_text, voice_id=voice_id, rate=voice_rate)
                 if audio_b64:
                     audio_bytes = base64.b64decode(audio_b64)
                     await update.message.reply_voice(
                         voice=audio_bytes,
-                        caption="🔊 Listen to update" if len(ai_response) > 200 else None
+                        caption="🔊 Listen to update" if len(tts_text) > 300 else None
                     )
         except Exception as tts_err:
             logger.warning(f"Voice output failed: {tts_err}")
@@ -980,6 +1029,81 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Message Handler ──────────────────────────────────────
 
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button clicks from Inline Keyboards"""
+    query = update.callback_query
+    chat_id = update.effective_chat.id
+    user_token = get_user_token_for_chat(chat_id)
+    
+    await query.answer()
+    
+    if chat_id not in PENDING_DRAFTS:
+        await query.edit_message_text("❌ No pending draft found. It may have expired.")
+        return
+        
+    draft = PENDING_DRAFTS[chat_id]
+    
+    if query.data == "draft_approve":
+        del PENDING_DRAFTS[chat_id]
+        await query.edit_message_text("⏳ Saving to database...")
+        
+        result_msg, file_buffer = await execute_draft(user_token, draft)
+        
+        if file_buffer:
+            ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
+            base_name = draft.get("customer_name") or draft.get("title") or "Document"
+            safe_name = base_name.replace(" ", "_").replace("/", "-")
+            
+            await query.message.reply_document(
+                document=file_buffer,
+                filename=f"{safe_name}{ext}",
+                caption=result_msg
+            )
+            await query.edit_message_text(f"✅ Document generated: {safe_name}{ext}")
+        else:
+            await query.edit_message_text(result_msg)
+            
+        # Silently inform AI of the context
+        try: 
+            from dukansathi_ai.agent_graph import process_user_input
+            await process_user_input(text=f"User approved the draft via button. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
+        except: pass
+
+    elif query.data == "draft_discard":
+        del PENDING_DRAFTS[chat_id]
+        await query.edit_message_text("❌ Draft discarded.")
+        try: 
+            from dukansathi_ai.agent_graph import process_user_input
+            await process_user_input(text=f"User discarded the draft via button.", user_token=user_token, model="gemini-3.1-flash-lite-preview")
+        except: pass
+
+    elif query.data == "draft_igst_toggle":
+        if draft.get("type") == "invoice_draft":
+            draft["isOutOfState"] = not draft.get("isOutOfState", False)
+            PENDING_DRAFTS[chat_id] = draft
+            
+            # Re-format the message
+            draft_message = format_draft_for_telegram(draft)
+            
+            # Re-create buttons
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Approve", callback_data="draft_approve"),
+                    InlineKeyboardButton("❌ Discard", callback_data="draft_discard")
+                ]
+            ]
+            is_igst = draft.get("isOutOfState", False)
+            toggle_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
+            keyboard.append([InlineKeyboardButton(toggle_label, callback_data="draft_igst_toggle")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                draft_message,
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages — route to AI"""
     user_text = update.message.text
@@ -1069,6 +1193,7 @@ if TELEGRAM_BOT_TOKEN:
     # Register handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))          # 🎙️ Voice
     app.add_handler(MessageHandler(filters.AUDIO, handle_voice))          # 🎵 Audio files
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # 💬 Text

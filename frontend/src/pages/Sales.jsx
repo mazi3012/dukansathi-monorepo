@@ -312,13 +312,6 @@ const Sales = () => {
             // Use Repository for double-write
             await saleRepo.createSale(saleData, saleItems);
 
-            // 3. Update Product Stock locally
-            for (const item of items) {
-                if (item.product_id) {
-                    await saleRepo.updateStock(item.product_id, -(parseFloat(item.qty) || 0));
-                }
-            }
-
             // 4. Update Customer Balance locally via Ledger for audit trail
             if (selectedCustomerId && totals.balance > 0) {
                 const isGst = billType === 'GST';

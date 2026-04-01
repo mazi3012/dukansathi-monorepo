@@ -2310,6 +2310,19 @@ async def process_user_input(
 
     if session_id not in MEMORY_STORE:
         MEMORY_STORE[session_id] = {"messages": [], "last_active": now}
+        
+        # Hydrate memory from database (short term history)
+        try:
+            db_history = await get_chat_history(user_token, limit=10)
+            if db_history:
+                for msg in db_history:
+                    if msg.get("role") == "user":
+                        MEMORY_STORE[session_id]["messages"].append(HumanMessage(content=msg.get("message", "")))
+                    elif msg.get("role") == "assistant":
+                        MEMORY_STORE[session_id]["messages"].append(AIMessage(content=msg.get("message", "")))
+                print(f"INFO: Hydrated {len(db_history)} previous messages for session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to hydrate history for {session_id}: {e}")
 
     session = MEMORY_STORE[session_id]
     memory = session["messages"]
