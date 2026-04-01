@@ -17,7 +17,7 @@ google-cloud-texttospeech>=2.16.0
 
 # AI requirements imported via ai-bot/requirements.txt
 langchain-google-vertexai>=2.0.10
-langchain-core>=0.3.28
+langchain-core>=0.3.31
 langgraph>=0.2.62
 google-auth>=2.37.0
 google-cloud-aiplatform>=1.76.0
