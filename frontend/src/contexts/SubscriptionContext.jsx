@@ -16,10 +16,16 @@ export const SubscriptionProvider = ({ children }) => {
     const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
     const realtimeChannelRef = useRef(null);
     const refreshIntervalRef = useRef(null);
+    const retryCountRef = useRef(0);       // exponential backoff counter
+    const retryTimerRef = useRef(null);    // pending retry setTimeout
+    const mountedRef = useRef(true);       // prevent state updates after unmount
+    const MAX_REALTIME_RETRIES = 3;        // give up after 3 failures, rely on polling
 
     const fetchSubscription = useCallback(async () => {
+        if (!mountedRef.current) return;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -32,85 +38,91 @@ export const SubscriptionProvider = ({ children }) => {
             const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
 
             const response = await fetch(`${API_URL}/api/subscription/usage`, {
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`
-                }
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to fetch subscription data');
-            }
+            if (!response.ok) throw new Error('Failed to fetch subscription data');
 
             const data = await response.json();
-            // data contains { token, stats: { tier, usage, limits } }
+            if (!mountedRef.current) return;
             setSubscription(data.stats);
             setError(null);
 
-            // Persist token for offline use
             if (data.token) {
                 localStorage.setItem('ds_usage_token', data.token);
             }
         } catch (err) {
-            console.error('Subscription fetch error:', err);
+            if (!mountedRef.current) return;
             setError(err.message);
 
-            // Fallback: try to load cached token from localStorage
+            // Fallback: decode cached JWT for offline mode
             const cached = localStorage.getItem('ds_usage_token');
-            if (cached && !subscription) {
+            if (cached) {
                 try {
-                    // Decode the JWT payload (no verification needed client-side)
                     const parts = cached.split('.');
                     if (parts.length === 3) {
                         const payload = JSON.parse(atob(parts[1]));
                         if (payload.tier && payload.usage && payload.limits) {
-                            setSubscription({
+                            setSubscription(prev => prev || {
                                 tier: payload.tier,
                                 usage: payload.usage,
                                 limits: payload.limits,
                             });
                         }
                     }
-                } catch (_) { /* ignore parse errors */ }
+                } catch (_) { /* ignore */ }
             }
         } finally {
-            setLoading(false);
+            if (mountedRef.current) setLoading(false);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Subscribe to Realtime changes on the profiles table
+    // Teardown current Realtime channel cleanly
+    const teardownChannel = useCallback(() => {
+        if (realtimeChannelRef.current) {
+            supabase.removeChannel(realtimeChannelRef.current).catch(() => {});
+            realtimeChannelRef.current = null;
+        }
+        if (retryTimerRef.current) {
+            clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = null;
+        }
+    }, []);
+
+    // Setup Supabase Realtime with exponential backoff + max retry cap
     const setupRealtimeSubscription = useCallback(async () => {
+        if (!mountedRef.current) return;
+
+        // Check user is actually logged in before attempting
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) return;
 
-        // Cleanup old channel if exists
-        if (realtimeChannelRef.current) {
-            supabase.removeChannel(realtimeChannelRef.current);
-        }
+        // Stop trying after MAX_REALTIME_RETRIES — polling covers us
+        if (retryCountRef.current >= MAX_REALTIME_RETRIES) return;
 
+        teardownChannel();
+
+        const userId = session.user.id;
         const channel = supabase
-            .channel(`profile-subscription-${session.user.id}`)
+            .channel(`profile-sub-${userId}-${Date.now()}`)  // unique name avoids stale state
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'profiles',
-                    filter: `id=eq.${session.user.id}`,
+                    filter: `id=eq.${userId}`,
                 },
                 (payload) => {
-                    console.log('[Realtime] Profile updated:', payload.new);
-                    const { subscription_tier, subscription_status } = payload.new;
-                    
-                    // Update the tier in local state immediately (no round-trip needed)
+                    if (!mountedRef.current) return;
+                    const { subscription_tier } = payload.new;
+
                     if (subscription_tier) {
                         setSubscription(prev => {
                             if (!prev) return prev;
-                            const updated = { ...prev, tier: subscription_tier };
-                            console.log('[Subscription] Tier updated to:', subscription_tier);
-                            return updated;
+                            return { ...prev, tier: subscription_tier };
                         });
 
-                        // Show a toast if tier actually changed
                         if (subscription_tier !== 'free') {
                             toast.success(`🎉 Plan activated: ${subscription_tier.toUpperCase()}!`, {
                                 duration: 5000,
@@ -118,65 +130,62 @@ export const SubscriptionProvider = ({ children }) => {
                             });
                         }
                     }
-                    
-                    // Then do a full refresh to get accurate usage counts
+                    // Full refresh for accurate usage counts
                     fetchSubscription();
                 }
             )
             .subscribe((status) => {
+                if (!mountedRef.current) return;
+
                 if (status === 'SUBSCRIBED') {
-                    console.log('[Realtime] Subscribed to profile changes');
+                    // Reset retry counter on successful connection
+                    retryCountRef.current = 0;
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                    // Silently retry after 5s — WebSocket may have closed during navigation
-                    console.warn('[Realtime] Channel error, retrying in 5s...');
-                    setTimeout(() => setupRealtimeSubscription(), 5000);
-                } else if (status === 'CLOSED') {
-                    // Normal on unmount/navigation — no action needed
+                    retryCountRef.current += 1;
+                    if (retryCountRef.current < MAX_REALTIME_RETRIES) {
+                        // Exponential backoff: 3s, 6s, 12s
+                        const delay = Math.pow(2, retryCountRef.current) * 3000;
+                        retryTimerRef.current = setTimeout(() => {
+                            if (mountedRef.current) setupRealtimeSubscription();
+                        }, delay);
+                    }
+                    // else: give up — the 5-min polling interval handles updates
                 }
+                // CLOSED: silently ignored (expected on unmount/navigation)
             });
 
         realtimeChannelRef.current = channel;
-    }, [fetchSubscription]);
+    }, [fetchSubscription, teardownChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
+        mountedRef.current = true;
+
         fetchSubscription();
         setupRealtimeSubscription();
 
-        // Refresh every 5 minutes as a background safety net
+        // 5-minute polling as the primary fallback when Realtime gives up
         refreshIntervalRef.current = setInterval(fetchSubscription, 5 * 60 * 1000);
 
-        // Listen for auth changes
         const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN') {
+                retryCountRef.current = 0; // reset retries on fresh login
                 fetchSubscription();
                 setupRealtimeSubscription();
             } else if (event === 'SIGNED_OUT') {
                 setSubscription(null);
                 localStorage.removeItem('ds_usage_token');
-                
-                // Cleanup realtime channel
-                if (realtimeChannelRef.current) {
-                    supabase.removeChannel(realtimeChannelRef.current);
-                    realtimeChannelRef.current = null;
-                }
-                
-                // Clear refresh interval
-                if (refreshIntervalRef.current) {
-                    clearInterval(refreshIntervalRef.current);
-                }
+                teardownChannel();
+                if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
             }
         });
 
         return () => {
+            mountedRef.current = false;
             authSub.unsubscribe();
-            if (realtimeChannelRef.current) {
-                supabase.removeChannel(realtimeChannelRef.current);
-            }
-            if (refreshIntervalRef.current) {
-                clearInterval(refreshIntervalRef.current);
-            }
+            teardownChannel();
+            if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
         };
-    }, [fetchSubscription, setupRealtimeSubscription]);
+    }, [fetchSubscription, setupRealtimeSubscription, teardownChannel]);
 
     const tier = subscription?.tier || 'free';
     const usage = subscription?.usage || { products: 0, customers: 0, bills: 0 };
@@ -191,25 +200,21 @@ export const SubscriptionProvider = ({ children }) => {
         return true;
     };
 
-    // Returns true if the user has hit the limit for a given feature
     const isLimitReached = (feature) => {
         if (!subscription) return false;
         return usage[feature] >= limits[feature];
     };
 
-    // Returns usage as a percentage (0–100)
     const getUsagePercent = (feature) => {
         if (!limits[feature]) return 0;
         return Math.min(100, Math.round((usage[feature] / limits[feature]) * 100));
     };
 
-    // Call this before creating a new item. Shows toast & navigates if limit reached.
     const canAdd = (feature, navigate) => {
         if (isLimitReached(feature)) {
-            toast.error(
-                `Limit reached! Upgrade your plan to add more ${feature}.`,
-                { duration: 4000, icon: '🔒' }
-            );
+            toast.error(`Limit reached! Upgrade your plan to add more ${feature}.`, {
+                duration: 4000, icon: '🔒'
+            });
             if (navigate) navigate('/plans');
             return false;
         }
@@ -218,17 +223,10 @@ export const SubscriptionProvider = ({ children }) => {
 
     return (
         <SubscriptionContext.Provider value={{
-            subscription,
-            loading,
-            error,
+            subscription, loading, error,
             refreshSubscription: fetchSubscription,
-            isFeatureEnabled,
-            isLimitReached,
-            getUsagePercent,
-            canAdd,
-            tier,
-            usage,
-            limits
+            isFeatureEnabled, isLimitReached, getUsagePercent, canAdd,
+            tier, usage, limits
         }}>
             {children}
         </SubscriptionContext.Provider>
