@@ -25,12 +25,11 @@ BEGIN
     END IF;
 
     -- 2. STAGE 2: Context Masquerading
-    -- We set the session variables that auth.uid() and auth.role() rely on.
+    -- We set the session variables that auth.uid() relies on.
     -- This ensures that RLS policies using auth.uid() will trigger correctly.
-    -- We use SET LOCAL so these settings only last for the duration of this transaction.
+    -- We use SET LOCAL (true as the 3rd argument) so these settings only last for the current transaction.
     
     PERFORM set_config('request.jwt.claims', json_build_object('sub', p_user_id::text, 'role', 'authenticated')::text, true);
-    PERFORM set_config('role', 'authenticated', true);
 
     -- 3. STAGE 3: Execution
     -- Run the query as the authenticated user context

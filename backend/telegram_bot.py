@@ -929,11 +929,20 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
                     ]
                 ]
                 
-                # Special button for IGST if it's an invoice
+                # Special buttons for Invoices (GST & IGST)
                 if draft.get("type") == "invoice_draft":
+                    invoice_type = draft.get("invoice_type", "regular")
+                    is_gst = invoice_type == "gst"
                     is_igst = draft.get("isOutOfState", False)
-                    toggle_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
-                    keyboard.append([InlineKeyboardButton(toggle_label, callback_data="draft_igst_toggle")])
+                    
+                    # 1. GST / Regular Toggle
+                    gst_label = "🧾 Switch to Non-GST (Regular)" if is_gst else "🧾 Switch to GST (Tax Invoice)"
+                    keyboard.append([InlineKeyboardButton(gst_label, callback_data="draft_gst_toggle")])
+                    
+                    # 2. IGST Toggle (Only if GST is enabled)
+                    if is_gst:
+                        igst_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
+                        keyboard.append([InlineKeyboardButton(igst_label, callback_data="draft_igst_toggle")])
                 
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -1140,27 +1149,52 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draft["isOutOfState"] = not draft.get("isOutOfState", False)
             PENDING_DRAFTS[chat_id] = draft
             
-            # Re-format the message
-            draft_message = format_draft_for_telegram(draft)
+            # Re-format the message & keyboard
+            await update_draft_message(query, draft)
+
+    elif query.data == "draft_gst_toggle":
+        if draft.get("type") == "invoice_draft":
+            # Toggle between 'gst' and 'regular'
+            current = draft.get("invoice_type", "regular")
+            draft["invoice_type"] = "regular" if current == "gst" else "gst"
+            PENDING_DRAFTS[chat_id] = draft
             
-            # Re-create buttons
-            keyboard = [
-                [
-                    InlineKeyboardButton("✅ Approve", callback_data="draft_approve"),
-                    InlineKeyboardButton("❌ Discard", callback_data="draft_discard")
-                ]
-            ]
-            is_igst = draft.get("isOutOfState", False)
-            toggle_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
-            keyboard.append([InlineKeyboardButton(toggle_label, callback_data="draft_igst_toggle")])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(
-                draft_message,
-                parse_mode="Markdown",
-                reply_markup=reply_markup
-            )
+            # Re-format the message & keyboard
+            await update_draft_message(query, draft)
+
+async def update_draft_message(query, draft):
+    """Shared helper to refresh the draft preview in Telegram after a toggle."""
+    draft_message = format_draft_for_telegram(draft)
+    
+    # Re-create buttons (duplicated logic from handle_ai_interaction for now)
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Approve", callback_data="draft_approve"),
+            InlineKeyboardButton("❌ Discard", callback_data="draft_discard")
+        ]
+    ]
+    
+    if draft.get("type") == "invoice_draft":
+        invoice_type = draft.get("invoice_type", "regular")
+        is_gst = invoice_type == "gst"
+        is_igst = draft.get("isOutOfState", False)
+        
+        # 1. GST Toggle
+        gst_label = "🧾 Switch to Non-GST (Regular)" if is_gst else "🧾 Switch to GST (Tax Invoice)"
+        keyboard.append([InlineKeyboardButton(gst_label, callback_data="draft_gst_toggle")])
+        
+        # 2. IGST Toggle (Only if GST is enabled)
+        if is_gst:
+            igst_label = "📍 Switch to Local (CGST/SGST)" if is_igst else "✈️ Switch to Inter-State (IGST)"
+            keyboard.append([InlineKeyboardButton(igst_label, callback_data="draft_igst_toggle")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        draft_message,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages — route to AI"""

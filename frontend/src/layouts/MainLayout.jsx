@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
-import { MessageSquare, Menu } from 'lucide-react';
+import { MessageSquare, Menu, CreditCard, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -117,29 +117,70 @@ const MainLayout = () => {
                 user={user}
             />
 
-            {/* Mobile Top Header (hidden on desktop and chat page) */}
+            {/* Global Top Header */}
             {location.pathname !== '/chat' && (
-                <header className="md:hidden fixed top-0 left-0 right-0 h-14 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/50 z-40 flex items-center px-4">
-                    {/* Hamburger Menu on Left */}
+                <header className="fixed top-0 left-0 md:left-64 right-0 h-16 bg-bg-main/80 backdrop-blur-xl border-b border-card-border/50 z-40 flex items-center justify-between px-4 sm:px-6 transition-all duration-300">
+                    {/* Hamburger Menu (Mobile Only) */}
                     <button
                         onClick={() => setIsMenuOpen(true)}
-                        className="w-10 h-10 flex items-center justify-center -ml-2 text-text-muted hover:text-indigo-500 hover:bg-card-bg/80 rounded-full transition-colors"
+                        className="md:hidden w-10 h-10 flex items-center justify-center -ml-2 text-text-muted hover:text-indigo-500 hover:bg-card-bg/80 rounded-full transition-colors"
                     >
-                        <Menu size={24} />
+                        <Menu size={22} />
                     </button>
 
-                    {/* Centered Branding */}
-                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-                        <img src={logo} alt="Logo" className="w-5 h-5 object-contain" />
-                        <h1 className="font-heading font-black text-base text-text-main tracking-tight">
-                            DUKAN<span className="text-indigo-600">SATHI</span>
-                        </h1>
+                    {/* Branding / Page Title Context */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex md:hidden items-center gap-2">
+                            <img src={logo} alt="Logo" className="w-6 h-6 object-contain" />
+                            <h1 className="font-heading font-black text-sm text-text-main tracking-tight">
+                                DUKAN<span className="text-indigo-600">SATHI</span>
+                            </h1>
+                        </div>
+                        {/* Desktop Page Context (Optional) */}
+                        <div className="hidden md:block">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted/50 leading-none">
+                                {location.pathname === '/' ? 'Dashboard Overview' : location.pathname.substring(1).split('/')[0].toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Right Side Actions: Plan & Upgrade */}
+                    <div className="flex items-center gap-3">
+                        {/* Plan Badge */}
+                        <div 
+                            onClick={() => navigate('/plans')}
+                            className={`plan-badge cursor-pointer whitespace-nowrap plan-badge-${tier}`}
+                        >
+                            <CreditCard size={12} />
+                            <span>{tier}</span>
+                        </div>
+
+                        {/* Upgrade Button (Only for Free Tier) */}
+                        {tier === 'free' && (
+                            <button
+                                onClick={() => navigate('/plans')}
+                                className="upgrade-btn premium-pulse hidden sm:flex"
+                            >
+                                <Sparkles size={14} />
+                                <span>Upgrade</span>
+                            </button>
+                        )}
+                        
+                        {/* Mobile Minimal Upgrade Link */}
+                        {tier === 'free' && (
+                            <button
+                                onClick={() => navigate('/plans')}
+                                className="sm:hidden w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-lg"
+                            >
+                                <Sparkles size={14} />
+                            </button>
+                        )}
                     </div>
                 </header>
             )}
 
             {/* Main Content Area */}
-            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-14 md:pt-0'}`}>
+            <main className={`flex-1 transition-all duration-300 ease-in-out md:ml-64 relative ${location.pathname === '/chat' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen pt-16'}`}>
                 {/* Persistent Chat Layer */}
                 <div 
                     className={`h-[100dvh] flex flex-col w-full pb-0 ${location.pathname === '/chat' ? 'block' : 'hidden'}`}

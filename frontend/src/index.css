@@ -144,3 +144,82 @@ body {
 [data-theme='dark'] .bg-card-bg\/40 { background-color: rgba(15,23,42,0.4); }
 [data-theme='dark'] .bg-card-bg\/50 { background-color: rgba(15,23,42,0.5); }
 [data-theme='dark'] .bg-bg-main\/30 { background-color: rgba(2,6,23,0.3); }
+
+/* --- Premium Plan Badge & Upgrade UI --- */
+.plan-badge {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-width: 1px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.plan-badge-free { 
+    background: rgba(100, 116, 139, 0.1); 
+    color: #64748b; 
+    border-color: rgba(100, 116, 139, 0.2); 
+}
+.plan-badge-starter { 
+    background: rgba(59, 130, 246, 0.1); 
+    color: #3b82f6; 
+    border-color: rgba(59, 130, 246, 0.2); 
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+}
+.plan-badge-pro { 
+    background: rgba(79, 70, 229, 0.1); 
+    color: #4f46e5; 
+    border-color: rgba(79, 70, 229, 0.2); 
+    box-shadow: 0 0 15px rgba(79, 70, 229, 0.15);
+}
+.plan-badge-ultra { 
+    background: rgba(168, 85, 247, 0.1); 
+    color: #9333ea; 
+    border-color: rgba(168, 85, 247, 0.2); 
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+}
+
+[data-theme='dark'] .plan-badge-pro { color: #818cf8; }
+[data-theme='dark'] .plan-badge-ultra { color: #a855f7; }
+
+.upgrade-btn {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: none;
+}
+
+.upgrade-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+    filter: brightness(1.1);
+}
+
+.upgrade-btn:active {
+    transform: translateY(0);
+}
+
+.premium-pulse {
+    animation: premium-pulse 2.5s infinite;
+}
+
+@keyframes premium-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+}
