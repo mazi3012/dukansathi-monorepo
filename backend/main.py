@@ -146,8 +146,32 @@ app.add_middleware(
 )
 
 @app.middleware("http")
-async def log_request_origins(request, call_next):
-    return await call_next(request)
+async def cors_fallback_middleware(request: Request, call_next):
+    """Failsafe CORS middleware: ensures CORS headers are set for all known origins."""
+    origin = request.headers.get("origin", "")
+    
+    # Handle OPTIONS preflight directly
+    if request.method == "OPTIONS" and origin in [o for o in ALLOWED_ORIGINS if o]:
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True},
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, X-Requested-With",
+                "Access-Control-Max-Age": "86400",
+            }
+        )
+    
+    response = await call_next(request)
+    
+    # Inject CORS headers if missing (safety net)
+    if origin in [o for o in ALLOWED_ORIGINS if o]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    return response
 
 # --- Authentication Dependency ---
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials

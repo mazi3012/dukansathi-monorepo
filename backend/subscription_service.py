@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import jwt
 import razorpay
 from supabase import Client
@@ -79,7 +79,7 @@ class SubscriptionService:
             "usage": stats["usage"],
             "limits": stats["limits"],
             "iat": datetime.utcnow(),
-            "exp": datetime.utcnow() + datetime.timedelta(hours=1)
+            "exp": datetime.utcnow() + timedelta(hours=1)
         }
         return jwt.encode(payload, USAGE_TOKEN_SECRET, algorithm="HS256")
 
@@ -104,7 +104,7 @@ class SubscriptionService:
             }
             
             # 14-day trial
-            trial_end = int((datetime.now() + datetime.timedelta(days=14)).timestamp())
+            trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
             subscription_data["start_at"] = trial_end
 
             subscription = self.client.subscription.create(subscription_data)
