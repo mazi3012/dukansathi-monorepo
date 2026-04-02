@@ -2,6 +2,8 @@
 # DukanSathi Backend — Cloud Run Dockerfile
 # Purpose: Containerize the FastAPI backend for
 #          deployment on Google Cloud Run
+# Security: No credentials baked in. All secrets
+#          injected at runtime via Cloud Run env vars.
 # =============================================
 
 FROM python:3.11-slim
@@ -35,18 +37,37 @@ COPY ai-bot/ ./ai-bot/
 # Copy backend source
 COPY backend/ ./backend/
 
-# --- Remove sensitive/dev-only files from image ---
-RUN rm -f backend/.env backend/service_account.json \
-    backend/dukansathi_offline.db backend/backend.log \
-    backend/test_*.py backend/check_*.py backend/verify_*.py \
-    backend/migrate_*.py backend/seed_data.py
+# --- Security: Remove all secrets & dev artifacts ---
+# These should not be baked into the image. If they somehow ended up
+# in the build context (despite .dockerignore), remove them now.
+RUN rm -f backend/.env \
+           backend/.env.local \
+           backend/service_account.json \
+           backend/*-credentials.json \
+           backend/credentials.json \
+           backend/dukansathi_offline.db \
+           backend/backend.log \
+           backend/telegram_bot.log \
+           backend/test_*.py \
+           backend/check_*.py \
+           backend/verify_*.py \
+           backend/migrate_*.py \
+           backend/seed_data.py \
+           ai-bot/.env \
+           ai-bot/service_account.json
+
+# --- Security check: fail the build if any .env or service_account files remain ---
+RUN ! find /app -name ".env" -o -name "service_account.json" -o -name "*-credentials.json" | grep -q "." \
+    || (echo "ERROR: Secret files found in image — aborting build" && exit 1)
 
 # --- Environment ---
 # PYTHONPATH so 'from dukansathi_ai...' imports work
 ENV PYTHONPATH=/app/ai-bot:/app/backend:/app
 # Cloud Run injects PORT automatically (default 8080)
 ENV PORT=8080
-# Disable heavy model loading by default in production to save RAM/Time
+# Mark as production so setup_routes /api/setup/save is blocked
+ENV ENV=production
+# Disable heavy offline STT model loading in production to save RAM/Time
 ENV ENABLE_OFFLINE_STT=false
 
 WORKDIR /app/backend

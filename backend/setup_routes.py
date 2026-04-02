@@ -61,8 +61,18 @@ def get_setup_status():
 
 
 @router.post("/save")
-def save_env_config(config: EnvConfig):
-    """Save cloud configuration to .env file"""
+def save_env_config(config: EnvConfig, user_id: str = Depends(verify_admin_auth)):
+    """Save cloud configuration to .env file (LOCAL DEVELOPMENT ONLY).
+    
+    🔒 This endpoint is disabled in production (ENV=production).
+    On Cloud Run, secrets are injected via Secret Manager / env vars.
+    """
+    # Block in production — Cloud Run uses Secret Manager, not file-based .env
+    if os.getenv("ENV", "development").lower() == "production":
+        raise HTTPException(
+            status_code=403,
+            detail="Config save is disabled in production. Use Cloud Run Secret Manager."
+        )
     env_path = os.path.join(os.path.dirname(__file__), ".env")
 
     env_vars = {}

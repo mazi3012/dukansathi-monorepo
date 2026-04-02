@@ -128,9 +128,15 @@ const Plans = () => {
             if (!response.ok) throw new Error('Failed to create subscription');
             const subscription = await response.json();
 
+            const rzpKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+            if (!rzpKey) {
+                toast.error('Payment system not configured. Please contact support.');
+                return;
+            }
+
             // Razorpay Checkout
             const options = {
-                key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+                key: rzpKey,
                 subscription_id: subscription.id,
                 name: 'Dukan Sathi AI',
                 description: `${plan.name} Subscription`,
