@@ -126,6 +126,12 @@ export const SubscriptionProvider = ({ children }) => {
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
                     console.log('[Realtime] Subscribed to profile changes');
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    // Silently retry after 5s — WebSocket may have closed during navigation
+                    console.warn('[Realtime] Channel error, retrying in 5s...');
+                    setTimeout(() => setupRealtimeSubscription(), 5000);
+                } else if (status === 'CLOSED') {
+                    // Normal on unmount/navigation — no action needed
                 }
             });
 

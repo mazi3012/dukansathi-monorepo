@@ -134,6 +134,23 @@ const Plans = () => {
                 return;
             }
 
+            // Ensure Razorpay script is loaded (deferred in index.html,
+            // may not be ready if user navigated to Plans quickly)
+            await new Promise((resolve, reject) => {
+                if (typeof window.Razorpay === 'function') { resolve(); return; }
+                const existing = document.querySelector('script[src*="razorpay"]');
+                if (existing) {
+                    existing.addEventListener('load', resolve);
+                    existing.addEventListener('error', () => reject(new Error('Razorpay load failed')));
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
+                document.head.appendChild(script);
+            });
+
             // Razorpay Checkout
             const options = {
                 key: rzpKey,
