@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 # Constants for Limits
 TIER_LIMITS = {
-    "free": {"products": 50, "customers": 50, "bills": 100},
-    "starter": {"products": 500, "customers": 500, "bills": 1000},
-    "pro": {"products": 2000, "customers": 2000, "bills": 5000},
-    "ultra": {"products": 10000, "customers": 10000, "bills": 20000},
-    "enterprise": {"products": 999999, "customers": 999999, "bills": 999999},
+    "free": {"products": 50, "customers": 50, "bills": 100, "ai_credits": 20},
+    "starter": {"products": 500, "customers": 500, "bills": 1000, "ai_credits": 500},
+    "pro": {"products": 2000, "customers": 2000, "bills": 5000, "ai_credits": 2000},
+    "ultra": {"products": 10000, "customers": 10000, "bills": 20000, "ai_credits": 999999},
+    "enterprise": {"products": 999999, "customers": 999999, "bills": 999999, "ai_credits": 999999},
 }
 
 USAGE_TOKEN_SECRET = os.getenv("JWT_SECRET", "dukansathi_secret_key_change_me")
@@ -43,7 +43,16 @@ class SubscriptionService:
             sales_res = self.supabase.table("sales").select("id", count="exact").eq("user_id", user_id).gte("created_at", first_of_month).execute()
             bill_count = sales_res.count if sales_res else 0
 
-            # 4. Get User Tier
+            # 4. AI Message Count (current month)
+            ai_res = self.supabase.table("chat_history") \
+                .select("id", count="exact") \
+                .eq("user_id", user_id) \
+                .eq("role", "user") \
+                .gte("created_at", first_of_month) \
+                .execute()
+            ai_count = ai_res.count if ai_res else 0
+
+            # 5. Get User Tier
             profile_res = self.supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
             tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
 
@@ -52,7 +61,8 @@ class SubscriptionService:
                 "usage": {
                     "products": product_count,
                     "customers": customer_count,
-                    "bills": bill_count
+                    "bills": bill_count,
+                    "ai_credits": ai_count
                 },
                 "limits": TIER_LIMITS.get(tier, TIER_LIMITS["free"])
             }

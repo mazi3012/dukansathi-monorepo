@@ -19,11 +19,11 @@ const Plans = () => {
                 '50 Products Limit',
                 '50 Customers Limit',
                 '100 Bills per Month',
-                'Manual Bill Entry Only',
+                '20 AI Credits / Month',
                 'Basic Reporting',
                 'Offline Sync'
             ],
-            limits: { products: 50, customers: 50, bills: 100 },
+            limits: { products: 50, customers: 50, bills: 100, ai_credits: 20 },
             color: 'gray',
             buttonText: 'Current Plan'
         },
@@ -163,38 +163,45 @@ const Plans = () => {
                     
                     // Poll until tier updates (webhook may take a few seconds)
                     let attempts = 0;
-                    const maxAttempts = 6;
+                    const maxAttempts = 12; // 24 seconds total
                     const poll = async () => {
-                        await refreshSubscription();
                         attempts++;
-                        // refreshSubscription updates context; check via a short delay
-                        setTimeout(async () => {
-                            if (attempts < maxAttempts) {
-                                // Check if tier updated (refreshSubscription will update context)
-                                const { data: { session } } = await supabase.auth.getSession();
-                                if (session) {
-                                    const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
-                                    const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
-                                    const res = await fetch(`${API_URL}/api/subscription/usage`, {
-                                        headers: { 'Authorization': `Bearer ${session.access_token}` }
-                                    });
-                                    if (res.ok) {
-                                        const d = await res.json();
-                                        if (d.stats?.tier === plan.id) {
-                                            toast.success(`🎉 ${plan.name} plan activated!`, { id: toastId });
-                                            await refreshSubscription();
-                                            return;
-                                        }
+                        try {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session) {
+                                // 1. Refresh Context
+                                await refreshSubscription();
+                                
+                                // 2. Hard Check via API
+                                const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                                const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+                                const res = await fetch(`${API_URL}/api/subscription/usage`, {
+                                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                                });
+                                
+                                if (res.ok) {
+                                    const d = await res.json();
+                                    if (d.stats?.tier === plan.id) {
+                                        toast.success(`🎉 ${plan.name} plan activated!`, { id: toastId });
+                                        await refreshSubscription();
+                                        return;
                                     }
                                 }
-                                poll(); // retry
-                            } else {
-                                toast.success(`Payment done! Plan will activate shortly.`, { id: toastId });
-                                await refreshSubscription();
                             }
-                        }, 2000);
+                        } catch (err) {
+                            console.warn("Polling error:", err);
+                        }
+
+                        if (attempts < maxAttempts) {
+                            setTimeout(poll, 2000); // 2s delay between attempts
+                        } else {
+                            toast.success(`Payment done! Plan will activate shortly.`, { id: toastId });
+                            await refreshSubscription();
+                        }
                     };
-                    poll();
+                    
+                    // Start polling
+                    setTimeout(poll, 1500);
                 },
                 prefill: {
                     name: session.user.user_metadata?.full_name || '',
@@ -253,10 +260,11 @@ const Plans = () => {
                     Current Usage ({tier.toUpperCase()})
                 </h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <UsageProgress label="Products" icon={Package} current={usage.products} max={limits.products === 'Unlimited*' ? 1 : limits.products} color="blue" />
                     <UsageProgress label="Customers" icon={Users} current={usage.customers} max={limits.customers === 'Unlimited*' ? 1 : limits.customers} color="indigo" />
                     <UsageProgress label="Bills (This Month)" icon={FileText} current={usage.bills} max={limits.bills === 'Unlimited*' ? 1 : limits.bills} color="purple" />
+                    <UsageProgress label="AI Credits" icon={Zap} current={usage.ai_credits} max={limits.ai_credits === 'Unlimited*' ? 1 : limits.ai_credits} color="amber" />
                 </div>
                 
                 {tier === 'free' && (
@@ -328,13 +336,13 @@ const Plans = () => {
                             disabled={tier === plan.id || loading === plan.id}
                             className={`w-full py-4 rounded-2xl font-bold text-sm transition-all ${
                                 tier === plan.id 
-                                ? 'bg-emerald-500/10 text-emerald-500 cursor-default'
+                                ? 'bg-emerald-500/10 text-emerald-500 cursor-default border-emerald-500/20'
                                 : plan.isPopular
                                 ? 'bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-500/20'
                                 : 'bg-card-bg border border-indigo-500/20 text-indigo-500 hover:bg-indigo-500/5'
                             } disabled:opacity-50`}
                         >
-                            {loading === plan.id ? 'Processing...' : plan.buttonText}
+                            {loading === plan.id ? 'Processing...' : (tier === plan.id ? 'Current Plan' : plan.buttonText)}
                         </button>
                     </motion.div>
                 ))}

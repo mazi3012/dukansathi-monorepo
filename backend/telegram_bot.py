@@ -821,16 +821,14 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     """Shared helper to process text (from message or voice), check for draft approvals, and call AI."""
     user_id = get_user_token_for_chat(chat_id)
     
-    # --- TIER CHECK ---
-    from subscription_service import TIER_LIMITS
-    profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
-    tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
+    # --- TIER CHECK (AI Credits) ---
+    from subscription_service import SubscriptionService
+    sub_service = SubscriptionService(supabase)
     
-    if tier == "free":
+    if not await sub_service.check_limit(user_id, "ai_credits"):
         await update.message.reply_text(
-            "🤖 *AI Assistant is a Pro Feature*\n\n"
-            "Free users can only use manual entry on the web app. "
-            "Please upgrade to any paid plan to use Sathi AI & Voice on Telegram!",
+            "🤖 *AI limit reached!*\n\n"
+            "You have used your 20 free AI credits for this month. 🚀 Upgrade to a paid plan for unlimited AI Power!",
             parse_mode="Markdown"
         )
         return

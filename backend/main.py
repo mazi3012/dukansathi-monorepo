@@ -519,7 +519,6 @@ async def razorpay_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
     event = data.get("event", "")
-    logger.info(f"[Webhook] Razorpay event received: {event}")
     
     # Safely extract subscription entity
     try:
@@ -529,9 +528,11 @@ async def razorpay_webhook(request: Request):
         plan_id   = sub_entity.get("plan_id", "")
         notes     = sub_entity.get("notes", {}) or {}
         user_id_from_notes = notes.get("user_id", "")
+        
+        logger.info(f"[Webhook] Event: {event}, SubID: {sub_id}, PlanID: {plan_id}, UserID: {user_id_from_notes}")
     except (KeyError, TypeError) as e:
-        logger.error(f"[Webhook] Malformed payload: {e}")
-        return {"status": "ok"}  # Return 200 so Razorpay doesn't retry endlessly
+        logger.error(f"[Webhook] Malformed payload error: {e}")
+        return {"status": "ok"}
     
     # Plan-ID → Tier mapping (must match Plans.jsx rzpPlanId values)
     PLAN_TIER_MAP = {
@@ -541,46 +542,29 @@ async def razorpay_webhook(request: Request):
     }
     tier = PLAN_TIER_MAP.get(plan_id)
     
+    if not tier and event in ["subscription.authenticated", "subscription.activated", "subscription.charged"]:
+        logger.warning(f"[Webhook] Received event '{event}' for plan_id '{plan_id}' which is NOT in our mapping. Profile tier will not be updated!")
+
     # ── subscription.authenticated ────────────────────────────────────────
     # Fires immediately after user completes Razorpay checkout (mandate captured).
-    # For TRIAL subscriptions this is the ONLY immediate activation signal.
-    # We upgrade the tier here so the user sees the plan right away.
     if event == "subscription.authenticated":
-        logger.info(f"[Webhook] Subscription authenticated — upgrading to tier: {tier}")
-        ok = await sub_service.update_user_subscription(
+        logger.info(f"[Webhook] Authenticated — Updating profile {user_id_from_notes} to tier {tier}")
+        await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
         )
-        if not ok:
-            logger.warning(f"[Webhook] Could not find user for sub_id={sub_id}")
     
     # ── subscription.activated ────────────────────────────────────────────
-    # Fires when trial ends and the first billing cycle starts.
-    # Also upgrade tier here as a confirmation/re-activation.
     elif event == "subscription.activated":
-        logger.info(f"[Webhook] Subscription activated — tier: {tier}")
+        logger.info(f"[Webhook] Activated — Updating profile to tier {tier}")
         await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
         )
     
     # ── subscription.charged ─────────────────────────────────────────────
-    # Fires on every successful recurring payment. Keep the tier active.
     elif event == "subscription.charged":
-        logger.info(f"[Webhook] Subscription charged — keeping tier active: {tier}")
+        logger.info(f"[Webhook] Charged — Updating profile to tier {tier}")
         await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
-        )
-    
-    # ── Degradation events ───────────────────────────────────────────────
-    elif event == "subscription.cancelled":
-        logger.info(f"[Webhook] Subscription cancelled — downgrading to free")
-        await sub_service.update_user_subscription(
-            sub_id, "cancelled", "free", fallback_user_id=user_id_from_notes
-        )
-    
-    elif event in ["subscription.halted", "subscription.pending"]:
-        logger.info(f"[Webhook] Subscription {event} — status: {status}")
-        await sub_service.update_user_subscription(
-            sub_id, status, fallback_user_id=user_id_from_notes
         )
     
     else:
@@ -680,14 +664,15 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                 profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
                 user_tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
             
-            # Block AI for Free Tier
-            if user_tier == "free" and message_type in ["text", "voice", "image", "excel"]:
-                await websocket.send_json({
-                    "type": "error",
-                    "content": "AI Assistant is a Pro feature. Please upgrade to a paid plan to use AI & Voice billing.",
-                    "code": "UPGRADE_REQUIRED"
-                })
-                continue
+            # AI Credit Check (All tiers)
+            if user_id != "anon":
+                if not await sub_service.check_limit(user_id, "ai_credits"):
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": "You have reached your monthly AI credit limit! Please upgrade your plan for more AI Power.",
+                        "code": "UPGRADE_REQUIRED"
+                    })
+                    continue
             
             # Safe user_id for file paths (never use client-supplied values)
             safe_user_id = user_id if user_id and len(user_id) > 10 else "anon"
