@@ -89,17 +89,15 @@ class SubscriptionService:
             raise Exception("Razorpay not configured")
 
         try:
-            # Create or get Razorpay customer here if needed, 
-            # for now we'll just create the subscription using user's profile info
             profile_res = self.supabase.table("profiles").select("email, owner_name").eq("id", user_id).single().execute()
             profile = profile_res.data if profile_res else {}
 
             subscription_data = {
                 "plan_id": plan_id,
                 "customer_notify": 1,
-                "total_count": 120, # 10 years
+                "total_count": 120,  # 10 years
                 "notes": {
-                    "user_id": user_id
+                    "user_id": user_id  # Stored in notes as a fallback for webhook lookup
                 }
             }
             
@@ -126,24 +124,61 @@ class SubscriptionService:
         except Exception:
             return False
 
-    async def update_user_subscription(self, razorpay_subscription_id: str, status: str, tier: str = None):
-        """Update Supabase profile based on Razorpay webhook"""
+    async def update_user_subscription(
+        self,
+        razorpay_subscription_id: str,
+        status: str,
+        tier: str = None,
+        fallback_user_id: str = None
+    ):
+        """Update Supabase profile based on Razorpay webhook event.
+        
+        Lookup order:
+        1. Find profile by razorpay_subscription_id (primary key match).
+        2. If not found, use fallback_user_id from webhook notes.
+        """
         try:
-            # First find the user by subscription_id
-            query = self.supabase.table("profiles").select("id").eq("razorpay_subscription_id", razorpay_subscription_id).execute()
-            if not query.data:
-                # If not found, we might need to get it from webhook notes
+            user_id = None
+            
+            # 1. Primary lookup: by subscription ID
+            query = self.supabase.table("profiles") \
+                .select("id") \
+                .eq("razorpay_subscription_id", razorpay_subscription_id) \
+                .execute()
+            
+            if query.data:
+                user_id = query.data[0]['id']
+            elif fallback_user_id:
+                # 2. Fallback: use user_id from Razorpay notes
+                logger.info(f"Using fallback user_id from notes: {fallback_user_id}")
+                user_id = fallback_user_id
+                # Also save the subscription ID now so future lookups work
+                self.supabase.table("profiles").update({
+                    "razorpay_subscription_id": razorpay_subscription_id
+                }).eq("id", user_id).execute()
+            else:
+                logger.warning(f"No user found for sub_id={razorpay_subscription_id}")
                 return False
             
-            user_id = query.data[0]['id']
             update_data = {
                 "subscription_status": status,
                 "updated_at": datetime.now().isoformat()
             }
+            
             if tier:
                 update_data["subscription_tier"] = tier
             
-            self.supabase.table("profiles").update(update_data).eq("id", user_id).execute()
+            # On cancellation, downgrade to free tier
+            if status == "cancelled":
+                update_data["subscription_tier"] = "free"
+                update_data["razorpay_subscription_id"] = None
+            
+            self.supabase.table("profiles") \
+                .update(update_data) \
+                .eq("id", user_id) \
+                .execute()
+            
+            logger.info(f"Updated profile {user_id}: status={status}, tier={tier}")
             return True
         except Exception as e:
             logger.error(f"Failed to update subscription: {e}")

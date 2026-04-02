@@ -503,33 +503,89 @@ async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_
 
 @app.post("/api/subscription/webhook")
 async def razorpay_webhook(request: Request):
-    """Handle Razorpay webhook for subscription updates"""
-    payload = await request.body()
+    """Handle Razorpay webhook for subscription updates."""
+    # Read body ONCE — stream cannot be consumed twice
+    raw_body = await request.body()
     signature = request.headers.get("X-Razorpay-Signature")
     
-    if not sub_service.verify_webhook(payload, signature):
+    if not sub_service.verify_webhook(raw_body, signature):
         raise HTTPException(status_code=400, detail="Invalid signature")
     
-    data = await request.json()
-    event = data.get("event")
-    sub_id = data["payload"]["subscription"]["entity"]["id"]
-    status = data["payload"]["subscription"]["entity"]["status"]
+    # Parse the already-read bytes
+    import json as _json
+    try:
+        data = _json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
-    # Map Razorpay events to local status
-    if event == "subscription.activated":
-        # Determine tier from plan_id (Mapping needed)
-        plan_id = data["payload"]["subscription"]["entity"]["plan_id"]
-        # Example mapping (real ones should come from RZP dashboard)
-        tiers = {
-            "plan_SYJ1J3QjtX1mAK": "starter",
-            "plan_SYJ1ZJWBFTgZWx": "pro",
-            "plan_SYJ1a3OcE6bwDB": "ultra"
-        }
-        tier = tiers.get(plan_id)
-        await sub_service.update_user_subscription(sub_id, "active", tier)
-    elif event in ["subscription.pending", "subscription.halted", "subscription.cancelled"]:
-        await sub_service.update_user_subscription(sub_id, status)
-        
+    event = data.get("event", "")
+    logger.info(f"[Webhook] Razorpay event received: {event}")
+    
+    # Safely extract subscription entity
+    try:
+        sub_entity = data["payload"]["subscription"]["entity"]
+        sub_id    = sub_entity["id"]
+        status    = sub_entity["status"]
+        plan_id   = sub_entity.get("plan_id", "")
+        notes     = sub_entity.get("notes", {}) or {}
+        user_id_from_notes = notes.get("user_id", "")
+    except (KeyError, TypeError) as e:
+        logger.error(f"[Webhook] Malformed payload: {e}")
+        return {"status": "ok"}  # Return 200 so Razorpay doesn't retry endlessly
+    
+    # Plan-ID → Tier mapping (must match Plans.jsx rzpPlanId values)
+    PLAN_TIER_MAP = {
+        "plan_SYJ1J3QjtX1mAK": "starter",
+        "plan_SYJ1ZJWBFTgZWx": "pro",
+        "plan_SYJ1a3OcE6bwDB": "ultra",
+    }
+    tier = PLAN_TIER_MAP.get(plan_id)
+    
+    # ── subscription.authenticated ────────────────────────────────────────
+    # Fires immediately after user completes Razorpay checkout (mandate captured).
+    # For TRIAL subscriptions this is the ONLY immediate activation signal.
+    # We upgrade the tier here so the user sees the plan right away.
+    if event == "subscription.authenticated":
+        logger.info(f"[Webhook] Subscription authenticated — upgrading to tier: {tier}")
+        ok = await sub_service.update_user_subscription(
+            sub_id, "active", tier, fallback_user_id=user_id_from_notes
+        )
+        if not ok:
+            logger.warning(f"[Webhook] Could not find user for sub_id={sub_id}")
+    
+    # ── subscription.activated ────────────────────────────────────────────
+    # Fires when trial ends and the first billing cycle starts.
+    # Also upgrade tier here as a confirmation/re-activation.
+    elif event == "subscription.activated":
+        logger.info(f"[Webhook] Subscription activated — tier: {tier}")
+        await sub_service.update_user_subscription(
+            sub_id, "active", tier, fallback_user_id=user_id_from_notes
+        )
+    
+    # ── subscription.charged ─────────────────────────────────────────────
+    # Fires on every successful recurring payment. Keep the tier active.
+    elif event == "subscription.charged":
+        logger.info(f"[Webhook] Subscription charged — keeping tier active: {tier}")
+        await sub_service.update_user_subscription(
+            sub_id, "active", tier, fallback_user_id=user_id_from_notes
+        )
+    
+    # ── Degradation events ───────────────────────────────────────────────
+    elif event == "subscription.cancelled":
+        logger.info(f"[Webhook] Subscription cancelled — downgrading to free")
+        await sub_service.update_user_subscription(
+            sub_id, "cancelled", "free", fallback_user_id=user_id_from_notes
+        )
+    
+    elif event in ["subscription.halted", "subscription.pending"]:
+        logger.info(f"[Webhook] Subscription {event} — status: {status}")
+        await sub_service.update_user_subscription(
+            sub_id, status, fallback_user_id=user_id_from_notes
+        )
+    
+    else:
+        logger.info(f"[Webhook] Unhandled event (ignored): {event}")
+    
     return {"status": "ok"}
 
 @app.websocket("/ws/chat")

@@ -135,9 +135,43 @@ const Plans = () => {
                 name: 'Dukan Sathi AI',
                 description: `${plan.name} Subscription`,
                 image: '/logo.svg',
-                handler: function (response) {
-                    toast.success(`Payment successful! Your ${plan.name} tier will be activated shortly.`);
-                    setTimeout(refreshSubscription, 3000);
+                handler: async function (response) {
+                    const toastId = toast.loading(`Activating ${plan.name} plan...`, { duration: 15000 });
+                    
+                    // Poll until tier updates (webhook may take a few seconds)
+                    let attempts = 0;
+                    const maxAttempts = 6;
+                    const poll = async () => {
+                        await refreshSubscription();
+                        attempts++;
+                        // refreshSubscription updates context; check via a short delay
+                        setTimeout(async () => {
+                            if (attempts < maxAttempts) {
+                                // Check if tier updated (refreshSubscription will update context)
+                                const { data: { session } } = await supabase.auth.getSession();
+                                if (session) {
+                                    const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                                    const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+                                    const res = await fetch(`${API_URL}/api/subscription/usage`, {
+                                        headers: { 'Authorization': `Bearer ${session.access_token}` }
+                                    });
+                                    if (res.ok) {
+                                        const d = await res.json();
+                                        if (d.stats?.tier === plan.id) {
+                                            toast.success(`🎉 ${plan.name} plan activated!`, { id: toastId });
+                                            await refreshSubscription();
+                                            return;
+                                        }
+                                    }
+                                }
+                                poll(); // retry
+                            } else {
+                                toast.success(`Payment done! Plan will activate shortly.`, { id: toastId });
+                                await refreshSubscription();
+                            }
+                        }, 2000);
+                    };
+                    poll();
                 },
                 prefill: {
                     name: session.user.user_metadata?.full_name || '',
