@@ -43,6 +43,10 @@
                     "value": "strict-origin-when-cross-origin"
                 },
                 {
+                    "key": "Permissions-Policy",
+                    "value": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self https://checkout.razorpay.com), usb=()"
+                },
+                {
                     "key": "Content-Security-Policy",
                     "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.razorpay.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://*.onrender.com wss://*.run.app https://*.onrender.com https://*.run.app https://api.telegram.org https://api.razorpay.com https://lumberjack.razorpay.com https://api.sarvam.ai; frame-src https://api.razorpay.com https://*.razorpay.com; media-src 'self' blob: data:; frame-ancestors 'none';"
                 }
