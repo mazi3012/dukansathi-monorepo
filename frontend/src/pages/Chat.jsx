@@ -179,6 +179,7 @@ const Chat = () => {
         micPermission,
         camPermission,
         isSecure,
+        hasExplicitlyDenied,
         requestMicPermission,
         requestCamPermission
     } = useChat();
@@ -194,8 +195,9 @@ const Chat = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // UI State for Attachment Menu
+    // UI State
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+    const [isMicSetupOpen, setIsMicSetupOpen] = useState(false);
     const menuRef = useRef(null);
     const isOnline = useOnlineStatus();
     const autoRecordRef = useRef(false);
@@ -1127,10 +1129,22 @@ const Chat = () => {
         }
     };
 
+    const handleMicClick = () => {
+        if (micPermission !== 'granted') {
+            setIsMicSetupOpen(true);
+        } else {
+            if (isListening) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+    };
+
     return (
         <div className="absolute inset-0 flex flex-col bg-bg-main overflow-hidden z-50">
-            {/* Permissions & Security Guard Overlay */}
-            {(!isSecure || micPermission === 'denied') && (
+            {/* Security Guard Overlay (Only for critical errors) */}
+            {(!isSecure || (micPermission === 'denied' && hasExplicitlyDenied)) && (
                 <div className="absolute inset-x-4 top-20 z-[60] p-6 bg-red-500/10 border border-red-500/20 backdrop-blur-xl rounded-2xl flex flex-col items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                     <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 ring-4 ring-red-500/10">
                         <Lock size={24} />
@@ -1148,18 +1162,37 @@ const Chat = () => {
                     </div>
 
                     {isSecure && (
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 w-full text-left space-y-2">
-                            <div className="flex items-start gap-2 text-xs text-text-main">
-                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">1</div>
-                                <span>Click the <b>Lock</b> icon (🔒) or <b>Settings</b> icon (⚙️) in your address bar.</span>
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 w-full text-left space-y-3">
+                            {/* Desktop Instructions */}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 opacity-80">Desktop (PC/Mac)</p>
+                                <div className="flex items-start gap-2 text-xs text-text-main leading-snug">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-[10px]">1</div>
+                                    <span>Click the <b>Lock</b> icon (🔒) in the address bar.</span>
+                                </div>
+                                <div className="flex items-start gap-2 text-xs text-text-main leading-snug">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-[10px]">2</div>
+                                    <span>Turn on <b>Microphone</b> (or Reset Permission).</span>
+                                </div>
                             </div>
-                            <div className="flex items-start gap-2 text-xs text-text-main">
-                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">2</div>
-                                <span>Find <b>Microphone</b> and change "Block" to <b>"Allow"</b>.</span>
-                            </div>
-                            <div className="flex items-start gap-2 text-xs text-text-main">
-                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">3</div>
-                                <span>Click <b>"Try Again"</b> below.</span>
+
+                            <div className="h-px bg-white/10 w-full" />
+
+                            {/* Mobile Instructions */}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 opacity-80">Mobile (Android/iPhone)</p>
+                                <div className="flex items-start gap-2 text-xs text-text-main leading-snug">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-[10px]">1</div>
+                                    <span>Tap the <b>Three Dots (⋮)</b> → <b>Settings</b>.</span>
+                                </div>
+                                <div className="flex items-start gap-2 text-xs text-text-main leading-snug">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-[10px]">2</div>
+                                    <span>Go to <b>Site Settings</b> → <b>Microphone</b>.</span>
+                                </div>
+                                <div className="flex items-start gap-2 text-xs text-text-main leading-snug">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-[10px]">3</div>
+                                    <span>Find <b>dukansathi.com</b> and tap <b>Allow</b>.</span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1168,49 +1201,64 @@ const Chat = () => {
                         onClick={() => window.location.reload()}
                         className="w-full py-3 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-all shadow-lg active:scale-95"
                     >
-                        {!isSecure ? 'Reload Page' : 'Try Again'}
+                        {!isSecure ? 'Reload Page' : 'Check Again & Reload'}
                     </button>
-                    {!isSecure && (
-                        <p className="text-[10px] text-text-muted italic opacity-60">
-                            Current: {window.location.protocol}//{window.location.hostname}
-                        </p>
-                    )}
                 </div>
             )}
 
-            {/* Initial Mic Setup Overlay */}
-            {isSecure && micPermission === 'prompt' && (
-                <div className="absolute inset-0 z-[60] bg-bg-main/80 backdrop-blur-lg flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
-                    <div className="max-w-xs space-y-6">
-                        <div className="relative">
-                            <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl shadow-indigo-500/20 animate-bounce-slow">
-                                <Mic size={40} className="text-white" />
-                            </div>
-                            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full border-4 border-bg-main flex items-center justify-center text-white">
-                                <Sparkles size={14} />
-                            </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-black text-text-main leading-tight">Ready for Voice Chat?</h2>
-                            <p className="text-sm text-text-muted">
-                                Dukan Sathi uses your microphone to record sales and manage inventory via voice commands.
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={requestMicPermission}
-                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 group"
+            {/* Initial Mic Setup Modal (Contextual) */}
+            <AnimatePresence>
+                {isMicSetupOpen && isSecure && micPermission !== 'granted' && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsMicSetupOpen(false)}
+                            className="absolute inset-0 bg-bg-main/60 backdrop-blur-xl"
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                            animate={{ scale: 1, opacity: 1, y: 0 }} 
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative max-w-xs w-full bg-card-bg border border-card-border rounded-[40px] p-8 shadow-2xl flex flex-col items-center text-center gap-6"
                         >
-                            <span className="group-hover:translate-x-0.5 transition-transform">Enable Microphone</span>
-                        </button>
-                        
-                        <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-50">
-                            Safe & Secure • No Camera Required
-                        </p>
+                            <div className="relative">
+                                <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl shadow-indigo-500/20 animate-bounce-slow">
+                                    <Mic size={40} className="text-white" />
+                                </div>
+                                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full border-4 border-card-bg flex items-center justify-center text-white">
+                                    <Sparkles size={14} />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black text-text-main leading-tight tracking-tight">Ready to Talk?</h2>
+                                <p className="text-sm text-text-muted">
+                                    Dukan Sathi needs microphone access to record sales and manage inventory via voice.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    const success = await requestMicPermission();
+                                    if (success) setIsMicSetupOpen(false);
+                                }}
+                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 group"
+                            >
+                                <span className="group-hover:translate-x-0.5 transition-transform uppercase tracking-widest text-[10px]">Enable Microphone</span>
+                            </button>
+                            
+                            <button 
+                                onClick={() => setIsMicSetupOpen(false)}
+                                className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-50 hover:opacity-100 transition-opacity"
+                            >
+                                Not Now
+                            </button>
+                        </motion.div>
                     </div>
-                </div>
-            )}
+                )}
+            </AnimatePresence>
 
             {/* Ambient Glows */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
@@ -1565,7 +1613,7 @@ const Chat = () => {
                                     <button onClick={handleSend} disabled={isThinking} className="w-[42px] h-[42px] rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"><Send size={18} className="translate-x-[2px]" /></button>
                                 ) : (
                                     <button
-                                        onClick={() => isListening ? stopRecording() : startRecording()}
+                                        onClick={handleMicClick}
                                         disabled={isThinking}
                                         className={`w-[42px] h-[42px] rounded-full shadow-lg flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-red-500/40 scale-105 animate-pulse' : 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95'} disabled:opacity-50`}
                                     >

@@ -28,6 +28,7 @@ export const ChatProvider = ({ children }) => {
     const [micPermission, setMicPermission] = useState('prompt'); 
     const [camPermission, setCamPermission] = useState('prompt');
     const [isSecure, setIsSecure] = useState(true);
+    const [hasExplicitlyDenied, setHasExplicitlyDenied] = useState(false);
 
     // Environment Detection
     const isMobile = () => {
@@ -133,15 +134,16 @@ export const ChatProvider = ({ children }) => {
     const requestMicPermission = useCallback(async () => {
         unlockAudio();
         try {
-            // Chrome requirement: getUserMedia must be called immediately after user gesture
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
             setMicPermission('granted');
+            setHasExplicitlyDenied(false); // Reset error state on success
             return true;
         } catch (e) {
             console.error("Mic request failed:", e);
             if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
                 setMicPermission('denied');
+                setHasExplicitlyDenied(true); // Flag that user actually clicked "Block"
             }
             return false;
         }
@@ -521,7 +523,7 @@ export const ChatProvider = ({ children }) => {
             isListening, isThinking, setMessages, voice, changeVoice,
             isMuted, toggleMute, unlockAudio, isPlaying, isConnected,
             model, pendingAttachment, setPendingAttachment,
-            micPermission, camPermission, isSecure, checkPermissions, 
+            micPermission, camPermission, isSecure, hasExplicitlyDenied, checkPermissions, 
             requestMicPermission, requestCamPermission,
             sendImage: (file) => {
                 const reader = new FileReader();
