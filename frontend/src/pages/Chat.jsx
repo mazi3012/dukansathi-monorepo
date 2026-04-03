@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
