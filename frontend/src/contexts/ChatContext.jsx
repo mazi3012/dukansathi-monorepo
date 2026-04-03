@@ -128,11 +128,23 @@ export const ChatProvider = ({ children }) => {
 
         } catch (e) {
             console.warn("Permissions API query failed:", e);
+            // On browsers where query fails (like Safari), we stay in 'prompt' until request is made
+            if (micPermission === 'denied' && !hasExplicitlyDenied) {
+                 // Try to recover if we think we might have permission but don't know
+            }
         }
-    }, []);
+    }, [micPermission, hasExplicitlyDenied]);
 
     const requestMicPermission = useCallback(async () => {
         unlockAudio();
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error("Browser does not support MediaDevices/getUserMedia");
+            setMicPermission('denied');
+            setHasExplicitlyDenied(true);
+            return false;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
@@ -141,9 +153,13 @@ export const ChatProvider = ({ children }) => {
             return true;
         } catch (e) {
             console.error("Mic request failed:", e);
-            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            // Handle all variations of denial
+            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError' || e.name === 'SecurityError') {
                 setMicPermission('denied');
                 setHasExplicitlyDenied(true); // Flag that user actually clicked "Block"
+            } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+                // No mic found - alert or handle separately
+                console.warn("No device found");
             }
             return false;
         }

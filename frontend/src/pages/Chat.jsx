@@ -1209,7 +1209,7 @@ const Chat = () => {
 
             {/* Initial Mic Setup Modal (Contextual) */}
             <AnimatePresence>
-                {isMicSetupOpen && isSecure && micPermission !== 'granted' && (
+                {isMicSetupOpen && isSecure && micPermission === 'prompt' && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
                         <motion.div 
                             initial={{ opacity: 0 }} 
