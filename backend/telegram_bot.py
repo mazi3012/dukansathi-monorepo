@@ -995,60 +995,73 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             invoice_number = f"Bill-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
 
             # ── 5. Insert sale header ──
-            sale_res = supabase.table("sales").insert({
-                "user_id": user_id,
-                "customer_id": customer_id,
-                "invoice_type": "gst" if is_gst else "regular",
-                "invoice_number": invoice_number,
-                "subtotal": subtotal,
-                "cgst_amount": total_cgst,
-                "sgst_amount": total_sgst,
-                "igst_amount": total_igst,
-                "total_tax_amount": total_cgst + total_sgst + total_igst,
-                "total_amount": grand_total,
-                "payment_status": "paid" if payment_status == "paid" else ("partial" if balance_due > 0 and amount_paid > 0 else "credit"),
-                "amount_paid": amount_paid,
-                "balance_due": balance_due,
-                "is_out_of_state": is_igst,
-            }).execute()
-            
-            if not sale_res or not getattr(sale_res, 'data', None):
-                return "❌ Failed to create invoice record.", None
+            try:
+                sale_res = supabase.table("sales").insert({
+                    "user_id": user_id,
+                    "customer_id": customer_id,
+                    "invoice_type": "gst" if is_gst else "regular",
+                    "invoice_number": invoice_number,
+                    "subtotal": subtotal,
+                    "cgst_amount": total_cgst,
+                    "sgst_amount": total_sgst,
+                    "igst_amount": total_igst,
+                    "total_tax_amount": total_cgst + total_sgst + total_igst,
+                    "total_amount": grand_total,
+                    "payment_status": "paid" if payment_status == "paid" else ("partial" if balance_due > 0 and amount_paid > 0 else "credit"),
+                    "amount_paid": amount_paid,
+                    "balance_due": balance_due,
+                    "is_out_of_state": is_igst,
+                }).execute()
                 
-            sale_id = sale_res.data[0].get("id")
-            if not sale_id: 
-                return "❌ Failed to create invoice record.", None
+                if not sale_res or not getattr(sale_res, 'data', None):
+                    return "❌ Failed to create invoice record. Please check your data.", None
+                    
+                sale_id = sale_res.data[0].get("id")
+                if not sale_id: 
+                    return "❌ Failed to create invoice record. No ID returned.", None
+            except Exception as sale_err:
+                logger.error(f"[INVOICE] Sale header insert failed: {sale_err}")
+                return f"❌ Invoice creation failed: {str(sale_err)[:150]}", None
 
             # ── 6. Insert sale items & decrement stock ──
-            for item in enriched_items:
-                prod_name = item.get("product_name", "")
-                qty = float(item.get("quantity", 0))
-                price = float(item.get("price", 0))
-                hsn = item.get("hsn_code")
-                prod_res = supabase.table("products").select("id").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
-                prod_id = prod_res.data[0]["id"] if prod_res.data else None
+            try:
+                for item in enriched_items:
+                    prod_name = item.get("product_name", "")
+                    qty = float(item.get("quantity", 0))
+                    price = float(item.get("price", 0))
+                    hsn = item.get("hsn_code")
+                    prod_res = supabase.table("products").select("id").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
+                    prod_id = prod_res.data[0]["id"] if prod_res.data else None
 
-                supabase.table("sale_items").insert({
-                    "user_id": user_id,
-                    "sale_id": sale_id,
-                    "product_id": prod_id,
-                    "quantity": int(qty),
-                    "unit_price": price,
-                    "hsn_code": hsn if is_gst else None,
-                    "taxable_amount": item["_taxable"],
-                    "cgst_percent": item["_rate"] / 2 if not is_igst else 0,
-                    "cgst_amount": item["_cgst"],
-                    "sgst_percent": item["_rate"] / 2 if not is_igst else 0,
-                    "sgst_amount": item["_sgst"],
-                    "igst_percent": item["_rate"] if is_igst else 0,
-                    "igst_amount": item["_igst"],
-                    "total_price": item["_total"]
-                }).execute()
+                    supabase.table("sale_items").insert({
+                        "user_id": user_id,
+                        "sale_id": sale_id,
+                        "product_id": prod_id,
+                        "quantity": int(qty),
+                        "unit_price": price,
+                        "hsn_code": hsn if is_gst else None,
+                        "taxable_amount": item["_taxable"],
+                        "cgst_percent": item["_rate"] / 2 if not is_igst else 0,
+                        "cgst_amount": item["_cgst"],
+                        "sgst_percent": item["_rate"] / 2 if not is_igst else 0,
+                        "sgst_amount": item["_sgst"],
+                        "igst_percent": item["_rate"] if is_igst else 0,
+                        "igst_amount": item["_igst"],
+                        "total_price": item["_total"]
+                    }).execute()
 
-                # Decrement stock is now handled automatically by a database trigger on sale_items insertion
-                # if prod_id:
-                #     try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": int(qty)}).execute()
-                #     except: pass
+                    # Decrement stock is now handled automatically by a database trigger on sale_items insertion
+                    # if prod_id:
+                    #     try: supabase.rpc("decrement_stock", {"p_id": prod_id, "qty": int(qty)}).execute()
+                    #     except: pass
+            except Exception as item_err:
+                logger.error(f"[INVOICE] Sale items insert failed: {item_err}")
+                # Try to clean up the sale record on item insert failure
+                try:
+                    supabase.table("sales").delete().eq("id", sale_id).execute()
+                except:
+                    pass
+                return f"❌ Failed to save invoice items: {str(item_err)[:150]}", None
 
             # ── 7. Handle udhar/credit ledger ──
             if balance_due > 0 and customer_id:
@@ -1065,25 +1078,33 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                     logger.warning(f"Ledger update failed: {ledger_err}")
 
             # ── 8. Generate PDF ──
-            pdf_buffer = generate_invoice_pdf(
-                shop_name=shop_name,
-                shop_address=shop_address,
-                shop_gstin=shop_gstin,
-                customer_name=customer_name,
-                items=enriched_items,
-                sale_id=sale_id,
-                is_gst=is_gst,
-                is_igst=is_igst,
-                subtotal=subtotal,
-                cgst_total=total_cgst,
-                sgst_total=total_sgst,
-                igst_total=total_igst,
-                grand_total=grand_total,
-                amount_paid=amount_paid,
-                balance_due=balance_due,
-                payment_status=payment_status,
-                invoice_number=invoice_number
-            )
+            try:
+                pdf_buffer = generate_invoice_pdf(
+                    shop_name=shop_name,
+                    shop_address=shop_address,
+                    shop_gstin=shop_gstin,
+                    customer_name=customer_name,
+                    items=enriched_items,
+                    sale_id=sale_id,
+                    is_gst=is_gst,
+                    is_igst=is_igst,
+                    subtotal=subtotal,
+                    cgst_total=total_cgst,
+                    sgst_total=total_sgst,
+                    igst_total=total_igst,
+                    grand_total=grand_total,
+                    amount_paid=amount_paid,
+                    balance_due=balance_due,
+                    payment_status=payment_status,
+                    invoice_number=invoice_number
+                )
+            except Exception as pdf_err:
+                logger.warning(f"[INVOICE] PDF generation failed: {pdf_err}")
+                # Invoice was saved, so we can return success even without PDF
+                pdf_buffer = None
+                invoice_note = f"\n⚠️ Note: PDF could not be generated, but invoice #{invoice_number} was saved."
+            else:
+                invoice_note = ""
 
             tax_note = ""
             if is_gst:
@@ -1095,6 +1116,10 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             status_line = f"\n💰 Amount Paid: ₹{amount_paid:.2f}"
             if balance_due > 0:
                 status_line += f"\n🔴 Balance Due: ₹{balance_due:.2f}"
+
+            # Return success with PDF buffer
+            success_msg = f"✅ Invoice #{invoice_number} saved successfully!{tax_note}{status_line}{invoice_note}"
+            return success_msg, pdf_buffer
 
         elif draft_type == "report_draft":
             title = draft.get("title", "Report")
@@ -1119,11 +1144,28 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
         return "❌ Unknown draft type.", None
     except Exception as e:
         err_msg = str(e)
-        with open('error_log.txt', 'w', encoding='utf-8') as f:
-            f.write(traceback.format_exc())
-        print("CRITICAL DBSAVE ERROR:", traceback.format_exc())
-        logger.error(f"Draft execution error: {err_msg}")
-        return f"❌ Failed to save. Database returned an error.", None
+        tb = traceback.format_exc()
+        
+        # Log full traceback for debugging
+        logger.error(f"Draft execution error: {err_msg}\n{tb}")
+        
+        # Provide helpful user-facing error messages based on error type
+        if "permission denied" in err_msg.lower() or "row level security" in err_msg.lower():
+            user_msg = "❌ Permission denied! You may not have access to save this data. Please reconnect your account."
+        elif "foreign key" in err_msg.lower():
+            user_msg = "❌ Reference error: The customer or product you're referencing doesn't exist."
+        elif "duplicate" in err_msg.lower():
+            user_msg = "❌ This item already exists! Please check and try again."
+        elif "database" in err_msg.lower() or "connection" in err_msg.lower():
+            user_msg = "❌ Database connection error. Please try again in a moment."
+        else:
+            # Show a truncated version of the error if it's informative
+            if len(err_msg) < 200:
+                user_msg = f"❌ Error: {err_msg}"
+            else:
+                user_msg = "❌ Failed to save the draft. Please check your data and try again."
+        
+        return user_msg, None
 
 
 async def handle_ai_interaction(update: Update, text: str, chat_id: int):
