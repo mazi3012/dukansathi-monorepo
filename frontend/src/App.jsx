@@ -14,6 +14,7 @@ import SystemSetup from './pages/SystemSetup';
 import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
+import Forecast from './pages/Forecast';
 import { ChatProvider } from './contexts/ChatContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { initSQLite } from './lib/sqlite';
@@ -106,11 +107,11 @@ const AnimatedRoutes = () => {
 
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="chat" element={<div />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="customers" element={<Customers />} />
           <Route path="customers/:id" element={<CustomerDetails />} />
           <Route path="sales" element={<Sales />} />
+          <Route path="forecast" element={<Forecast />} />
           <Route path="settings" element={<Settings />} />
           <Route path="connections" element={<Connections />} />
           <Route path="plans" element={<Plans />} />

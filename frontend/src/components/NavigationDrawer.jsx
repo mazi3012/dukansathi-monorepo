@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, RefreshCw, CreditCard } from 'lucide-react';
+import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, RefreshCw, CreditCard, Target } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
@@ -131,6 +131,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/" icon={Home} label="Overview" onClick={onClose} />
                             <NavItem to="/chat" icon={MessageSquare} label="Dukan Sathi AI" onClick={onClose} />
                             <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
+                            <NavItem to="/forecast" icon={Target} label="Forecast" onClick={onClose} />
                             <NavItem to="/inventory" icon={Package} label="Inventory" onClick={onClose} />
                             <NavItem to="/customers" icon={Users} label="Customers" onClick={onClose} />
                             <NavItem to="/connections" icon={LinkIcon} label="Connections" onClick={onClose} />

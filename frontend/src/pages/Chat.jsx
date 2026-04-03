@@ -3,6 +3,7 @@ import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileS
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
+import { usePWA } from '../hooks/usePWA';
 import ActionCard from '../components/ActionCard';
 import { supabase } from '../lib/supabase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -184,6 +185,7 @@ const Chat = () => {
         requestMicPermission,
         requestCamPermission
     } = useChat();
+    const { isIOSDevice, showIOSInstructions, setShowIOSInstructions } = usePWA();
     const { tier } = useSubscription();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
@@ -1255,6 +1257,77 @@ const Chat = () => {
                                 className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-50 hover:opacity-100 transition-opacity"
                             >
                                 Not Now
+                            </button>
+
+                            {/* iOS Safari specific info */}
+                            {isIOSDevice && (
+                                <div className="text-[11px] text-text-muted mt-2 p-2 bg-indigo-500/5 rounded-lg border border-indigo-500/10">
+                                    <span className="font-bold text-indigo-500 block mb-1">📱 iOS Tip:</span>
+                                    Safari on iOS may ask for permission differently. If prompted, tap "Allow" to continue.
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* iOS PWA Install Instructions Modal */}
+            <AnimatePresence>
+                {showIOSInstructions && isIOSDevice && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowIOSInstructions(false)}
+                            className="absolute inset-0 bg-bg-main/60 backdrop-blur-xl"
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                            animate={{ scale: 1, opacity: 1, y: 0 }} 
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative max-w-sm w-full bg-card-bg border border-card-border rounded-3xl p-6 shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-black text-text-main">Install Dukan Sathi</h3>
+                                <button 
+                                    onClick={() => setShowIOSInstructions(false)}
+                                    className="text-text-muted hover:text-indigo-500 transition-colors"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="text-sm text-text-muted">
+                                    Add Dukan Sathi to your home screen for a native app experience:
+                                </p>
+
+                                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 space-y-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</div>
+                                        <p className="text-sm text-text-main font-medium">Tap the <span className="font-bold">Share</span> button (⬆️ in the bottom toolbar)</p>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">2</div>
+                                        <p className="text-sm text-text-main font-medium">Scroll down and tap <span className="font-bold">Add to Home Screen</span></p>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">3</div>
+                                        <p className="text-sm text-text-main font-medium">Confirm the name and tap <span className="font-bold">Add</span></p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-text-muted italic">
+                                    This gives you offline access and better voice microphone permissions.
+                                </p>
+                            </div>
+
+                            <button 
+                                onClick={() => setShowIOSInstructions(false)}
+                                className="w-full mt-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all active:scale-95"
+                            >
+                                Got It
                             </button>
                         </motion.div>
                     </div>

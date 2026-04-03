@@ -315,8 +315,34 @@ TABLES:
 BUSINESS INTELLIGENCE RULES:
 - Revenue = SUM(sales.total_amount)
 - Profit = SUM((si.unit_price - p.cost_price) * si.quantity) JOIN sale_items si ON p.id = si.product_id
-- Today's data: WHERE created_at::date = CURRENT_DATE (Postgres) or date(created_at) = date('now') (SQLite).
+- Postgres IST date filter: DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
+- SQLite date filter: date(created_at) = date('now', 'localtime')
 """
+
+
+def _normalize_sql_timezone_filters(sql: str) -> str:
+    """Rewrite common UTC-style date filters into IST-safe Postgres filters."""
+    ist_today_expr = "DATE(timezone('Asia/Kolkata', NOW()))"
+
+    def _replace_created_at_date(match: re.Match) -> str:
+        col = match.group("col")
+        return f"DATE({col} AT TIME ZONE 'Asia/Kolkata') = {ist_today_expr}"
+
+    sql = re.sub(
+        r"(?P<col>(?:[a-zA-Z_][\w]*\.)?created_at)\s*::\s*date\s*=\s*current_date",
+        _replace_created_at_date,
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    sql = re.sub(
+        r"date\(\s*(?P<col>(?:[a-zA-Z_][\w]*\.)?created_at)\s*\)\s*=\s*current_date",
+        _replace_created_at_date,
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    return sql
 
 # Agent State - tracks conversation context
 class AgentState(TypedDict):
@@ -468,9 +494,12 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     6. For business questions (totals, revenue, counts), use aggregation functions like SUM, COUNT, AVG.
     7. REVENUE: Use `SUM(total_amount)` from `sales` table.
     8. PROFIT: Join `sale_items` (si) and `products` (p) on `si.product_id = p.id`. Profit = `SUM((si.unit_price - p.cost_price) * si.quantity)`.
-    9. TODAY vs TOTAL: If the user asks for "today", use `WHERE created_at::date = CURRENT_DATE`. Otherwise use the whole range unless specified.
-    10. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
-    {f"11. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
+    9. TIMEZONE: For Postgres date filters, ALWAYS use IST-safe form: `DATE(created_at AT TIME ZONE 'Asia/Kolkata')`.
+    10. TODAY: Use `DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))`.
+    11. YESTERDAY: Use `DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()) - INTERVAL '1 day')`.
+    12. THIS MONTH: Use month boundaries in IST via `date_trunc('month', timezone('Asia/Kolkata', NOW()))` on both sides.
+    13. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
+    {f"14. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
     
     OPENCLAW SKILLS & RULES:
     {OPENCLAW_SKILLS}
@@ -488,16 +517,17 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     SQL: SELECT name, selling_price, stock_quantity FROM products WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
 
     Example 5: "aaj koto takar jinish bikri holo" OR "aaj ka total revenue" OR "today's total sales"
-    SQL: SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}' AND created_at::date = CURRENT_DATE
+    SQL: SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}' AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
 
     Example 6: "mera profit kya hai aaj ka" OR "aaj koto labh holo" OR "today's profit"
-    SQL: SELECT SUM((si.unit_price - p.cost_price) * si.quantity) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND s.created_at::date = CURRENT_DATE
+    SQL: SELECT SUM((si.unit_price - p.cost_price) * si.quantity) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND DATE(s.created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
     """
     
     # Use Flash for SQL gen as it's faster
     llm = get_llm(model)
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     sql = response.content.replace("```sql", "").replace("```", "").strip()
+    sql = _normalize_sql_timezone_filters(sql)
     # Remove trailing semicolon if present, as it can cause RPC errors
     if sql.endswith(";"):
         sql = sql[:-1]

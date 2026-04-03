@@ -112,6 +112,40 @@ def check_rate_limit(key: str, max_requests: int = 30, window_seconds: int = 60)
 # Max input length for AI text (prevents prompt injection cost DoS)
 MAX_AI_INPUT_LENGTH = 5000
 
+
+def _is_blank(value):
+    return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _validate_action_draft_payload(action: str, draft_data):
+    """Validate required fields before executing mutating draft actions."""
+    if draft_data is None:
+        return False, ["draft_data"]
+
+    missing = []
+
+    if action == "approve_customer":
+        if _is_blank(draft_data.get("name")):
+            missing.append("name")
+
+    elif action == "approve_payment":
+        if _is_blank(draft_data.get("customer_name")):
+            missing.append("customer_name")
+        amount = draft_data.get("amount")
+        try:
+            amount_val = float(amount)
+            if amount_val == 0:
+                missing.append("amount(non-zero)")
+        except (TypeError, ValueError):
+            missing.append("amount")
+
+    elif action == "approve_bulk_products":
+        items = draft_data if isinstance(draft_data, list) else draft_data.get("items", [])
+        if not isinstance(items, list) or len(items) == 0:
+            missing.append("items")
+
+    return len(missing) == 0, missing
+
 # Telegram webhook secret (set via env, used for HMAC verification)
 TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
@@ -131,6 +165,7 @@ ALLOWED_ORIGINS = [
 # Subscription Service
 from subscription_service import SubscriptionService
 sub_service = SubscriptionService(supabase)
+from forecast_service import build_forecast_response
 
 # Also allow any Cloud Run preview/service URL
 cloud_run_url = os.getenv("CLOUD_RUN_URL", "")
@@ -501,6 +536,33 @@ async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_
         logger.error(f"Subscription creation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/forecast")
+async def get_forecast(
+    horizon_days: int = 30,
+    lookback_days: int = 120,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Return revenue forecast and historical daily aggregates in IST (Asia/Kolkata)."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    if horizon_days < 7 or horizon_days > 90:
+        raise HTTPException(status_code=400, detail="horizon_days must be between 7 and 90")
+    if lookback_days < 30 or lookback_days > 365:
+        raise HTTPException(status_code=400, detail="lookback_days must be between 30 and 365")
+
+    try:
+        return await build_forecast_response(
+            supabase=supabase,
+            user_id=user_id,
+            lookback_days=lookback_days,
+            horizon_days=horizon_days,
+        )
+    except Exception as e:
+        logger.error(f"Forecast generation failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate forecast")
+
 @app.post("/api/subscription/webhook")
 async def razorpay_webhook(request: Request):
     """Handle Razorpay webhook for subscription updates."""
@@ -714,7 +776,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             if message_type == "voice" and content:
                 try:
                     audio_bytes = base64.b64decode(content)
-                    user_text = await transcribe_audio(audio_bytes, language=ai_language)
+                    user_text = await transcribe_audio(
+                        audio_bytes,
+                        language=ai_language,
+                        mime_type=data.get("content_type")
+                    )
                     print(f"[STT] Transcribed ({ai_language}): {user_text}")
                     
                     if attachment_context:
@@ -838,6 +904,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                     continue
                 
                 try:
+                    is_valid_action, missing_fields = _validate_action_draft_payload(action, draft_data)
+                    if not is_valid_action:
+                        await websocket.send_json({
+                            "type": "error",
+                            "content": f"Draft incomplete. Missing required fields: {', '.join(missing_fields)}",
+                            "code": "DRAFT_INCOMPLETE",
+                            "missing_fields": missing_fields
+                        })
+                        continue
+
                     if action == "approve_customer" and draft_data:
                         # 0. Subscription Limit Check
                         if not await sub_service.check_limit(user_id, "customers"):
@@ -857,17 +933,25 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                             })
                             continue
                         
-                        # Add customer using RPC
-                        result = supabase.rpc("add_customer", {
+                        # Add or reuse customer atomically (prevents duplicate rows in concurrent flows).
+                        result = supabase.rpc("get_or_create_customer", {
+                            "p_user_id": safe_user_id,
                             "p_name": customer_name,
                             "p_phone": draft_data.get("phone"),
-                            "p_address": draft_data.get("address")
+                            "p_address": draft_data.get("address"),
+                            "p_state": draft_data.get("state")
                         }).execute()
                         
                         if result and result.data:
+                            created = bool(result.data[0].get("created", False))
+                            message = (
+                                f"Customer {customer_name} added successfully Boss!"
+                                if created else
+                                f"Customer {customer_name} already existed. Linked safely Boss!"
+                            )
                             await websocket.send_json({
                                 "type": "text",
-                                "content": f"Customer {customer_name} added successfully Boss!"
+                                "content": message
                             })
                         else:
                              # Fallback to local sync
@@ -1144,7 +1228,7 @@ async def customer_websocket_endpoint(websocket: WebSocket, store_id: str):
             if message_type == "voice" and content:
                 try:
                     audio_bytes = base64.b64decode(content)
-                    user_text = await transcribe_audio(audio_bytes)
+                    user_text = await transcribe_audio(audio_bytes, mime_type=data.get("content_type"))
                     await websocket.send_json({
                         "type": "transcription",
                         "content": user_text

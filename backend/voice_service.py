@@ -74,13 +74,30 @@ GOOGLE_VOICE_MAPPING = {
 
 # ─── STT ─────────────────────────────────────────────────────────────────────
 
-async def transcribe_audio(audio_data: bytes, language: str = "hinglish") -> str:
+def _mime_to_filename(mime_type: Optional[str]) -> str:
+    """Map MIME type to a filename extension that Groq can parse reliably."""
+    if not mime_type:
+        return "audio.webm"
+
+    normalized = mime_type.lower()
+    if "mp4" in normalized or "m4a" in normalized:
+        return "audio.m4a"
+    if "ogg" in normalized:
+        return "audio.ogg"
+    if "wav" in normalized:
+        return "audio.wav"
+    if "mpeg" in normalized or "mp3" in normalized:
+        return "audio.mp3"
+    return "audio.webm"
+
+
+async def transcribe_audio(audio_data: bytes, language: str = "hinglish", mime_type: Optional[str] = None) -> str:
     """Convert speech to text using Groq Whisper API."""
     whisper_lang = LANG_TO_WHISPER.get(language, "hi")
     try:
         audio_file = io.BytesIO(audio_data)
-        audio_file.name = "audio.webm"
-        logger.info(f"[STT] {len(audio_data)} bytes | lang='{whisper_lang}' (pref='{language}')")
+        audio_file.name = _mime_to_filename(mime_type)
+        logger.info(f"[STT] {len(audio_data)} bytes | mime='{mime_type or 'unknown'}' | lang='{whisper_lang}' (pref='{language}')")
         transcription = await groq_client.audio.transcriptions.create(
             file=(audio_file.name, audio_file),
             model="whisper-large-v3",

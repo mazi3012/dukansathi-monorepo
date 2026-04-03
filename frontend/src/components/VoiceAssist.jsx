@@ -1,3 +1,14 @@
+/**
+ * DEPRECATED: This component is no longer used in the main application.
+ * 
+ * The voice recording functionality has been consolidated into:
+ * - frontend/src/contexts/ChatContext.jsx (main voice recorder)
+ * - frontend/src/pages/Chat.jsx (UI/UX)
+ * 
+ * This file is kept for reference but should not be imported or used.
+ * If voice functionality is needed, use the main Chat page instead.
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 
 const VoiceAssist = () => {

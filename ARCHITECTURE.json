@@ -1,0 +1,2082 @@
+{
+  "project": {
+    "name": "Dukan Sathi",
+    "version": "1.0.0",
+    "description": "Smart voice-first inventory & billing assistant for Indian shopkeepers",
+    "created_date": "2026-02-05",
+    "deployment": "Google Cloud Run (Backend) + Vercel (Frontend)",
+    "languages": ["Python 3.11+", "JavaScript/React 19", "SQL (PostgreSQL)"],
+    "status": "Production",
+    "exploration_date": "2026-04-03"
+  },
+
+  "1_BACKEND_SERVICES": {
+    "overview": {
+      "framework": "FastAPI 0.115.6",
+      "deployment": "Google Cloud Run / Render",
+      "port": "8000",
+      "primary_file": "backend/main.py (2400+ lines)",
+      "architecture": "Cloud-Native, Microservices-Ready with WebSocket support"
+    },
+    "critical_files": [
+      {
+        "path": "backend/main.py",
+        "lines": 1300,
+        "purpose": "FastAPI server - WebSocket chat, REST API, Auth, Rate Limiting, Telegram webhook handler",
+        "key_classes": ["FastAPI app", "HTTPBearer security"],
+        "key_functions": [
+          "websocket_endpoint - Main AI chat via WebSocket",
+          "verify_local_auth - JWT token validation",
+          "cors_fallback_middleware - CORS handling",
+          "check_rate_limit - Per-IP rate limiting",
+          "cleanup_scheduler - Background task for chat cleanup",
+          "startup_event / shutdown_event - Lifecycle management"
+        ],
+        "status": "Working"
+      },
+      {
+        "path": "backend/voice_service.py",
+        "lines": 300,
+        "purpose": "Speech-to-Text (Groq Whisper) and Text-to-Speech (Sarvam AI for Bengali, Google Cloud TTS for English/Hinglish)",
+        "key_functions": [
+          "transcribe_audio - STT using Groq Whisper API",
+          "speak_text - TTS using Google Cloud or Sarvam AI",
+          "_mime_to_filename - Audio format handling"
+        ],
+        "languages_supported": ["English", "Hinglish (Hindi Roman)", "Bengali (Kolkata Bangla)"],
+        "tts_providers": {
+          "google_cloud": "English (en-IN, en-US), Hinglish (hi-IN)",
+          "sarvam_ai": "Bengali (bn-IN) - Premium quality"
+        },
+        "status": "Working"
+      },
+      {
+        "path": "backend/telegram_bot.py",
+        "lines": 700,
+        "purpose": "Telegram Bot integration - Handles commands, message routing, invoice generation, payment tracking",
+        "key_functions": [
+          "start_telegram_bot - Polling-based bot launcher",
+          "handle_ai_interaction - Routes user queries to agent_graph",
+          "handle_voice - Voice message transcription",
+          "handle_invoice_approval - Draft invoice PDF generation",
+          "extract_json - Robust JSON parsing from AI responses",
+          "telegram_webhook_handler - Cloud Run webhook receiver"
+        ],
+        "deployment_modes": [
+          "Webhook mode (Cloud Run production)",
+          "Polling mode (Local development)"
+        ],
+        "features": [
+          "/start - Welcome & usage guide",
+          "/connect - Link Telegram to DukanSathi account",
+          "/help - Show available commands",
+          "Voice message processing",
+          "PDF invoice generation",
+          "State-based conversation flow"
+        ],
+        "status": "Working - Needs polish on edge cases"
+      },
+      {
+        "path": "backend/subscription_service.py",
+        "lines": 150,
+        "purpose": "Subscription & usage tier management - Razorpay integration, usage tracking, plan limits",
+        "key_classes": [
+          "SubscriptionService - Handles all subscription logic"
+        ],
+        "key_methods": [
+          "get_usage_stats - Fetch current monthly usage counts",
+          "check_limit - Verify if user can perform action",
+          "generate_usage_token - Create JWT with subscription info",
+          "create_checkout_session - Razorpay subscription creation",
+          "verify_webhook - HMAC signature verification",
+          "update_user_subscription - Webhook-triggered tier updates"
+        ],
+        "tier_limits": {
+          "free": {"products": 50, "customers": 50, "bills": 100, "ai_credits": 20},
+          "starter": {"products": 500, "customers": 500, "bills": 1000, "ai_credits": 500},
+          "pro": {"products": 2000, "customers": 2000, "bills": 5000, "ai_credits": 2000},
+          "ultra": {"products": 10000, "customers": 10000, "bills": 20000, "ai_credits": 999999},
+          "enterprise": {"products": 999999, "customers": 999999, "bills": 999999, "ai_credits": 999999}
+        },
+        "payment_gateway": "Razorpay",
+        "status": "Working"
+      },
+      {
+        "path": "backend/local_db.py",
+        "lines": 100,
+        "purpose": "SQLite local database initialization - Offline caching, draft storage, sync management",
+        "key_functions": [
+          "init_db - Initialize SQLite schema",
+          "get_db_connection - Connection pooling"
+        ],
+        "tables": [
+          "products - Local product cache",
+          "customers - Local customer cache",
+          "draft_invoices - Pending invoice drafts",
+          "draft_actions - Generic draft storage",
+          "local_sales - Offline invoice tracking",
+          "local_payments - Offline payment records"
+        ],
+        "purpose": "Edge-first caching for PWA offline support",
+        "status": "Working"
+      },
+      {
+        "path": "backend/setup_routes.py",
+        "lines": 80,
+        "purpose": "Cloud configuration endpoints - Status checking, environment setup",
+        "key_endpoints": [
+          "GET /api/setup/status - Check if cloud services are configured",
+          "POST /api/setup/save - Save environment variables (dev-only, blocked in production)"
+        ],
+        "status": "Working"
+      },
+      {
+        "path": "backend/security.py",
+        "lines": 50,
+        "purpose": "Security utilities - SQL injection guards, input validation",
+        "features": [
+          "SQL injection regex filter",
+          "XSS prevention",
+          "Rate limiter"
+        ],
+        "status": "Incomplete - Basic guards only"
+      }
+    ],
+
+    "key_endpoints": {
+      "websocket": [
+        {
+          "path": "/ws/chat",
+          "method": "WebSocket",
+          "purpose": "Real-time AI chat with voice, image, and file support",
+          "auth": "JWT token + user_id verification",
+          "rate_limit": "30 requests/min per IP",
+          "idle_timeout": "60 seconds",
+          "message_types": ["text", "voice", "image", "file/excel"],
+          "response_fields": ["type", "content", "draft_data", "action_json"],
+          "status": "Working"
+        },
+        {
+          "path": "/ws/customer_chat/{store_id}",
+          "method": "WebSocket",
+          "purpose": "Customer-facing storefront chat - Order taking, price inquiry",
+          "auth": "None (public)",
+          "status": "Incomplete - Basic structure only"
+        }
+      ],
+      "http_rest": [
+        {
+          "path": "GET /",
+          "purpose": "Health check",
+          "response": "{\"status\": \"healthy\", \"service\": \"Dukan Sathi Backend\", \"version\": \"1.0.0\"}"
+        },
+        {
+          "path": "GET /health",
+          "purpose": "Lightweight health check for Cloud Run",
+          "response": "{\"status\": \"ok\", \"timestamp\": \"ISO8601\"}"
+        },
+        {
+          "path": "GET /api/telegram/bot-link",
+          "purpose": "Get Telegram bot link for frontend",
+          "response": "{\"connected\": true, \"bot_url\": \"https://t.me/...\", \"bot_username\": \"...\"}"
+        },
+        {
+          "path": "POST /api/tts-preview",
+          "purpose": "Generate TTS preview for settings page",
+          "auth": "Required",
+          "body": "{\"text\": \"...\", \"voice_id\": \"...\", \"rate\": \"+0%\"}",
+          "response": "{\"audio_base64\": \"...\"}"
+        },
+        {
+          "path": "GET /api/subscription/usage",
+          "purpose": "Get user's current usage stats and subscription tier",
+          "auth": "Required",
+          "response": "{\"token\": \"JWT\", \"stats\": {...}}"
+        },
+        {
+          "path": "POST /api/subscription/create",
+          "purpose": "Create Razorpay subscription session",
+          "auth": "Required",
+          "body": "{\"plan_id\": \"plan_...\"}",
+          "response": "{Razorpay subscription object}"
+        },
+        {
+          "path": "POST /api/subscription/webhook",
+          "purpose": "Razorpay webhook handler",
+          "auth": "HMAC signature verification",
+          "events_handled": ["subscription.authenticated", "subscription.activated", "subscription.charged"]
+        },
+        {
+          "path": "POST /api/telegram/webhook",
+          "purpose": "Telegram webhook receiver (Cloud Run)",
+          "auth": "Secret token + HMAC verification",
+          "rate_limit": "120 requests/min per IP"
+        },
+        {
+          "path": "POST /api/upload-product-image",
+          "purpose": "Upload product images to Supabase storage",
+          "auth": "Required",
+          "response": "{\"url\": \"public_signed_url\"}"
+        }
+      ]
+    },
+
+    "background_tasks": [
+      {
+        "name": "cleanup_scheduler",
+        "interval": "Every 6 hours",
+        "tasks": [
+          "Delete chat_history records older than 12 hours",
+          "Delete old chat images from storage older than 24 hours"
+        ],
+        "status": "Working"
+      },
+      {
+        "name": "telegram_bot_startup",
+        "timing": "On application startup",
+        "actions": [
+          "Initialize Telegram Bot API",
+          "Set webhook (Cloud Run) OR start polling (local)",
+          "Configure secret token for security"
+        ],
+        "status": "Working"
+      }
+    ],
+
+    "middleware_and_security": [
+      {
+        "name": "CORS",
+        "type": "Middleware",
+        "allowed_origins": [
+          "https://dukansathi.vercel.app",
+          "https://dukanv22.vercel.app",
+          "https://www.dukansathi.com",
+          "https://dukansathi.com",
+          "http://localhost:5173",
+          "http://localhost:5174"
+        ],
+        "status": "Working"
+      },
+      {
+        "name": "Rate Limiting",
+        "type": "Per-IP Rate Limiter",
+        "limits": {
+          "WebSocket": "30 requests/60 sec",
+          "Telegram Webhook": "120 requests/60 sec"
+        },
+        "status": "Working"
+      },
+      {
+        "name": "JWT Authentication",
+        "type": "HTTPBearer",
+        "validation": "Supabase JWT token verification",
+        "status": "Working"
+      }
+    ]
+  },
+
+  "2_AI_SYSTEM_OPENCLAW": {
+    "overview": {
+      "name": "OpenClaw / Moltbot",
+      "type": "Llama-powered AI Agent",
+      "primary_model": "Gemini 3.1 Flash Lite (via Vertex AI)",
+      "fallback_model": "Google GenAI SDK (for 404/501 fallback)",
+      "framework": "LangGraph (state machine multi-node design)",
+      "primary_file": "ai-bot/dukansathi_ai/agent_graph.py (2500+ lines)",
+      "language_support": ["English", "Hinglish", "Bengali (Kolkata Bangla)"],
+      "status": "Working - Production"
+    },
+
+    "critical_files": [
+      {
+        "path": "ai-bot/dukansathi_ai/agent_graph.py",
+        "lines": 2500,
+        "purpose": "Core AI brain - LangGraph state machine for conversation, SQL generation, draft workflow",
+        "key_exports": [
+          "process_user_input - Main entry point",
+          "clear_user_memory - Clear user conversation history",
+          "perform_history_cleanup - Database cleanup"
+        ],
+        "key_classes": [
+          "Gemini31ChatModel - Lightweight wrapper for google-genai SDK"
+        ],
+        "node_types": [
+          "Router Node - Identify intent (BUSINESS, ACTION, CHAT)",
+          "Action Node - Draft generation (invoice, product, payment, etc.)",
+          "Chat Node - SQL RAG + database queries",
+          "Persona Node - Friendly greetings and explanations"
+        ],
+        "capabilities": [
+          "SQL generation for database queries",
+          "Draft creation (invoices, products, payments, inventory)",
+          "Multilingual understanding + response generation",
+          "Voice rules (culturally-aware tone per language)",
+          "GST calculation",
+          "Memory management (agent_memory table)",
+          "Image/OCR processing (multimodal)",
+          "Inventory analysis and reporting"
+        ],
+        "status": "Working - Production"
+      },
+      {
+        "path": "ai-bot/dukansathi_ai/language_detector.py",
+        "lines": 70,
+        "purpose": "Language detection - Identify English, Hinglish, or Bengali from user input",
+        "detection_method": "Script detection (Unicode ranges) + keyword matching",
+        "unicode_ranges": {
+          "bengali": "\\u0980-\\u09FF",
+          "devanagari_hindi": "\\u0900-\\u097F"
+        },
+        "supported_languages": {
+          "english": "Latin script only",
+          "hinglish": "Hindi words in Roman script",
+          "bangla": "Bengali script or Romanized Bengali"
+        },
+        "status": "Working"
+      },
+      {
+        "path": "ai-bot/dukansathi_ai/skill.md",
+        "purpose": "OpenClaw Skill Definition v2.0 - Token-efficient behavior control",
+        "format": "Markdown with structured rules",
+        "sections": [
+          "ROLE definition (Sathi persona)",
+          "ANTI-HALLUCINATION rules",
+          "JSON EXTRACTION FORMAT (draft types)",
+          "DRAFT TYPES & KEYS (8 types: invoice, product, customer, payment, restock, bulk_product, memory, report)",
+          "MULTILINGUAL ENTITY MAPPING",
+          "NUMBER WORD MAPPING (Hindi, Bangla, English numerals)",
+          "EXAMPLES for each language and scenario",
+          "DEDUPLICATION rules (merge same-product items)",
+          "SQL RULES (Postgres + SQLite)",
+          "CALCULATION SKILLS (GST, discount, dues)"
+        ],
+        "size": "~8KB",
+        "loaded_in_memory": "Yes - Every prompt includes full skill definition",
+        "status": "Working - Production"
+      },
+      {
+        "path": "ai-bot/dukansathi_ai/__init__.py",
+        "lines": 15,
+        "purpose": "Package initialization and exports",
+        "exports": [
+          "process_user_input",
+          "clear_user_memory"
+        ]
+      }
+    ],
+
+    "draft_types": [
+      {
+        "type": "invoice_draft",
+        "purpose": "AI-generated bill awaiting user approval",
+        "fields": {
+          "customer_name": "String or null",
+          "customer_address": "String",
+          "customer_state": "String for GST",
+          "items": [
+            {
+              "product_name": "String",
+              "quantity": "Numeric (default 1)",
+              "price": "Always 0 (system fetches from DB)",
+              "tax_percent": "Numeric (default 0)",
+              "hsn_code": "String (default empty)",
+              "tax_type": "inclusive | exclusive"
+            }
+          ]
+        },
+        "status_in_db": "pending | approved | rejected",
+        "target_table": "draft_invoices",
+        "approval_action": "Convert to sales table via RPC"
+      },
+      {
+        "type": "product_draft",
+        "purpose": "Add new product to inventory",
+        "fields": {
+          "name": "Product name",
+          "selling_price": "Retail price",
+          "cost_price": "Purchase cost",
+          "stock_quantity": "Initial stock",
+          "category": "Product category",
+          "unit": "pcs | kg | ltr | box | etc",
+          "hsn_code": "GST HSN code",
+          "tax_percent": "GST %",
+          "tax_type": "inclusive | exclusive"
+        }
+      },
+      {
+        "type": "customer_draft",
+        "purpose": "Register new customer",
+        "fields": {
+          "name": "Customer name",
+          "phone": "Phone number",
+          "address": "Address",
+          "gstin": "GSTIN if registered",
+          "state": "State for GST"
+        }
+      },
+      {
+        "type": "payment_draft",
+        "purpose": "Record payment or credit",
+        "fields": {
+          "customer_name": "Customer name",
+          "amount": "Amount in rupees",
+          "payment_type": "payment (received) | due (credit given)"
+        }
+      },
+      {
+        "type": "restock_draft",
+        "purpose": "Add stock to existing product",
+        "fields": {
+          "product_name": "Product to restock",
+          "quantity_to_add": "Quantity to add"
+        }
+      },
+      {
+        "type": "bulk_product_draft",
+        "purpose": "Import multiple products from Excel/Image",
+        "fields": {
+          "items": [
+            {
+              "name": "Product name",
+              "selling_price": "SP",
+              "cost_price": "CP",
+              "stock_quantity": "Stock",
+              "category": "Category",
+              "unit": "Unit",
+              "hsn_code": "HSN",
+              "tax_percent": "Tax %",
+              "tax_type": "Tax type"
+            }
+          ]
+        }
+      },
+      {
+        "type": "memory_draft",
+        "purpose": "Store user preferences and business rules",
+        "fields": {
+          "memory_key": "Key name (e.g., 'Shop Closing Time')",
+          "memory_value": "Value (e.g., '9 PM')"
+        },
+        "target_table": "agent_memory"
+      },
+      {
+        "type": "report_draft",
+        "purpose": "Generate tables for reports (5+ items)",
+        "fields": {
+          "title": "Report title",
+          "headers": ["Column1", "Column2"],
+          "rows": [["value1", "value2"]],
+          "summary": "Summary text"
+        }
+      }
+    ],
+
+    "voice_rules_by_language": {
+      "english": "Professional shop assistant tone. Use 'Boss' or 'Sir'. Example: 'I am Sathi, your shop assistant.'",
+      "hinglish": "Mix Hindi + English, Roman script only. Use 'Boss', 'Bhai'. Example: 'Boss, bill draft ready kar diya!'",
+      "bangla": "Native Bengali script (Bangla Unicode). Use 'দাদা' (dada). Example: 'হয়েছে দাদা, বিল রেডি!'"
+    },
+
+    "anti_hallucination_rules": [
+      "NEVER guess, invent, or estimate numbers/names",
+      "If data fetch fails, respond: 'Boss, data fetch nahi hua' or Bengali equivalent",
+      "NEVER say 0 unless data explicitly shows 0 (empty ≠ zero)",
+      "Always require data context before generating numbers"
+    ],
+
+    "gst_calculation_logic": {
+      "within_state": "CGST = SGST = tax_percent / 2",
+      "inter_state": "IGST = tax_percent (single tax)",
+      "calculation": "Total = Base + (Base × tax_percent / 100)"
+    },
+
+    "sql_generation_capabilities": {
+      "database": "Supabase PostgreSQL",
+      "query_types": [
+        "Revenue queries - SELECT SUM(total_amount) FROM sales WHERE user_id='...'",
+        "Daily revenue - Filter by created_at::date = CURRENT_DATE",
+        "Profit calculation - (unit_price - cost_price) × quantity",
+        "Customer dues - credit_balance > 0 queries",
+        "Low stock alerts - stock_quantity <= min_stock_level",
+        "Best sellers - ORDER BY quantity DESC"
+      ],
+      "safety_measures": [
+        "Always filter by user_id='{user_id}' (multi-tenant isolation)",
+        "LIMIT 50 for all queries (prevent runaway queries)",
+        "ILIKE for name matching (case-insensitive)",
+        "Regex SQL injection filter in security.py"
+      ],
+      "status": "Working"
+    },
+
+    "memory_system": {
+      "table": "agent_memory (PostgreSQL)",
+      "purpose": "Store user preferences and business rules",
+      "schema": {
+        "id": "UUID primary key",
+        "user_id": "UUID - FK to auth.users",
+        "memory_key": "Text - Unique constraint per user",
+        "memory_value": "Text - The stored value",
+        "created_at": "TIMESTAMP",
+        "updated_at": "TIMESTAMP"
+      },
+      "access": "Via memory_draft type in agent",
+      "examples": [
+        {"key": "Shop Closing Time", "value": "9 PM"},
+        {"key": "VIP Discount", "value": "5%"},
+        {"key": "Shop Closed Day", "value": "Wednesday"}
+      ],
+      "status": "Working"
+    },
+
+    "multimodal_capabilities": {
+      "images": "OCR, product photo analysis, invoice scanning",
+      "documents": "Excel import, CSV parsing, PDF invoice generation",
+      "voice": "Transcription (Groq Whisper), synthesis (Google TTS/Sarvam AI)",
+      "video": "Not currently supported"
+    }
+  },
+
+  "3_DATABASE_SCHEMA": {
+    "overview": {
+      "primary_db": "Supabase PostgreSQL",
+      "secondary_db": "SQLite (local PWA caching)",
+      "total_tables": 22,
+      "auth_system": "Supabase Auth (Google OAuth + OTP)",
+      "row_level_security": "Enabled on all user-data tables",
+      "migrations_count": 24,
+      "migration_files": "migrations/*.sql"
+    },
+
+    "core_tables": [
+      {
+        "name": "auth.users",
+        "purpose": "Supabase managed auth table",
+        "key_fields": ["id (UUID)", "email", "encrypted_password"]
+      },
+      {
+        "name": "profiles",
+        "migration": "001_profiles.sql",
+        "purpose": "User business profiles with GST and voice settings",
+        "fields": [
+          {"name": "id", "type": "UUID PK", "note": "FK to auth.users"},
+          {"name": "email", "type": "TEXT"},
+          {"name": "business_name", "type": "TEXT"},
+          {"name": "owner_name", "type": "TEXT"},
+          {"name": "whatsapp_number", "type": "TEXT"},
+          {"name": "business_category", "type": "ENUM (kirana, medical, hardware)"},
+          {"name": "business_address", "type": "TEXT"},
+          {"name": "gstin", "type": "TEXT", "note": "GST Identification Number"},
+          {"name": "is_gst_registered", "type": "BOOLEAN"},
+          {"name": "state_code", "type": "TEXT", "note": "For CGST/SGST calculation"},
+          {"name": "gpt_instructions", "type": "TEXT", "note": "Custom AI behavior"},
+          {"name": "voice_id", "type": "TEXT", "default": "hi-IN-MadhurNeural"},
+          {"name": "voice_speed", "type": "TEXT", "default": "+0%"},
+          {"name": "language_pref", "type": "TEXT", "default": "hi-IN"},
+          {"name": "subscription_tier", "type": "ENUM", "default": "free"},
+          {"name": "onboarding_completed", "type": "BOOLEAN"}
+        ],
+        "rls_enabled": true,
+        "indexes": ["business_category", "is_gst_registered"]
+      },
+      {
+        "name": "products",
+        "migration": "003_products.sql",
+        "purpose": "Product catalog with pricing, GST, warranty, inventory",
+        "key_fields": [
+          {"name": "id", "type": "BIGINT PK"},
+          {"name": "user_id", "type": "UUID FK"},
+          {"name": "name", "type": "TEXT NOT NULL"},
+          {"name": "cost_price", "type": "NUMERIC(10,2)"},
+          {"name": "selling_price", "type": "NUMERIC(10,2) NOT NULL"},
+          {"name": "mrp", "type": "NUMERIC(10,2)"},
+          {"name": "hsn_code", "type": "TEXT"},
+          {"name": "tax_percent", "type": "NUMERIC(5,2)"},
+          {"name": "stock_quantity", "type": "INTEGER"},
+          {"name": "min_stock_level", "type": "INTEGER", "default": 5},
+          {"name": "unit", "type": "TEXT", "default": "pcs"},
+          {"name": "expiry_date", "type": "DATE"},
+          {"name": "warranty_months", "type": "INTEGER"},
+          {"name": "has_serial_tracking", "type": "BOOLEAN"}
+        ],
+        "rls_enabled": true
+      },
+      {
+        "name": "product_serials",
+        "migration": "003_products.sql",
+        "purpose": "Track individual items (IMEI/serial for electronics)",
+        "key_fields": [
+          "id", "product_id FK", "serial_number", "imei_number",
+          "warranty_start_date", "warranty_end_date",
+          "status (in_stock|sold|returned|damaged)",
+          "sale_id", "customer_id"
+        ],
+        "use_case": "Hardware stores tracking IMEI for warranty"
+      },
+      {
+        "name": "customers",
+        "migration": "004_customers.sql",
+        "purpose": "Customer management with credit tracking",
+        "key_fields": [
+          "id", "user_id FK", "name", "phone", "email", "address",
+          "total_spend", "credit_balance",
+          "last_visit", "notes"
+        ],
+        "rls_enabled": true,
+        "credit_tracking": "credit_balance = outstanding udhar amount"
+      },
+      {
+        "name": "sales",
+        "migration": "005_sales.sql",
+        "purpose": "Invoice headers with GST breakdown",
+        "key_fields": [
+          "id", "user_id FK", "customer_id FK",
+          "invoice_number", "invoice_type (regular|gst|gst_export)",
+          "subtotal", "discount_amount",
+          "taxable_amount", "cgst_amount", "sgst_amount", "igst_amount", "total_tax_amount",
+          "total_amount",
+          "payment_method (cash|upi|card|credit)",
+          "payment_status (paid|partial|credit)",
+          "amount_paid", "balance_due",
+          "notes"
+        ],
+        "rls_enabled": true
+      },
+      {
+        "name": "sale_items",
+        "migration": "005_sales.sql",
+        "purpose": "Line items for each invoice with item-level GST",
+        "key_fields": [
+          "id", "sale_id FK", "product_id FK",
+          "quantity", "unit_price", "discount_amount",
+          "hsn_code", "taxable_amount",
+          "cgst_percent", "cgst_amount",
+          "sgst_percent", "sgst_amount",
+          "igst_percent", "igst_amount",
+          "total_price"
+        ],
+        "purpose": "Detailed GST reporting per item"
+      },
+      {
+        "name": "draft_invoices",
+        "migration": "007_drafts.sql",
+        "purpose": "AI-generated invoice drafts awaiting approval",
+        "key_fields": [
+          "id", "user_id FK", "customer_id FK", "customer_name",
+          "items (JSONB array)",
+          "total_amount",
+          "payment_method (default 'cash')",
+          "status (pending|approved|rejected)",
+          "created_at"
+        ],
+        "workflow": "AI creates draft → User approves → Convert to sales table"
+      },
+      {
+        "name": "draft_inventory_batches",
+        "migration": "007_drafts.sql",
+        "purpose": "Bulk product imports from files/images",
+        "key_fields": [
+          "id", "user_id FK",
+          "source_type (image|file|manual)",
+          "source_name",
+          "items (JSONB - product data from OCR/Excel)",
+          "status"
+        ]
+      },
+      {
+        "name": "draft_purchase_orders",
+        "migration": "007_drafts.sql",
+        "purpose": "AI-generated purchase order drafts",
+        "key_fields": [
+          "id", "user_id FK", "supplier_id FK", "supplier_name",
+          "items (JSONB)",
+          "total_amount",
+          "status"
+        ]
+      },
+      {
+        "name": "suppliers",
+        "migration": "002_suppliers.sql",
+        "purpose": "Supplier management",
+        "key_fields": [
+          "id", "user_id FK", "name", "phone", "email", "address",
+          "credit_terms", "last_order_date"
+        ]
+      },
+      {
+        "name": "purchase_orders",
+        "migration": "006_purchase_orders.sql",
+        "purpose": "Record supplier orders",
+        "key_fields": [
+          "id", "user_id FK", "supplier_id FK",
+          "po_number", "order_date",
+          "expected_delivery_date",
+          "total_amount", "status (pending|received|cancelled)"
+        ]
+      },
+      {
+        "name": "chat_history",
+        "migration": "007_chat_history.sql",
+        "purpose": "Conversation history with auto-cleanup",
+        "key_fields": [
+          "id (UUID PK)", "user_id", "role (user|assistant)",
+          "message", "created_at"
+        ],
+        "auto_cleanup": "Messages > 12 hours old are deleted",
+        "index": "idx_chat_history_user_time"
+      },
+      {
+        "name": "agent_memory",
+        "migration": "019_agent_memory.sql",
+        "purpose": "Store user preferences and business rules",
+        "key_fields": [
+          "id", "user_id FK",
+          "memory_key", "memory_value",
+          "created_at", "updated_at"
+        ],
+        "unique_constraint": "UNIQUE(user_id, memory_key)"
+      },
+      {
+        "name": "inventory_logs",
+        "migration": "008_inventory_logs.sql",
+        "purpose": "Track stock changes (audit trail)",
+        "key_fields": [
+          "id", "user_id FK", "product_id FK",
+          "action (add|remove|adjust)",
+          "quantity_change",
+          "reason",
+          "created_at"
+        ]
+      },
+      {
+        "name": "telegram_users",
+        "migration": "telegram_users.sql",
+        "purpose": "Map Telegram users to DukanSathi accounts",
+        "key_fields": [
+          "telegram_user_id", "dukansathi_user_id",
+          "phone_number", "first_name",
+          "created_at"
+        ]
+      },
+      {
+        "name": "telegram_connect_tokens",
+        "migration": "telegram_connect_tokens.sql",
+        "purpose": "Temporary tokens for Telegram/Web account linking",
+        "key_fields": [
+          "token", "user_id FK",
+          "created_at", "expires_at"
+        ]
+      }
+    ],
+
+    "migrations_summary": {
+      "001_profiles": "User profiles with GST settings",
+      "002_ai_functions": "AI helper functions (deprecated - local AI removed)",
+      "002_suppliers": "Supplier management",
+      "003_products": "Product catalog + serials",
+      "004_customers": "Customer management with credit tracking",
+      "005_sales": "Invoices + line items with GST breakdown",
+      "006_purchase_orders": "Purchase order tracking",
+      "007_chat_history": "Conversation history with cleanup",
+      "007_drafts": "Draft invoices, batches, purchase orders",
+      "008_inventory_logs": "Stock change audit trail",
+      "008_storage_and_products": "Product image storage integration",
+      "009_add_product_images": "Product image URL field",
+      "010_add_customer_gst_fields": "GST fields for customers",
+      "011_fix_product_schema": "Schema corrections",
+      "012_auto_update_customer_balance": "Trigger for customer balance updates",
+      "013_add_settings_to_profiles": "Additional profile settings",
+      "013_ai_helper_functions": "AI function optimizations",
+      "014_extend_business_profile": "Business profile expansion",
+      "014_receive_payment_rpc": "RPC for payment recording",
+      "015_fix_payment_rpcs": "Payment RPC corrections",
+      "016_add_product_image_url": "Image URL field",
+      "017_secure_stock_rpcs": "Stock management RPCs",
+      "018_secure_stock_trigger": "Stock trigger optimizations",
+      "019_agent_memory": "Supermemory feature table",
+      "019_secure_chat_history": "Chat history RLS policies",
+      "020_invoices_storage_policies": "Storage access policies",
+      "020_secure_ai_sql_execution": "SQL execution security"
+    },
+
+    "rls_policies": {
+      "default_pattern": "Users can only access their own records (user_id = auth.uid())",
+      "coverage": "All user-data tables have RLS enabled",
+      "enforcement": "auth.uid() checks on SELECT, INSERT, UPDATE, DELETE"
+    },
+
+    "indexes": {
+      "performance_indexes": [
+        "products(user_id)",
+        "products(stock_quantity)",
+        "products(expiry_date)",
+        "sales(user_id, created_at)",
+        "sales(payment_status) - Partial",
+        "customers(user_id, credit_balance > 0)",
+        "chat_history(user_id, created_at DESC)",
+        "product_serials(status)"
+      ]
+    }
+  },
+
+  "4_FRONTEND_ROUTES": {
+    "overview": {
+      "framework": "React 19 + React Router 7.13",
+      "build_tool": "Vite 7.2",
+      "deployment": "Vercel",
+      "pwa_enabled": true,
+      "offline_support": "SQLite sync engine",
+      "primary_file": "frontend/src/App.jsx"
+    },
+
+    "page_routes": [
+      {
+        "path": "/",
+        "component": "Landing.jsx",
+        "purpose": "Marketing/login landing page",
+        "auth_required": false,
+        "status": "Working"
+      },
+      {
+        "path": "/login",
+        "component": "Login.jsx",
+        "purpose": "Google OAuth + OTP authentication",
+        "features": ["Google Sign-In", "Passwordless OTP", "Account linking"],
+        "auth_required": false,
+        "status": "Working"
+      },
+      {
+        "path": "/dashboard",
+        "component": "Dashboard.jsx",
+        "purpose": "Sales overview, analytics, quick stats",
+        "features": [
+          "Today's sales revenue",
+          "Top-selling products",
+          "Customer dues",
+          "Low stock alerts",
+          "Charts and graphs (Chart.js)"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/chat",
+        "component": "Chat.jsx",
+        "purpose": "Main AI chat interface with voice, image, PDF support",
+        "features": [
+          "Voice input (microphone)",
+          "Text input",
+          "Image attachment (OCR)",
+          "Excel file import",
+          "PDF invoice viewing",
+          "Action card rendering (drafts)",
+          "QR code generation",
+          "WhatsApp sharing"
+        ],
+        "auth_required": true,
+        "status": "Working - Core feature"
+      },
+      {
+        "path": "/inventory",
+        "component": "Inventory.jsx",
+        "purpose": "Product management and stock tracking",
+        "features": [
+          "Add/edit/delete products",
+          "Bulk import from Excel",
+          "Search and filter",
+          "Low stock alerts",
+          "Product images",
+          "Category management"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/customers",
+        "component": "Customers.jsx",
+        "purpose": "Customer management and khata (credit) tracking",
+        "features": [
+          "Add/edit customer",
+          "Track credit balance",
+          "Phone number search",
+          "Payment history",
+          "Purchase history"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/customers/:id",
+        "component": "CustomerDetails.jsx",
+        "purpose": "Individual customer detail view",
+        "features": [
+          "Customer profile",
+          "Purchase history table",
+          "Current dues",
+          "Contact actions (WhatsApp)"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/sales",
+        "component": "Sales.jsx",
+        "purpose": "Invoice history and management",
+        "features": [
+          "List all invoices",
+          "Filter by date/customer",
+          "PDF download",
+          "Invoice details",
+          "Reprint option"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/settings",
+        "component": "Settings.jsx",
+        "purpose": "User preferences and app configuration",
+        "settings": [
+          "Voice selection (10+ voices)",
+          "Voice speed",
+          "AI language (English, Hinglish, Bengali)",
+          "Business profile",
+          "GST settings",
+          "Theme (light/dark)"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/connections",
+        "component": "Connections.jsx",
+        "purpose": "Telegram bot linking and integration",
+        "features": [
+          "Display Telegram bot link",
+          "Connection status",
+          "Unlink option"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/plans",
+        "component": "Plans.jsx",
+        "purpose": "Subscription tier display and upgrade",
+        "features": [
+          "Show all plans (Free, Starter, Pro, Ultra)",
+          "Feature comparison",
+          "Razorpay checkout integration",
+          "Current tier display"
+        ],
+        "auth_required": true,
+        "status": "Working"
+      },
+      {
+        "path": "/onboarding",
+        "component": "Onboarding.jsx",
+        "purpose": "First-time user setup wizard",
+        "steps": [
+          "Business name & category",
+          "GST registration",
+          "Voice preference",
+          "AI language selection",
+          "Initial product/customer import"
+        ],
+        "auth_required": true,
+        "completion_flag": "onboarding_completed in profiles",
+        "status": "Working"
+      },
+      {
+        "path": "/system-setup",
+        "component": "SystemSetup.jsx",
+        "purpose": "Development-only system configuration",
+        "features": [
+          "Check cloud service status",
+          "Configure environment variables (dev-only)",
+          "Database connection test"
+        ],
+        "auth_required": false,
+        "status": "Development Only"
+      }
+    ],
+
+    "key_components": [
+      {
+        "name": "VoiceAssist.jsx",
+        "purpose": "Voice input & transcription UI",
+        "features": [
+          "Mic button with recording state",
+          "Waveform visualization",
+          "Language selection",
+          "Record/stop controls"
+        ]
+      },
+      {
+        "name": "VoiceFAB.jsx",
+        "purpose": "Floating Action Button for voice",
+        "placement": "Bottom-right corner"
+      },
+      {
+        "name": "ActionCard.jsx",
+        "purpose": "Render AI draft actions (invoices, products, etc.)",
+        "renders": [
+          "Invoice previews",
+          "Product cards",
+          "Payment confirmations",
+          "Approval buttons"
+        ]
+      },
+      {
+        "name": "PDFViewer.jsx",
+        "purpose": "Inline PDF invoice rendering",
+        "library": "react-pdf"
+      },
+      {
+        "name": "InvoiceTemplate.jsx",
+        "purpose": "Professional invoice PDF layout",
+        "features": [
+          "GST-compliant format",
+          "QR code",
+          "Item breakdown",
+          "Tax summary"
+        ]
+      },
+      {
+        "name": "Sidebar.jsx",
+        "purpose": "Left navigation menu",
+        "items": ["Dashboard", "Chat", "Inventory", "Customers", "Sales", "Settings"]
+      },
+      {
+        "name": "BottomNav.jsx",
+        "purpose": "Mobile bottom navigation",
+        "for": "Mobile devices (PWA)"
+      },
+      {
+        "name": "NavigationDrawer.jsx",
+        "purpose": "Full-screen navigation menu (mobile)",
+        "features": ["Slide-out drawer", "Route links"]
+      },
+      {
+        "name": "Loader.jsx",
+        "purpose": "Loading spinner component"
+      },
+      {
+        "name": "Skeleton.jsx",
+        "purpose": "Content loading skeleton (accessibility)"
+      },
+      {
+        "name": "Combobox.jsx",
+        "purpose": "Searchable dropdown (customer, product selection)"
+      }
+    ],
+
+    "context_providers": [
+      {
+        "name": "ChatContext.jsx",
+        "purpose": "Global chat state management",
+        "state": [
+          "messages - Conversation history",
+          "isListening - Mic recording state",
+          "isThinking - AI processing state",
+          "isPlaying - TTS audio playback",
+          "ws - WebSocket connection",
+          "voice - Selected voice ID",
+          "voiceSpeed - TTS speed setting",
+          "aiLanguage - Selected language",
+          "isMuted - Audio mute state"
+        ],
+        "key_methods": [
+          "unlockAudio - Resume Web Audio Context",
+          "startListening - Begin voice recording",
+          "stopListening - End voice recording",
+          "sendMessage - Send text/voice/image to backend",
+          "playAudio - Play TTS response",
+          "toggleMute - Mute/unmute audio"
+        ]
+      },
+      {
+        "name": "SubscriptionContext.jsx",
+        "purpose": "Subscription tier and usage state",
+        "state": [
+          "tier - Current subscription tier",
+          "usage - Current month usage counts",
+          "limits - Plan limits",
+          "usageToken - JWT with subscription info"
+        ]
+      }
+    ],
+
+    "hooks": [
+      {
+        "name": "useChat.js",
+        "purpose": "Encapsulate chat logic",
+        "returns": {
+          "messages": "Chat history",
+          "sendMessage": "Async function to send message",
+          "isLoading": "Loading state"
+        }
+      },
+      {
+        "name": "usePWA.js",
+        "purpose": "PWA lifecycle management",
+        "handles": ["Service Worker registration", "Update prompts", "Install prompts"]
+      },
+      {
+        "name": "useOnlineStatus.js",
+        "purpose": "Track online/offline status",
+        "returns": "isOnline boolean"
+      }
+    ],
+
+    "lib_modules": [
+      {
+        "path": "lib/supabase.js",
+        "purpose": "Supabase client initialization",
+        "exports": ["supabase instance"]
+      },
+      {
+        "path": "lib/authService.js",
+        "purpose": "Authentication utilities",
+        "methods": [
+          "login - Google OAuth + OTP",
+          "logout - Session cleanup",
+          "getCurrentUser - Get auth state",
+          "linkAccount - Telegram linking"
+        ]
+      },
+      {
+        "path": "lib/sqlite.js",
+        "purpose": "SQLite initialization and persistence",
+        "exports": [
+          "initSQLite - Initialize local DB",
+          "getDB - Get DB instance",
+          "persistDB - Save to LocalForage"
+        ]
+      },
+      {
+        "path": "lib/db/syncEngine.js",
+        "purpose": "Offline-first sync orchestration",
+        "features": [
+          "Queue changes when offline",
+          "Sync all pending when online",
+          "Conflict resolution"
+        ]
+      },
+      {
+        "path": "lib/db/schema.sql",
+        "purpose": "SQLite schema for local caching"
+      },
+      {
+        "path": "lib/ai/localAgent.js",
+        "purpose": "Local AI fallback (deprecated)",
+        "status": "Phased out - Cloud-only now"
+      }
+    ],
+
+    "styling": {
+      "approach": "Vanilla CSS + Tailwind CSS",
+      "framework": "Tailwind v4.1.18",
+      "postcss": "7.5.6",
+      "color_scheme": "Dark mode optimized, light mode fallback",
+      "responsive": "Mobile-first design"
+    },
+
+    "pwa_features": {
+      "service_worker": "Managed by vite-plugin-pwa",
+      "manifest": "public/manifest.json",
+      "offline_support": "SQLite sync engine",
+      "installable": true,
+      "screenshots": "App screenshots for install prompt"
+    }
+
+  },
+
+  "5_TELEGRAM_INTEGRATION": {
+    "overview": {
+      "bot_library": "python-telegram-bot v21.0",
+      "deployment_modes": [
+        "Webhook (Cloud Run production)",
+        "Polling (Local development)"
+      ],
+      "webhook_url_pattern": "{WEBHOOK_URL}/api/telegram/webhook",
+      "security": "HMAC secret token verification",
+      "status": "Working - Production"
+    },
+
+    "implementation": {
+      "main_file": "backend/telegram_bot.py",
+      "entry_points": [
+        "start_telegram_bot() - Polling launcher",
+        "telegram_webhook() - Webhook receiver (main.py)"
+      ],
+      "initialization": "Lazy-loaded to avoid blocking FastAPI startup",
+      "integration": "Reuses agent_graph.py for all AI logic"
+    },
+
+    "commands": [
+      {
+        "command": "/start",
+        "handler": "handle_start_command",
+        "response": "Welcome message with usage guide",
+        "state": "Sets user welcome_shown flag"
+      },
+      {
+        "command": "/connect",
+        "handler": "handle_connect_command",
+        "purpose": "Link Telegram account to DukanSathi web account",
+        "flow": [
+          "Generate temporary token",
+          "Send link code to user",
+          "User visits web app + code",
+          "Accounts linked in telegram_users table"
+        ]
+      },
+      {
+        "command": "/help",
+        "handler": "handle_help_command",
+        "response": "Available commands and usage examples"
+      }
+    ],
+
+    "message_handlers": [
+      {
+        "type": "text",
+        "handler": "handle_ai_interaction",
+        "flow": [
+          "Extract text from message",
+          "Call process_user_input from agent_graph",
+          "Parse JSON response for draft/action",
+          "Send AI response as text"
+        ]
+      },
+      {
+        "type": "voice",
+        "handler": "handle_voice",
+        "flow": [
+          "Download audio from Telegram servers",
+          "Transcribe with Groq Whisper (STT)",
+          "Pass text to agent_graph",
+          "Send response as voice message (TTS)"
+        ]
+      },
+      {
+        "type": "document/file",
+        "handler": "handle_file",
+        "purpose": "Excel/CSV import for bulk products",
+        "flow": [
+          "Download Excel file",
+          "Parse with pandas",
+          "Generate bulk_product_draft",
+          "Ask user for approval"
+        ]
+      },
+      {
+        "type": "photo",
+        "handler": "handle_image",
+        "purpose": "Product list OCR from photos",
+        "flow": [
+          "Download image from Telegram",
+          "Send to Gemini vision API",
+          "Extract product data",
+          "Generate bulk_product_draft"
+        ]
+      }
+    ],
+
+    "draft_handling": {
+      "workflow": [
+        "AI generates draft (JSON)",
+        "Display inline approval UI buttons",
+        "Handle callback button clicks",
+        "On approval: Save to draft tables",
+        "Send confirmation to user"
+      ],
+      "supported_drafts": [
+        "invoice_draft - Generate PDF, ask approval",
+        "product_draft - Add to products",
+        "customer_draft - Register new customer",
+        "payment_draft - Record payment/credit"
+      ],
+      "approval_button": "CallbackQueryHandler with draft_id",
+      "pdf_generation": "Using reportlab for professional invoices"
+    },
+
+    "user_tracking": {
+      "table": "telegram_users",
+      "fields": [
+        "telegram_user_id - Unique Telegram ID",
+        "dukansathi_user_id - FK to auth.users (optional)",
+        "phone_number",
+        "first_name",
+        "created_at"
+      ],
+      "linking_table": "telegram_connect_tokens",
+      "token_expiry": "24 hours"
+    },
+
+    "deployment": {
+      "cloud_run": {
+        "mode": "Webhook",
+        "url": "{WEBHOOK_URL}/api/telegram/webhook",
+        "secret_token": "TELEGRAM_WEBHOOK_SECRET env var",
+        "rate_limit": "120 requests/min per IP",
+        "verification": "HMAC signature check on all webhooks"
+      },
+      "local_dev": {
+        "mode": "Polling",
+        "mechanism": "Bot.get_updates() in daemon thread",
+        "lock_file": "Temporary lock to prevent multiple instances",
+        "startup": "Triggered in deferred_startup()"
+      }
+    },
+
+    "security": {
+      "webhook_hmac": "X-Telegram-Bot-Api-Secret-Token header verification",
+      "sql_injection": "All user input sanitized before DB queries",
+      "rate_limiting": "120 requests/min per IP for webhook",
+      "user_isolation": "All queries filtered by user_id"
+    },
+
+    "known_issues": [
+      {
+        "issue": "User state management",
+        "description": "Telegram bot doesn't persist conversation state between messages",
+        "workaround": "Each message is independently processed; no context memory",
+        "severity": "Medium - Affects multi-step workflows"
+      },
+      {
+        "issue": "PDF generation on Telegram",
+        "description": "Large invoices may timeout or fail",
+        "workaround": "Fallback to text summary + link to web PDF",
+        "severity": "Low"
+      },
+      {
+        "issue": "Voice quality",
+        "description": "Compressed audio from Telegram affects transcription",
+        "workaround": "Use web app for voice instead",
+        "severity": "Low"
+      }
+    ]
+  },
+
+  "6_EXTERNAL_SERVICES": {
+    "ai_models": [
+      {
+        "name": "Gemini 3.1 Flash Lite",
+        "provider": "Google Vertex AI",
+        "access": "google-genai SDK",
+        "location": "global",
+        "use_case": "Main AI brain for natural language understanding, SQL generation, multimodal vision",
+        "initialization": "Gemini31ChatModel wrapper class",
+        "fallback": "If Vertex AI returns 404/501, fallback to google-genai SDK directly",
+        "cost": "Lower cost than Claude, faster responses",
+        "status": "Production"
+      },
+      {
+        "name": "Llama 4 Scout 17B",
+        "provider": "Vertex AI Model Garden",
+        "status": "Deprecated - Replaced by Gemini 3.1",
+        "reason": "Vertex AI MaaS had reliability issues"
+      }
+    ],
+
+    "speech_services": [
+      {
+        "name": "Groq Whisper API",
+        "service": "Speech-to-Text (STT)",
+        "languages": ["English", "Hindi", "Bengali"],
+        "codec": "Supports WAV, MP3, OGG, WebM, M4A",
+        "implementation": "AsyncGroq client in voice_service.py",
+        "cost": "Free tier available",
+        "quality": "Fast and accurate",
+        "status": "Production"
+      },
+      {
+        "name": "Google Cloud Text-to-Speech",
+        "service": "Text-to-Speech (TTS)",
+        "languages": [
+          "English (en-IN, en-US) - Neural voices",
+          "Hinglish (hi-IN) - Mixed script support"
+        ],
+        "voices": [
+          "en-IN-Neural2-B (Male, Indian English)",
+          "en-IN-Neural2-A (Female, Indian English)",
+          "en-US-Neural2-D (Male, US English)",
+          "en-US-Neural2-C (Female, US English)"
+        ],
+        "initialization": "texttospeech.TextToSpeechClient()",
+        "quality": "Neural voices, natural pronunciation",
+        "cost": "Per-char billing",
+        "status": "Production"
+      },
+      {
+        "name": "Sarvam AI TTS",
+        "service": "Text-to-Speech (Bengali specialty)",
+        "languages": ["Bengali (bn-IN)"],
+        "voices": [
+          "shubh (Male) - Professional",
+          "priya (Female) - Warm"
+        ],
+        "api_endpoint": "https://api.sarvam.ai/text-to-speech",
+        "quality": "Optimized for Indian languages",
+        "status": "Production (if API key available)"
+      }
+    ],
+
+    "database": {
+      "name": "Supabase",
+      "type": "PostgreSQL + Storage + Auth",
+      "services": [
+        {
+          "name": "PostgreSQL",
+          "purpose": "Primary data store",
+          "features": [
+            "Row-level security (RLS)",
+            "Full-text search",
+            "JSON/JSONB support",
+            "Indexes on critical columns"
+          ]
+        },
+        {
+          "name": "Supabase Storage",
+          "purpose": "File storage (invoices, product images, chat images)",
+          "buckets": [
+            "chat-images - For message attachments",
+            "invoices - PDF invoices",
+            "products - Product images"
+          ],
+          "features": ["Public/signed URLs", "Auto-cleanup"],
+          "cleanup": "Images older than 24h auto-deleted by cleanup_scheduler"
+        },
+        {
+          "name": "Supabase Auth",
+          "purpose": "Authentication & session management",
+          "providers": [
+            "Google OAuth",
+            "Email + OTP",
+            "Phone number (SMS)"
+          ],
+          "jwt_handling": "Supabase JWT verified at backend"
+        }
+      ],
+      "status": "Production"
+    },
+
+    "payment_gateway": {
+      "name": "Razorpay",
+      "service": "Subscription billing",
+      "features": [
+        "Recurring subscriptions",
+        "Mandate capture",
+        "Multiple currency support",
+        "Webhook notifications"
+      ],
+      "webhook_events": [
+        "subscription.authenticated - Mandate captured",
+        "subscription.activated - Subscription started",
+        "subscription.charged - Recurring charge",
+        "subscription.cancelled - Downgrade"
+      ],
+      "plan_mappings": {
+        "plan_SYJ1J3QjtX1mAK": "starter",
+        "plan_SYJ1ZJWBFTgZWx": "pro",
+        "plan_SYJ1a3OcE6bwDB": "ultra"
+      },
+      "webhook_validation": "HMAC signature check",
+      "status": "Production"
+    },
+
+    "monitoring_and_logging": [
+      {
+        "name": "Python logging",
+        "implementation": "Dual output to file + stdout",
+        "log_files": [
+          "backend.log - FastAPI logs",
+          "telegram_bot.log - Telegram bot logs",
+          "agent_debug.log - AI agent logs"
+        ]
+      },
+      {
+        "name": "Cloud Run logs",
+        "integration": "stdout captured by Cloud Run",
+        "dashboard": "Google Cloud Console"
+      }
+    ],
+
+    "testing_services": [
+      {
+        "name": "sql.js",
+        "purpose": "In-browser SQLite for frontend testing",
+        "status": "Integrated but deprecated for production"
+      }
+    ]
+  },
+
+  "7_KEY_CONFIGURATION_FILES": {
+    "root_level": [
+      {
+        "name": "package.json",
+        "purpose": "Monorepo root package config",
+        "scripts": [
+          "npm run build - Build frontend",
+          "npm run dev - Start frontend dev",
+          "npm run lint - Lint frontend"
+        ],
+        "node_version": ">=18.0.0"
+      },
+      {
+        "name": "Dockerfile",
+        "purpose": "Docker image for Backend (Cloud Run)",
+        "includes": [
+          "Python 3.11 base",
+          "Dependencies from requirements.txt",
+          "Entrypoint: uvicorn main:app"
+        ],
+        "status": "Production"
+      },
+      {
+        "name": "cloudbuild.yaml",
+        "purpose": "Google Cloud Build configuration",
+        "triggers": ["Automatic on push to main branch"],
+        "steps": [
+          "Build Docker image",
+          "Push to Cloud Run",
+          "Run migrations"
+        ]
+      },
+      {
+        "name": "vercel.json",
+        "purpose": "Vercel frontend deployment config",
+        "framework": "React + Vite"
+      },
+      {
+        "name": "launch_migrations.sql",
+        "purpose": "Combined migration file for fresh deploys",
+        "includes": "All *.sql migrations in order"
+      }
+    ],
+
+    "backend": [
+      {
+        "name": "backend/requirements.txt",
+        "purpose": "Python dependencies",
+        "key_packages": [
+          "fastapi>=0.115.6",
+          "uvicorn>=0.32.0",
+          "python-telegram-bot>=21.0",
+          "groq>=0.11.0 (STT)",
+          "google-cloud-texttospeech>=2.16.0 (TTS)",
+          "langchain-google-vertexai>=2.0.10 (AI)",
+          "langgraph>=0.2.62 (Agent)",
+          "supabase>=2.9.1 (Database)",
+          "razorpay>=1.5.0 (Payments)"
+        ]
+      },
+      {
+        "name": "backend/.env.example",
+        "purpose": "Environment variables template",
+        "required_vars": [
+          "SUPABASE_URL",
+          "SUPABASE_SERVICE_KEY",
+          "GROQ_API_KEY",
+          "GOOGLE_APPLICATION_CREDENTIALS",
+          "TELEGRAM_BOT_TOKEN",
+          "WEBHOOK_URL"
+        ]
+      }
+    ],
+
+    "frontend": [
+      {
+        "name": "frontend/package.json",
+        "purpose": "Frontend dependencies and scripts",
+        "key_dependencies": [
+          "react@19.2.0",
+          "react-router-dom@7.13.0",
+          "@supabase/supabase-js@2.48.0",
+          "chart.js@4.5.1 (Analytics)",
+          "jspdf@4.2.0 (PDF generation)",
+          "qrcode.react@4.2.0 (QR codes)",
+          "localstorage-sync@... (Offline sync)"
+        ]
+      },
+      {
+        "name": "frontend/vite.config.js",
+        "purpose": "Vite build and dev server config",
+        "plugins": ["@vitejs/plugin-react", "vite-plugin-pwa"]
+      },
+      {
+        "name": "frontend/postcss.config.js",
+        "purpose": "PostCSS config for Tailwind"
+      },
+      {
+        "name": "frontend/eslint.config.js",
+        "purpose": "ESLint rules"
+      }
+    ],
+
+    "ai_bot": [
+      {
+        "name": "ai-bot/requirements.txt",
+        "purpose": "AI dependencies (imported by backend)",
+        "packages": [
+          "langchain-google-vertexai==2.0.10",
+          "langgraph>=0.2.62",
+          "supabase==2.9.1"
+        ]
+      },
+      {
+        "name": "ai-bot/dukansathi_ai/skill.md",
+        "purpose": "OpenClaw skill definition (see section 2)"
+      }
+    ]
+  },
+
+  "8_KNOWN_ISSUES": {
+    "critical_issues": [
+      {
+        "id": "ISSUE-001",
+        "title": "Bill Approval / Draft Workflow Incomplete",
+        "severity": "High",
+        "description": "Draft invoices can be created but approval workflow may have bugs with GST calculations and inter-state detection",
+        "location": "backend/telegram_bot.py (line 621+), frontend Chat.jsx",
+        "symptoms": [
+          "GST calculation may be incorrect",
+          "Inter-state vs intra-state detection issues",
+          "Approval buttons not working reliably"
+        ],
+        "status": "Needs Polish",
+        "evidence": "DEBUG log at line 621 in telegram_bot.py mentions 'Auto-detected Inter-State (IGST)'"
+      },
+      {
+        "id": "ISSUE-002",
+        "title": "Customer Storefront WebSocket Not Implemented",
+        "severity": "High",
+        "description": "Customer-facing storefront chat endpoint exists but lacks implementation",
+        "location": "backend/main.py (line 1110+)",
+        "endpoint": "/ws/customer_chat/{store_id}",
+        "status": "Incomplete",
+        "note": "Skeleton exists but no handler logic"
+      },
+      {
+        "id": "ISSUE-003",
+        "title": "Offline Sync Engine Basic Only",
+        "severity": "Medium",
+        "description": "SQLite sync engine is minimal and doesn't handle all conflict scenarios",
+        "location": "frontend/src/lib/db/syncEngine.js",
+        "features_needed": [
+          "Conflict resolution strategy",
+          "Partial sync resume on failure",
+          "Queue persistence across sessions"
+        ],
+        "status": "Needs Enhancement"
+      },
+      {
+        "id": "ISSUE-004",
+        "title": "Local AI Completely Removed",
+        "severity": "Medium",
+        "description": "Ollama/Local AI was removed but references still exist in codebase",
+        "locations": [
+          "frontend/src/lib/ai/localAgent.js (deprecated code)",
+          "backend/main.py (comments about local AI)"
+        ],
+        "cleanup_needed": "Remove deprecated references",
+        "status": "Technical Debt"
+      }
+    ],
+
+    "performance_issues": [
+      {
+        "id": "PERF-001",
+        "title": "Cold Start on Cloud Run",
+        "description": "First API call takes 60+ seconds due to heavy module imports",
+        "root_cause": "voice_service.py and agent_graph.py loaded on startup",
+        "solution_implemented": "Lazy import on WebSocket connection",
+        "status": "Fixed - See main.py line 576+",
+        "notes": "Modules loaded only when first message received"
+      },
+      {
+        "id": "PERF-002",
+        "title": "AI Response Time Varies",
+        "description": "Gemini API sometimes slow (2-5 seconds)",
+        "mitigation": "Fallback to google-genai SDK if Vertex AI times out",
+        "status": "Monitoring"
+      }
+    ],
+
+    "missing_features": [
+      {
+        "feature": "Invoice Analytics",
+        "description": "No detailed profit/loss breakdown by product",
+        "suggested_location": "Dashboard.jsx, new analytics page",
+        "priority": "Medium",
+        "complexity": "Medium"
+      },
+      {
+        "feature": "Multi-user Permissions",
+        "description": "No staff/manager roles - owner only",
+        "note": "Business model primarily for solo shopkeepers",
+        "priority": "Low"
+      },
+      {
+        "feature": "Barcode Support",
+        "description": "No barcode scanning for product lookup",
+        "suggested_tech": "QuaggaJS or similar",
+        "priority": "Medium"
+      },
+      {
+        "feature": "Inventory Forecasting",
+        "description": "No predictive stock alerts",
+        "complexity": "High - Requires time series analysis",
+        "priority": "Low"
+      }
+    ],
+
+    "code_quality_issues": [
+      {
+        "id": "CODE-001",
+        "title": "SQL Injection Guard Weak",
+        "location": "backend/security.py",
+        "issue": "Regex-based guard is inadequate for production",
+        "recommendation": "Use parameterized queries exclusively, remove string interpolation",
+        "severity": "Medium"
+      },
+      {
+        "id": "CODE-002",
+        "title": "Error Messages Verbose",
+        "description": "Some errors leak implementation details",
+        "locations": ["backend/main.py", "voice_service.py"],
+        "recommendation": "Use generic error messages to users, detailed logs internally",
+        "severity": "Low"
+      },
+      {
+        "id": "CODE-003",
+        "title": "No Request Validation on File Upload",
+        "location": "backend/main.py (upload_product_image endpoint)",
+        "issue": "File size and type not validated",
+        "recommendation": "Add file size limit (5MB) and MIME type check",
+        "severity": "Medium"
+      }
+    ],
+
+    "deployment_issues": [
+      {
+        "id": "DEPLOY-001",
+        "title": "Environment Variable Mismatch",
+        "description": "Local development .env and production env vars can diverge",
+        "locations": [".env.example", "setup_routes.py"],
+        "status": "Documented but not automated",
+        "note": "setup_routes.py disabled in production"
+      }
+    ],
+
+    "documentation_gaps": [
+      {
+        "topic": "API Reference",
+        "status": "Incomplete - Basic endpoints documented in README",
+        "missing": "Full OpenAPI/Swagger integration could help"
+      },
+      {
+        "topic": "Agent Training",
+        "status": "No guidance on fine-tuning model",
+        "note": "Skill.md is the only documentation"
+      },
+      {
+        "topic": "Deployment Runbook",
+        "status": "README has basics, detailed runbook missing"
+      }
+    ]
+  },
+
+  "9_DRAFTING_SYSTEM": {
+    "overview": {
+      "purpose": "AI-generated actions (invoices, products, payments) awaiting user approval",
+      "workflow": "Generate Draft → User Reviews → Approve/Reject → Execute or Discard",
+      "tables": [
+        "draft_invoices (billing)",
+        "draft_inventory_batches (products)",
+        "draft_purchase_orders (supplier orders)"
+      ],
+      "initiation": "AI agent (agent_graph.py) detects intent and generates draft JSON"
+    },
+
+    "workflow_steps": [
+      {
+        "step": 1,
+        "name": "Detection",
+        "actor": "User",
+        "description": "User provides voice/text input: 'Bill for Amit, 2 packets Maggi'",
+        "flow": "Input detected as invoice-like, sent to agent_graph"
+      },
+      {
+        "step": 2,
+        "name": "Generation",
+        "actor": "AI Agent",
+        "description": "agent_graph.py processes intent and generates draft JSON",
+        "output": {
+          "type": "invoice_draft",
+          "customer_name": "Amit",
+          "items": [{"product_name": "Maggi", "quantity": 2}]
+        },
+        "wrapped": "$$ACTION_JSON$$ ... $$END_JSON$$"
+      },
+      {
+        "step": 3,
+        "name": "Transmission",
+        "actor": "Backend",
+        "description": "WebSocket sends draft to frontend as action_json",
+        "message_format": {
+          "type": "action",
+          "draft_type": "invoice_draft",
+          "draft_data": {...}
+        }
+      },
+      {
+        "step": 4,
+        "name": "Rendering",
+        "actor": "Frontend",
+        "description": "ActionCard.jsx renders draft with preview",
+        "components": [
+          "ChatInvoiceCard - Invoice preview",
+          "ProductCard - Product details",
+          "ApprovalButtons - Approve/Reject/Edit"
+        ]
+      },
+      {
+        "step": 5,
+        "name": "User Review",
+        "actor": "User",
+        "actions": [
+          "View preview",
+          "Edit details (optional)",
+          "Approve + Submit"
+        ],
+        "approval_button": "onClick sends 'approve_draft' message"
+      },
+      {
+        "step": 6,
+        "name": "Approval",
+        "actor": "Backend",
+        "description": "Draft saved to database if approved",
+        "storage": {
+          "invoice_draft → draft_invoices table": "pending status"
+        },
+        "next_step": "Can be converted to actual sales record via RPC"
+      },
+      {
+        "step": 7,
+        "name": "Confirmation",
+        "actor": "AI Agent",
+        "description": "Voice confirmation message",
+        "example": "Boss, bill ready kar diya! Check kar lo aur approve kar."
+      }
+    ],
+
+    "draft_types_with_examples": [
+      {
+        "type": "invoice_draft",
+        "user_input": "Bill for Amit Kumar, 2 Maggi packets, 1 Amul Butter",
+        "ai_generates": {
+          "type": "invoice_draft",
+          "customer_name": "Amit Kumar",
+          "items": [
+            {"product_name": "Maggi", "quantity": 2, "price": 0},
+            {"product_name": "Amul Butter", "quantity": 1, "price": 0}
+          ]
+        },
+        "preview": "ChatInvoiceCard component shows line items, totals, GST",
+        "approval": "Click 'Approve' button on card",
+        "execution": "Convert to sales record in database"
+      },
+      {
+        "type": "product_draft",
+        "user_input": "Add Tata Salt, selling price 20, cost 15, stock 100",
+        "ai_generates": {
+          "type": "product_draft",
+          "name": "Tata Salt",
+          "selling_price": 20,
+          "cost_price": 15,
+          "stock_quantity": 100
+        },
+        "preview": "ProductCard shows product details",
+        "approval": "Click confirm",
+        "execution": "INSERT into products table"
+      },
+      {
+        "type": "customer_draft",
+        "user_input": "Add customer Rahul, phone 9876543210, Delhi",
+        "ai_generates": {
+          "type": "customer_draft",
+          "name": "Rahul",
+          "phone": "9876543210",
+          "address": "Delhi",
+          "state": "Delhi"
+        },
+        "execution": "INSERT into customers table"
+      },
+      {
+        "type": "payment_draft",
+        "user_input": "Amit paid 500 rupees",
+        "ai_generates": {
+          "type": "payment_draft",
+          "customer_name": "Amit",
+          "amount": 500,
+          "payment_type": "payment"
+        },
+        "execution": "UPDATE customer credit_balance, INSERT payment log"
+      },
+      {
+        "type": "restock_draft",
+        "user_input": "Maal aaya, 100 Maggi packets",
+        "ai_generates": {
+          "type": "restock_draft",
+          "product_name": "Maggi",
+          "quantity_to_add": 100
+        },
+        "execution": "UPDATE product stock_quantity + 100, log to inventory_logs"
+      }
+    ],
+
+    "gst_calculation_in_drafts": {
+      "within_state_example": {
+        "scenario": "Invoice for customer in Maharashtra, buyer also in Maharashtra",
+        "calculation": {
+          "subtotal": 1000,
+          "tax_percent": 18,
+          "cgst": "1000 × 9 / 100 = 90",
+          "sgst": "1000 × 9 / 100 = 90",
+          "total": "1000 + 90 + 90 = 1180"
+        }
+      },
+      "inter_state_example": {
+        "scenario": "Invoice to customer in Gujarat, buyer in Maharashtra",
+        "calculation": {
+          "subtotal": 1000,
+          "tax_percent": 18,
+          "igst": "1000 × 18 / 100 = 180",
+          "total": "1000 + 180 = 1180"
+        }
+      },
+      "detection_logic": "Check customer_state vs profile state_code from DB"
+    },
+
+    "deduplication": {
+      "rule": "If same product appears multiple times, merge quantities",
+      "example": {
+        "input": "Bill: 3 Maggi, 2 Parle, 3 Maggi",
+        "deduped": [
+          {"product_name": "Maggi", "quantity": 6},
+          {"product_name": "Parle", "quantity": 2}
+        ]
+      },
+      "implementation": "In agent_graph.py before generating draft"
+    },
+
+    "multilingual_support": {
+      "english": "Bill for Rahul, 2 rice packets",
+      "hinglish": "Rahul ka bill banao, do chawal packet",
+      "bengali": "রাহুলের বিল বনাও, দুটা চাল প্যাকেট",
+      "all_understood": "Agent detects language via language_detector.py and understands"
+    },
+
+    "database_storage": {
+      "table": "draft_invoices",
+      "schema": {
+        "id": "BIGINT primary key",
+        "user_id": "UUID - Data isolation",
+        "customer_id": "FK to customers (nullable)",
+        "customer_name": "TEXT",
+        "items": "JSONB - Full product list",
+        "total_amount": "NUMERIC",
+        "payment_method": "cash|upi|card|credit",
+        "status": "pending|approved|rejected",
+        "created_at": "timestamp"
+      },
+      "rls_policy": "Users can only see/edit their own drafts"
+    },
+
+    "approval_persistence": {
+      "approval_location": "frontend/src/pages/Chat.jsx renders ActionCard with button",
+      "button_click": "Sends 'approve_draft' message via WebSocket",
+      "backend_handling": [
+        "Parse draft_id from message",
+        "Update draft_invoices.status = 'approved'",
+        "Trigger RPC to execute (convert to sales)",
+        "Send success message back"
+      ]
+    },
+
+    "rejection_handling": {
+      "user_action": "Click 'Reject' button on draft card",
+      "backend_response": "Update status = 'rejected', discard from view",
+      "note": "Draft not deleted - kept for audit trail"
+    },
+
+    "editing_drafts": {
+      "current_capability": "Limited - mainly on frontend preview",
+      "future_enhancement": "Allow user to edit quantities, customer, items",
+      "implementation_needed": "Edit form + re-calculate totals"
+    },
+
+    "error_handling": [
+      {
+        "error": "Customer not found",
+        "response": "Create new customer via customer_draft",
+        "flow": "Sequential drafts: customer_draft then invoice_draft"
+      },
+      {
+        "error": "Product not in inventory",
+        "response": "Suggest product_draft to add it first",
+        "note": "AI handles gracefully with suggestions"
+      },
+      {
+        "error": "Duplicate product in items",
+        "response": "Automatically merge quantities (deduplication)",
+        "implementation": "In agent_graph before JSON generation"
+      }
+    ],
+
+    "confirmation_messages_by_language": {
+      "hinglish": {
+        "invoice_draft": "Boss, bill draft ready kar diya! Ek baar dekh lo.",
+        "product_draft": "Boss, product draft ready hai! Approve kar do.",
+        "payment_draft": "Payment record ready hai Boss! Confirm kar do."
+      },
+      "bengali": {
+        "invoice_draft": "হয়েছে দাদা, বিল রেডি! একটু দেখে অ্যাপ্রুভ করুন।",
+        "product_draft": "দাদা, প্রোডাক্ট অ্যাড করে দিয়েছি! দেখুন একবার।",
+        "payment_draft": "পেমেন্ট রেকর্ড রেডি! কনফার্ম করুন দাদা।"
+      },
+      "english": {
+        "invoice_draft": "Sure! Invoice draft is ready. Please review and approve.",
+        "product_draft": "Sure! Product draft is ready. Please review and approve.",
+        "payment_draft": "Payment record is ready. Please confirm."
+      }
+    }
+  },
+
+  "SUMMARY": {
+    "project_maturity": "Production-ready with known incomplete features",
+    "total_backend_lines": "~3,500 Python LOC",
+    "total_frontend_lines": "~2,000+ JSX LOC",
+    "database_tables": 22,
+    "api_endpoints": "15+ WebSocket + 10+ REST",
+    "supported_languages": 3,
+    "deployment_platforms": ["Google Cloud Run", "Vercel"],
+    "key_strengths": [
+      "Multilingual voice support (English, Hinglish, Bengali)",
+      "Full PWA with offline SQLite sync",
+      "GST-compliant invoicing",
+      "Draft approval workflow for safety",
+      "Cloud-native architecture (no local AI needed)"
+    ],
+    "areas_needing_work": [
+      "Bill approval workflow edge cases",
+      "Customer storefront implementation",
+      "Offline sync robustness",
+      "SQL injection security hardening"
+    ],
+    "exploration_status": "Complete - All critical files reviewed"
+  }
+}

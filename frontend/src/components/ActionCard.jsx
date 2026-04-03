@@ -109,6 +109,17 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         // PREPARE ITEMS FOR TEMPLATE
         const templateItems = getTemplateItems(itemsList, activeIsGst, isOutOfState);
 
+        const hasCustomerName = Boolean((localData.customer_name || '').trim());
+        const hasValidItems = Array.isArray(itemsList) && itemsList.length > 0 && itemsList.every((item) => {
+            const pname = (item.product_name || '').trim();
+            const qty = parseFloat(item.quantity);
+            return Boolean(pname) && Number.isFinite(qty) && qty > 0;
+        });
+        const amountPaidValue = parseFloat(amountPaid);
+        const hasValidPayment =
+            paymentStatus !== 'partial' || (Number.isFinite(amountPaidValue) && amountPaidValue > 0);
+        const canApproveInvoice = hasCustomerName && hasValidItems && hasValidPayment;
+
         // Calculate Totals
         const subtotal = templateItems.reduce((sum, item) => sum + item.taxable_amount, 0);
         const totalTaxAmount = templateItems.reduce((sum, item) => sum + (item.cgst_amount + item.sgst_amount + item.igst_amount), 0);
@@ -415,7 +426,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     </button>
                     <button
                         onClick={() => {
-                            if (isApproving) return;
+                            if (isApproving || !canApproveInvoice) return;
                             setIsApproving(true);
                             onApprove({
                                 ...localData,
@@ -425,9 +436,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 amount_paid: parseFloat(amountPaid) || (paymentStatus === 'paid' ? grandTotal : 0)
                             });
                         }}
-                        disabled={isApproving}
+                        disabled={isApproving || !canApproveInvoice}
                         className={`flex-1 py-1.5 px-3 font-bold rounded-lg shadow-md text-sm flex justify-center items-center gap-2 transition-all ${
-                            isApproving
+                            (isApproving || !canApproveInvoice)
                                 ? 'bg-indigo-400 text-white cursor-not-allowed opacity-80'
                                 : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'
                         }`}
@@ -435,7 +446,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         {isApproving ? (
                             <><svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/></svg> Processing...</>
                         ) : (
-                            <><Check size={18} /> Approve</>
+                            <><Check size={18} /> {canApproveInvoice ? 'Approve' : 'Complete Draft'}</>
                         )}
                     </button>
                 </div>

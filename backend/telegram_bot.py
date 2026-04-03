@@ -24,7 +24,7 @@ import logging
 import asyncio
 import traceback
 from io import BytesIO
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # Setup paths — same pattern as main.py
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai-bot'))
@@ -73,9 +73,116 @@ except Exception:
 # Bot token
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://dukansathi.vercel.app")
+TELEGRAM_CONTEXT_WINDOW = 6
+TELEGRAM_MEMORY_RETENTION_DAYS = 30
+IST = timezone(timedelta(hours=5, minutes=30))
+TELEGRAM_MAX_TEXT_LEN = 4096
+TELEGRAM_SAFE_CHUNK_LEN = 3800
+TELEGRAM_MAX_CAPTION_LEN = 1024
 
 # Global Draft State
 PENDING_DRAFTS = {}
+
+
+def _ist_month_start_utc_iso() -> str:
+    """Return current month start in IST, converted to UTC ISO for timestamptz filters."""
+    now_ist = datetime.now(IST)
+    month_start_ist = now_ist.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return month_start_ist.astimezone(timezone.utc).isoformat()
+DRAFT_LOCKS = {}
+
+
+def get_draft_lock(chat_id: int) -> asyncio.Lock:
+    """Return a per-chat lock so approve actions cannot execute concurrently."""
+    lock = DRAFT_LOCKS.get(chat_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        DRAFT_LOCKS[chat_id] = lock
+    return lock
+
+
+def _chunk_telegram_text(text: str, chunk_size: int = TELEGRAM_SAFE_CHUNK_LEN) -> list[str]:
+    """Split long text into Telegram-safe chunks, preferring newline boundaries."""
+    if not text:
+        return [""]
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks = []
+    remaining = text
+    while len(remaining) > chunk_size:
+        split_at = remaining.rfind("\n", 0, chunk_size)
+        if split_at < int(chunk_size * 0.4):
+            split_at = remaining.rfind(" ", 0, chunk_size)
+        if split_at < int(chunk_size * 0.4):
+            split_at = chunk_size
+
+        chunk = remaining[:split_at].strip()
+        if chunk:
+            chunks.append(chunk)
+        remaining = remaining[split_at:].strip()
+
+    if remaining:
+        chunks.append(remaining)
+    return chunks or [text[:chunk_size]]
+
+
+def _safe_caption(text: str) -> str:
+    """Trim captions to Telegram caption limits."""
+    if not text:
+        return ""
+    if len(text) <= TELEGRAM_MAX_CAPTION_LEN:
+        return text
+    return text[:TELEGRAM_MAX_CAPTION_LEN - 3] + "..."
+
+
+async def _safe_reply_text(message, text: str, parse_mode: str | None = None, reply_markup=None):
+    """Reply with chunking and markdown fallback so long/special text never fails."""
+    chunks = _chunk_telegram_text(str(text or ""))
+    for idx, chunk in enumerate(chunks):
+        kwargs = {}
+        if parse_mode:
+            kwargs["parse_mode"] = parse_mode
+        if reply_markup is not None and idx == len(chunks) - 1:
+            kwargs["reply_markup"] = reply_markup
+
+        try:
+            await message.reply_text(chunk, **kwargs)
+        except Exception as e:
+            if parse_mode:
+                logger.warning(f"Telegram markdown reply failed; retrying plain text: {e}")
+                kwargs.pop("parse_mode", None)
+                await message.reply_text(chunk, **kwargs)
+            else:
+                raise
+
+
+async def _safe_edit_or_reply(query, text: str, parse_mode: str | None = None, reply_markup=None):
+    """Edit message when possible, fallback to chunked replies for long/unsafe content."""
+    payload = str(text or "")
+
+    if len(payload) <= TELEGRAM_MAX_TEXT_LEN:
+        kwargs = {}
+        if parse_mode:
+            kwargs["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            kwargs["reply_markup"] = reply_markup
+        try:
+            await query.edit_message_text(payload, **kwargs)
+            return
+        except Exception as e:
+            if parse_mode:
+                logger.warning(f"Telegram markdown edit failed; retrying plain text: {e}")
+                kwargs.pop("parse_mode", None)
+                await query.edit_message_text(payload, **kwargs)
+                return
+
+    try:
+        await query.edit_message_text("Message too long for inline edit. Sending expanded view below.")
+    except Exception:
+        pass
+
+    await _safe_reply_text(query.message, payload, parse_mode=parse_mode, reply_markup=reply_markup)
 
 # ─── Helpers ───────────────────────────────────────────────
 
@@ -130,6 +237,68 @@ def get_user_token_for_chat(chat_id: int) -> str:
 
     # Fallback: use telegram chat ID as guest token
     return f"telegram_{chat_id}"
+
+
+def _store_telegram_turn(chat_id: int, user_token: str, role: str, content: str, message_type: str = "text"):
+    """Persist one Telegram conversation turn for short-term context memory."""
+    if not supabase:
+        return
+    if not content:
+        return
+
+    try:
+        trimmed = str(content).strip()
+        if not trimmed:
+            return
+
+        # Keep payload bounded for prompt/cost safety.
+        if len(trimmed) > 4000:
+            trimmed = trimmed[:4000]
+
+        supabase.table("telegram_conversation_memory").insert({
+            "telegram_chat_id": chat_id,
+            "user_token": user_token,
+            "role": role,
+            "message_type": message_type,
+            "content": trimmed,
+        }).execute()
+
+        # Opportunistic retention cleanup (best effort).
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=TELEGRAM_MEMORY_RETENTION_DAYS)).isoformat()
+        supabase.table("telegram_conversation_memory").delete().eq("telegram_chat_id", chat_id).lt("created_at", cutoff).execute()
+    except Exception as e:
+        logger.warning(f"Failed to persist telegram conversation turn: {e}")
+
+
+def _get_recent_telegram_context(chat_id: int, limit: int = TELEGRAM_CONTEXT_WINDOW) -> str:
+    """Fetch recent Telegram turns and format them as compact context for the AI."""
+    if not supabase:
+        return ""
+
+    try:
+        result = supabase.table("telegram_conversation_memory") \
+            .select("role, content") \
+            .eq("telegram_chat_id", chat_id) \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
+
+        rows = result.data or []
+        if not rows:
+            return ""
+
+        rows = list(reversed(rows))
+        formatted = []
+        for row in rows:
+            role = (row.get("role") or "user").upper()
+            content = str(row.get("content") or "").strip()
+            if content:
+                formatted.append(f"{role}: {content}")
+
+        return "\n".join(formatted)
+    except Exception as e:
+        logger.warning(f"Failed to fetch telegram conversation context: {e}")
+        return ""
 
 
 def format_draft_for_telegram(draft: dict) -> str:
@@ -305,18 +474,58 @@ def calculate_tax(price: float, quantity: float, tax_percent: float, tax_type: s
         "total": round(taxable + cgst + sgst + igst, 2)
     }
 
+INDIA_STATE_ALIASES = {
+    # States
+    "andhra pradesh": "andhra pradesh", "ap": "andhra pradesh",
+    "arunachal pradesh": "arunachal pradesh", "ar": "arunachal pradesh",
+    "assam": "assam", "as": "assam",
+    "bihar": "bihar", "br": "bihar",
+    "chhattisgarh": "chhattisgarh", "cg": "chhattisgarh",
+    "goa": "goa", "ga": "goa",
+    "gujarat": "gujarat", "gj": "gujarat",
+    "haryana": "haryana", "hr": "haryana",
+    "himachal pradesh": "himachal pradesh", "hp": "himachal pradesh",
+    "jharkhand": "jharkhand", "jh": "jharkhand",
+    "karnataka": "karnataka", "ka": "karnataka",
+    "kerala": "kerala", "kl": "kerala",
+    "madhya pradesh": "madhya pradesh", "mp": "madhya pradesh",
+    "maharashtra": "maharashtra", "mh": "maharashtra",
+    "manipur": "manipur", "mn": "manipur",
+    "meghalaya": "meghalaya", "ml": "meghalaya",
+    "mizoram": "mizoram", "mz": "mizoram",
+    "nagaland": "nagaland", "nl": "nagaland",
+    "odisha": "odisha", "orissa": "odisha", "od": "odisha",
+    "punjab": "punjab", "pb": "punjab",
+    "rajasthan": "rajasthan", "rj": "rajasthan",
+    "sikkim": "sikkim", "sk": "sikkim",
+    "tamil nadu": "tamil nadu", "tn": "tamil nadu",
+    "telangana": "telangana", "tg": "telangana", "ts": "telangana",
+    "tripura": "tripura", "tr": "tripura",
+    "uttar pradesh": "uttar pradesh", "up": "uttar pradesh",
+    "uttarakhand": "uttarakhand", "uk": "uttarakhand", "ut": "uttarakhand",
+    "west bengal": "west bengal", "wb": "west bengal",
+    # Union Territories
+    "andaman and nicobar islands": "andaman and nicobar islands", "an": "andaman and nicobar islands",
+    "chandigarh": "chandigarh", "ch": "chandigarh",
+    "dadra and nagar haveli and daman and diu": "dadra and nagar haveli and daman and diu",
+    "dn": "dadra and nagar haveli and daman and diu", "dd": "dadra and nagar haveli and daman and diu",
+    "delhi": "delhi", "new delhi": "delhi", "dl": "delhi",
+    "jammu and kashmir": "jammu and kashmir", "jk": "jammu and kashmir",
+    "ladakh": "ladakh", "la": "ladakh",
+    "lakshadweep": "lakshadweep", "ld": "lakshadweep",
+    "puducherry": "puducherry", "pondicherry": "puducherry", "py": "puducherry",
+}
+
+
 def normalize_state(state_name: str) -> str:
-    """Standardize state names for more robust IGST detection."""
-    if not state_name: return "unknown"
-    s = state_name.lower().strip().replace(".", "").replace("&", "and")
-    # Common aliases
-    aliases = {
-        "wb": "west bengal", "up": "uttar pradesh", "mh": "maharashtra",
-        "ka": "karnataka", "tn": "tamil nadu", "dl": "delhi",
-        "hr": "haryana", "pb": "punjab", "ts": "telangana",
-        "ap": "andhra pradesh", "gj": "gujarat", "rj": "rajasthan"
-    }
-    return aliases.get(s, s)
+    """Standardize state names for robust IGST detection across aliases/abbreviations."""
+    if not state_name:
+        return "unknown"
+
+    s = str(state_name).lower().strip()
+    s = s.replace(".", "").replace("&", "and")
+    s = " ".join(s.split())
+    return INDIA_STATE_ALIASES.get(s, "unknown")
 
 
 # ─── PDF Generator (GST-Aware, Professional) ─────────────────────────
@@ -479,6 +688,59 @@ func_get_profile = lambda user_id: supabase.table("profiles").select(
 ).eq("id", user_id).limit(1).execute() if supabase else None
 
 
+def _validate_draft_required_fields(draft: dict) -> tuple[bool, list]:
+    """Validate core required fields for draft execution safety."""
+    draft_type = draft.get("type")
+    missing = []
+
+    if draft_type == "invoice_draft":
+        if not str(draft.get("customer_name", "")).strip():
+            missing.append("customer_name")
+        items = draft.get("items", [])
+        if not isinstance(items, list) or len(items) == 0:
+            missing.append("items")
+        else:
+            for idx, item in enumerate(items):
+                if not str(item.get("product_name", "")).strip():
+                    missing.append(f"items[{idx}].product_name")
+                try:
+                    qty = float(item.get("quantity", 0))
+                    if qty <= 0:
+                        missing.append(f"items[{idx}].quantity")
+                except (TypeError, ValueError):
+                    missing.append(f"items[{idx}].quantity")
+
+    elif draft_type == "customer_draft":
+        if not str(draft.get("name", "")).strip():
+            missing.append("name")
+
+    elif draft_type == "payment_draft":
+        if not str(draft.get("customer_name", "")).strip():
+            missing.append("customer_name")
+        try:
+            amount = abs(float(draft.get("amount", 0)))
+            if amount <= 0:
+                missing.append("amount")
+        except (TypeError, ValueError):
+            missing.append("amount")
+
+    elif draft_type == "restock_draft":
+        if not str(draft.get("product_name", "")).strip():
+            missing.append("product_name")
+        try:
+            qty = int(draft.get("quantity", 0))
+            if qty <= 0:
+                missing.append("quantity")
+        except (TypeError, ValueError):
+            missing.append("quantity")
+
+    elif draft_type == "product_draft":
+        if not str(draft.get("name", "")).strip():
+            missing.append("name")
+
+    return len(missing) == 0, missing
+
+
 async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]:
     """
     Executes a draft natively in Python by performing direct Supabase operations.
@@ -489,6 +751,10 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
         
     if str(user_id).startswith("telegram_"):
         return "❌ You must connect your account to save data. Go to your Web App Settings -> Telegram and link your account first!", None
+
+    is_valid_draft, missing_fields = _validate_draft_required_fields(draft)
+    if not is_valid_draft:
+        return f"❌ Draft incomplete. Missing required fields: {', '.join(missing_fields)}", None
     
     # --- SUBSCRIPTION ENFORCEMENT ---
     from subscription_service import TIER_LIMITS
@@ -511,8 +777,7 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
 
     elif draft_type == "invoice_draft":
         # Monthly Bill Count
-        from datetime import datetime
-        first_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        first_of_month = _ist_month_start_utc_iso()
         sales_res = supabase.table("sales").select("id", count="exact").eq("user_id", user_id).gte("created_at", first_of_month).execute()
         if sales_res.count >= limits["bills"]:
             return f"❌ Monthly Bill Limit reached! Your {tier.title()} plan allows {limits['bills']} bills per month. Please upgrade for more.", None
@@ -536,14 +801,23 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
         elif draft_type == "customer_draft":
             name = draft.get("name")
             if not name: return "❌ Missing customer name.", None
-            
-            supabase.table("customers").insert({
-                "user_id": user_id,
-                "name": name,
-                "phone": draft.get("phone", ""),
-                "address": draft.get("address", "")
+
+            # Atomic customer create to prevent duplicates during concurrent approvals.
+            customer_result = supabase.rpc("get_or_create_customer", {
+                "p_user_id": user_id,
+                "p_name": name,
+                "p_phone": draft.get("phone", ""),
+                "p_address": draft.get("address", ""),
+                "p_state": draft.get("state")
             }).execute()
-            return f"✅ Customer '{name}' saved successfully!", None
+
+            if customer_result and customer_result.data:
+                created = bool(customer_result.data[0].get("created", False))
+                if created:
+                    return f"✅ Customer '{name}' saved successfully!", None
+                return f"✅ Customer '{name}' already existed. Linked safely.", None
+
+            return "❌ Failed to save customer.", None
 
         elif draft_type == "restock_draft":
             name = draft.get("product_name")
@@ -605,20 +879,56 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             customer_state = "unknown"
             
             if customer_name and customer_name.lower() != "walk-in":
-                cust_res = supabase.table("customers").select("id, state").ilike("name", customer_name).eq("user_id", user_id).limit(1).execute()
-                if cust_res.data:
-                    customer_id = cust_res.data[0]["id"]
-                    customer_state = normalize_state(str(cust_res.data[0].get("state") or ""))
-                else:
-                    new_cust = supabase.table("customers").insert({"user_id": user_id, "name": customer_name}).execute()
-                    customer_id = new_cust.data[0]["id"] if new_cust.data else None
+                # Atomic get/create to avoid duplicate customers across concurrent flows.
+                customer_result = supabase.rpc("get_or_create_customer", {
+                    "p_user_id": user_id,
+                    "p_name": customer_name,
+                    "p_phone": draft.get("customer_phone"),
+                    "p_address": draft.get("customer_address"),
+                    "p_state": draft.get("customer_state")
+                }).execute()
 
-            # Automatic IGST detection (matching web app logic)
-            is_igst = draft.get("isOutOfState", False)
-            if not is_igst and customer_state != "unknown" and shop_state != "unknown":
-                if customer_state != shop_state:
+                if customer_result and customer_result.data:
+                    customer_id = customer_result.data[0].get("id")
+
+                if customer_id:
+                    cust_res = supabase.table("customers").select("state").eq("id", customer_id).limit(1).execute()
+                    if cust_res.data:
+                        customer_state = normalize_state(str(cust_res.data[0].get("state") or ""))
+
+            # Robust IGST detection with fallback rules and audit logs.
+            is_igst = bool(draft.get("isOutOfState", False))
+            if not is_igst:
+                if shop_state == "unknown" and customer_state == "unknown":
+                    logger.warning(
+                        f"[IGST] Both states unknown for customer '{customer_name}'. "
+                        "Using default intra-state tax unless explicitly set by draft."
+                    )
+                elif shop_state == "unknown" or customer_state == "unknown":
+                    logger.warning(
+                        f"[IGST] State uncertainty for customer '{customer_name}': "
+                        f"shop_state='{shop_state}', customer_state='{customer_state}'. "
+                        "Using default intra-state tax unless explicitly set by draft."
+                    )
+                elif customer_state != shop_state:
                     is_igst = True
-                    logger.info(f"DEBUG: Auto-detected Inter-State (IGST) for {customer_name}: {customer_state} vs {shop_state}")
+                    logger.info(
+                        f"[IGST] Auto-detected inter-state for '{customer_name}': "
+                        f"customer_state='{customer_state}', shop_state='{shop_state}'"
+                    )
+
+            logger.info(
+                "[IGST_AUDIT] %s",
+                json.dumps({
+                    "user_id": str(user_id),
+                    "customer_name": customer_name,
+                    "shop_state": shop_state,
+                    "customer_state": customer_state,
+                    "invoice_type": draft.get("invoice_type", "regular"),
+                    "draft_is_out_of_state": bool(draft.get("isOutOfState", False)),
+                    "final_is_igst": is_igst,
+                }, ensure_ascii=False)
+            )
 
             is_gst = (
                 draft.get("invoice_type") == "gst" 
@@ -681,9 +991,8 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
             balance_due = round(max(0, grand_total - amount_paid), 2)
 
             # ── 4. Get next bill number ──
-            count_res = supabase.table("sales").select("id", count="exact").eq("user_id", user_id).execute()
-            next_num = (count_res.count or 0) + 1
-            invoice_number = f"Bill-{next_num}"
+            # Avoid count+1 race by using timestamp-based unique invoice number.
+            invoice_number = f"Bill-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
 
             # ── 5. Insert sale header ──
             sale_res = supabase.table("sales").insert({
@@ -826,7 +1135,8 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     sub_service = SubscriptionService(supabase)
     
     if not await sub_service.check_limit(user_id, "ai_credits"):
-        await update.message.reply_text(
+        await _safe_reply_text(
+            update.message,
             "🤖 *AI limit reached!*\n\n"
             "You have used your 20 free AI credits for this month. 🚀 Upgrade to a paid plan for unlimited AI Power!",
             parse_mode="Markdown"
@@ -837,40 +1147,42 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         from dukansathi_ai.agent_graph import process_user_input
     except Exception as e:
         logger.error(f"❌ Failed to load AI module: {e}")
-        await update.message.reply_text("Sorry Boss, AI module is not available right now. Let me sleep!")
+        await _safe_reply_text(update.message, "Sorry Boss, AI module is not available right now. Let me sleep!")
         return
 
     user_token = get_user_token_for_chat(chat_id)
     text_lower = text.strip().lower()
+    recent_context = _get_recent_telegram_context(chat_id)
+    _store_telegram_turn(chat_id, user_token, "user", text, "text")
 
     # --- 1. Check Draft Approvals / IGST Toggle ---
     if text_lower in ["approve", "confirm", "yes", "ok", "done", "save", "ha", "haan"]:
-        if chat_id in PENDING_DRAFTS:
-            draft = PENDING_DRAFTS[chat_id]
-            del PENDING_DRAFTS[chat_id]
-            
-            await update.message.reply_text("⏳ Saving to database...")
-            result_msg, file_buffer = await execute_draft(user_token, draft)
-            
-            # Output format if a buffer was returned
-            if file_buffer:
-                # Dynamic filename based on draft type
-                ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
-                base_name = draft.get("customer_name") or draft.get("title") or "Document"
-                safe_name = base_name.replace(" ", "_").replace("/", "-")
-                
-                await update.message.reply_document(
-                    document=file_buffer,
-                    filename=f"{safe_name}{ext}",
-                    caption=result_msg
-                )
-            else:
-                await update.message.reply_text(result_msg)
-            
-            # Silently inform AI of the context
-            try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
-            except: pass
-            return
+        async with get_draft_lock(chat_id):
+            draft = PENDING_DRAFTS.pop(chat_id, None)
+            if draft:
+                await _safe_reply_text(update.message, "⏳ Saving to database...")
+                result_msg, file_buffer = await execute_draft(user_token, draft)
+
+                # Output format if a buffer was returned
+                if file_buffer:
+                    # Dynamic filename based on draft type
+                    ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
+                    base_name = draft.get("customer_name") or draft.get("title") or "Document"
+                    safe_name = base_name.replace(" ", "_").replace("/", "-")
+
+                    await update.message.reply_document(
+                        document=file_buffer,
+                        filename=f"{safe_name}{ext}",
+                        caption=_safe_caption(result_msg)
+                    )
+                else:
+                    await _safe_reply_text(update.message, result_msg)
+                _store_telegram_turn(chat_id, user_token, "assistant", result_msg, "action")
+
+                # Silently inform AI of the context
+                try: await process_user_input(text=f"User approved the draft. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
+                except: pass
+                return
 
     elif text_lower == "igst" and chat_id in PENDING_DRAFTS:
         # Toggle inter-state IGST on the pending invoice draft
@@ -880,24 +1192,36 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             PENDING_DRAFTS[chat_id] = draft
             status = "ON ✅" if draft["isOutOfState"] else "OFF ❌"
             draft_msg = format_draft_for_telegram(draft)
-            await update.message.reply_text(f"🔄 IGST toggled {status}\n\n{draft_msg}", parse_mode="Markdown")
+            await _safe_reply_text(update.message, f"🔄 IGST toggled {status}\n\n{draft_msg}", parse_mode="Markdown")
+            _store_telegram_turn(chat_id, user_token, "assistant", f"IGST toggled {status}", "action")
         else:
-            await update.message.reply_text("ℹ️ IGST toggle only works for invoice drafts.")
+            await _safe_reply_text(update.message, "ℹ️ IGST toggle only works for invoice drafts.")
+            _store_telegram_turn(chat_id, user_token, "assistant", "IGST toggle only works for invoice drafts.", "action")
         return
 
     elif text_lower in ["cancel", "no", "discard", "abort", "nahi"]:
         if chat_id in PENDING_DRAFTS:
             del PENDING_DRAFTS[chat_id]
-            await update.message.reply_text("❌ Draft discarded.")
+            await _safe_reply_text(update.message, "❌ Draft discarded.")
+            _store_telegram_turn(chat_id, user_token, "assistant", "Draft discarded.", "action")
             try: await process_user_input(text=f"User discarded the draft.", user_token=user_token, model="gemini-3.1-flash-lite-preview")
             except: pass
             return
 
     # --- 2. Standard AI Flow ---
     try:
+        ai_input = text
+        if recent_context:
+            ai_input = (
+                "Telegram recent conversation context:\n"
+                f"{recent_context}\n\n"
+                "Latest user message:\n"
+                f"{text}"
+            )
+
         # Call the SAME AI brain used by the web app
         ai_response = await process_user_input(
-            text=text,
+            text=ai_input,
             user_token=user_token,
             model="gemini-3.1-flash-lite-preview"  # Use cloud model for Telegram
         )
@@ -913,7 +1237,8 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
             draft = response_data.get("draft") or (response_data if response_data.get("type") else None)
             
             if display_text and display_text != "I've prepared a draft for you, Boss:":
-                await update.message.reply_text(display_text)
+                await _safe_reply_text(update.message, display_text)
+                _store_telegram_turn(chat_id, user_token, "assistant", display_text, "text")
             
             if draft:
                 PENDING_DRAFTS[chat_id] = draft
@@ -944,14 +1269,17 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
                 
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                await update.message.reply_text(
+                await _safe_reply_text(
+                    update.message,
                     draft_message,
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
+                _store_telegram_turn(chat_id, user_token, "assistant", f"Prepared draft: {draft.get('type', 'unknown')}", "draft")
         else:
             # Plain text response
-            await update.message.reply_text(ai_response)
+            await _safe_reply_text(update.message, ai_response)
+            _store_telegram_turn(chat_id, user_token, "assistant", ai_response, "text")
 
         # --- 3. Output Voice (TTS) ---
         # If the input was voice, or user requested it, respond with voice
@@ -988,7 +1316,8 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         logger.error(f"[TG] Error processing message: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        await update.message.reply_text("Sorry Boss, I'm having trouble right now. Please try again.")
+        await _safe_reply_text(update.message, "Sorry Boss, I'm having trouble right now. Please try again.")
+        _store_telegram_turn(chat_id, user_token, "assistant", "Sorry Boss, I'm having trouble right now. Please try again.", "error")
 
 
 # ─── Command Handlers ─────────────────────────────────────
@@ -1030,7 +1359,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         .eq("id", token_id) \
                         .execute()
                     
-                    await update.message.reply_text(
+                    await _safe_reply_text(
+                        update.message,
                         "🎉 *Connected successfully!*\n\n"
                         "Your Telegram is now securely linked to your Dukan Sathi account.\n"
                         "All your products, customers, and data are now accessible here!\n\n"
@@ -1039,14 +1369,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     return
                 else:
-                    await update.message.reply_text(
+                    await _safe_reply_text(
+                        update.message,
                         "❌ Link expired, invalid, or already used.\n"
                         "Please go to your Web App Settings and click 'Connect' again."
                     )
                     return
             except Exception as e:
                 logger.error(f"Error during deep link connect: {e}")
-                await update.message.reply_text("❌ Could not connect right now. Please try again.")
+                await _safe_reply_text(update.message, "❌ Could not connect right now. Please try again.")
                 return
 
     # -- Standard Welcome Flow (No Deep Link) --
@@ -1068,7 +1399,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
+    await _safe_reply_text(
+        update.message,
         welcome_text,
         parse_mode="Markdown",
         reply_markup=reply_markup
@@ -1090,7 +1422,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• \"kitna stock hai\"\n"
         "• 🎙️ _Voice message mein bolo kuch bhi!_"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await _safe_reply_text(update.message, help_text, parse_mode="Markdown")
 
 # ─── Message Handler ──────────────────────────────────────
 
@@ -1102,41 +1434,46 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.answer()
     
-    if chat_id not in PENDING_DRAFTS:
-        await query.edit_message_text("❌ No pending draft found. It may have expired.")
+    draft = PENDING_DRAFTS.get(chat_id)
+    if not draft and query.data in ["draft_approve", "draft_discard", "draft_igst_toggle", "draft_gst_toggle"]:
+        await _safe_edit_or_reply(query, "❌ No pending draft found. It may have expired.")
         return
-        
-    draft = PENDING_DRAFTS[chat_id]
     
     if query.data == "draft_approve":
-        del PENDING_DRAFTS[chat_id]
-        await query.edit_message_text("⏳ Saving to database...")
-        
-        result_msg, file_buffer = await execute_draft(user_token, draft)
-        
-        if file_buffer:
-            ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
-            base_name = draft.get("customer_name") or draft.get("title") or "Document"
-            safe_name = base_name.replace(" ", "_").replace("/", "-")
-            
-            await query.message.reply_document(
-                document=file_buffer,
-                filename=f"{safe_name}{ext}",
-                caption=result_msg
-            )
-            await query.edit_message_text(f"✅ Document generated: {safe_name}{ext}")
-        else:
-            await query.edit_message_text(result_msg)
-            
-        # Silently inform AI of the context
-        try: 
-            from dukansathi_ai.agent_graph import process_user_input
-            await process_user_input(text=f"User approved the draft via button. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
-        except: pass
+        async with get_draft_lock(chat_id):
+            draft = PENDING_DRAFTS.pop(chat_id, None)
+            if not draft:
+                await _safe_edit_or_reply(query, "❌ No pending draft found. It may have expired.")
+                return
+
+            await _safe_edit_or_reply(query, "⏳ Saving to database...")
+
+            result_msg, file_buffer = await execute_draft(user_token, draft)
+
+            if file_buffer:
+                ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
+                base_name = draft.get("customer_name") or draft.get("title") or "Document"
+                safe_name = base_name.replace(" ", "_").replace("/", "-")
+
+                await query.message.reply_document(
+                    document=file_buffer,
+                    filename=f"{safe_name}{ext}",
+                    caption=_safe_caption(result_msg)
+                )
+                await _safe_edit_or_reply(query, f"✅ Document generated: {safe_name}{ext}")
+            else:
+                await _safe_edit_or_reply(query, result_msg)
+
+            # Silently inform AI of the context
+            try:
+                from dukansathi_ai.agent_graph import process_user_input
+                await process_user_input(text=f"User approved the draft via button. System result: {result_msg}", user_token=user_token, model="gemini-3.1-flash-lite-preview")
+            except:
+                pass
 
     elif query.data == "draft_discard":
         del PENDING_DRAFTS[chat_id]
-        await query.edit_message_text("❌ Draft discarded.")
+        await _safe_edit_or_reply(query, "❌ Draft discarded.")
         try: 
             from dukansathi_ai.agent_graph import process_user_input
             await process_user_input(text=f"User discarded the draft via button.", user_token=user_token, model="gemini-3.1-flash-lite-preview")
@@ -1188,7 +1525,8 @@ async def update_draft_message(query, draft):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
+    await _safe_edit_or_reply(
+        query,
         draft_message,
         parse_mode="Markdown",
         reply_markup=reply_markup
@@ -1241,13 +1579,14 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_chat.send_action("typing")
         try:
             from voice_service import transcribe_audio
-            transcribed = await transcribe_audio(audio_bytes)
+            transcribed = await transcribe_audio(audio_bytes, mime_type=mime)
         except Exception as e:
             logger.warning(f"Voice/STT not available: {e}")
             transcribed = ""
 
         if not transcribed or not transcribed.strip():
-            await update.message.reply_text(
+            await _safe_reply_text(
+                update.message,
                 "🎙️ Sorry, I couldn't understand that audio. Please try again or type your message."
             )
             return
@@ -1255,7 +1594,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"[TG] Voice transcribed: '{transcribed[:80]}'")
 
         # Echo what was understood (helps non-tech users know it worked)
-        await update.message.reply_text(f"🎙️ _Suna:_ \"{transcribed}\"\n", parse_mode="Markdown")
+        await _safe_reply_text(update.message, f"🎙️ _Suna:_ \"{transcribed}\"\n", parse_mode="Markdown")
 
         # Reuse shared helper for checking drafts and calling AI
         await update.effective_chat.send_action("typing")
@@ -1263,7 +1602,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"[TG] Voice handling error: {e}")
-        await update.message.reply_text(
+        await _safe_reply_text(
+            update.message,
             "❌ Voice message process nahi ho paya. Please type karke try karein."
         )
 

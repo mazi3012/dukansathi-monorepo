@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react';
 
+/**
+ * Detect if running on iOS Safari (including PWA mode)
+ */
+const isIOS = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+};
+
+/**
+ * Detect if custom iOS PWA (via "Add to Home Screen")
+ */
+const isIOSPWA = () => {
+    return isIOS() && (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches);
+};
+
 export const usePWA = () => {
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
+    const [isIOSDevice, setIsIOSDevice] = useState(false);
+    const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
     useEffect(() => {
         const handleBeforeInstallPrompt = (e) => {
@@ -18,6 +34,9 @@ export const usePWA = () => {
             setIsInstalled(true);
             console.log("PWA was installed");
         };
+
+        // Detect iOS
+        setIsIOSDevice(isIOS());
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
@@ -36,10 +55,14 @@ export const usePWA = () => {
     const installApp = async () => {
         if (!installPrompt) {
             console.log("Install prompt not available");
+            // On iOS, show custom instructions
+            if (isIOSDevice) {
+                setShowIOSInstructions(true);
+            }
             return;
         }
 
-        // Show the prompt
+        // Show the prompt (Chromium-based browsers)
         installPrompt.prompt();
 
         // Wait for the user to respond to the prompt
@@ -51,8 +74,11 @@ export const usePWA = () => {
     };
 
     return {
-        isInstallable: !!installPrompt,
-        isInstalled,
-        installApp
+        isInstallable: !!installPrompt || isIOSDevice,
+        isInstalled: isInstalled || isIOSPWA(),
+        installApp,
+        isIOSDevice,
+        showIOSInstructions,
+        setShowIOSInstructions
     };
 };

@@ -132,7 +132,7 @@ IMAGE with table: "Product | CP | SP | Stock | HSN" rows → {"type":"bulk_produ
 [SQL RULES]
 - Postgres (cloud): ALWAYS filter by user_id='{user_id}'. LIMIT 50. Use ILIKE for name matching.
 - Revenue: SELECT SUM(total_amount) FROM sales WHERE user_id='{user_id}'
-- Today's revenue: SELECT SUM(total_amount) FROM sales WHERE user_id='{user_id}' AND created_at::date=CURRENT_DATE
+- Today's revenue (IST): SELECT SUM(total_amount) FROM sales WHERE user_id='{user_id}' AND DATE(created_at AT TIME ZONE 'Asia/Kolkata')=DATE(timezone('Asia/Kolkata', NOW()))
 - Profit: SELECT SUM((si.unit_price - p.cost_price)*si.quantity) FROM sale_items si JOIN products p ON si.product_id=p.id JOIN sales s ON si.sale_id=s.id WHERE s.user_id='{user_id}'
 - SQLite (local): TABLES→ products(id,name,selling_price,stock_quantity), customers(id,name,phone,credit_balance). LIMIT 20.
 

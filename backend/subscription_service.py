@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 import razorpay
 from supabase import Client
@@ -17,6 +17,14 @@ TIER_LIMITS = {
 }
 
 USAGE_TOKEN_SECRET = os.getenv("JWT_SECRET", "dukansathi_secret_key_change_me")
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _ist_month_start_utc_iso() -> str:
+    """Return current month start in IST, converted to UTC ISO for timestamptz comparisons."""
+    now_ist = datetime.now(IST)
+    month_start_ist = now_ist.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return month_start_ist.astimezone(timezone.utc).isoformat()
 
 class SubscriptionService:
     def __init__(self, supabase: Client):
@@ -39,7 +47,7 @@ class SubscriptionService:
             customer_count = cust_res.count if cust_res else 0
 
             # 3. Monthly Bill Count
-            first_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+            first_of_month = _ist_month_start_utc_iso()
             sales_res = self.supabase.table("sales").select("id", count="exact").eq("user_id", user_id).gte("created_at", first_of_month).execute()
             bill_count = sales_res.count if sales_res else 0
 

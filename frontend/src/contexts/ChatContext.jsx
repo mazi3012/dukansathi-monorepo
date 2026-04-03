@@ -44,6 +44,7 @@ export const ChatProvider = ({ children }) => {
 
     // Refs
     const mediaRecorderRef = useRef(null);
+    const mediaStreamRef = useRef(null);
     const audioChunksRef = useRef([]);
     const lastAudioRef = useRef(null);
     const audioContextRef = useRef(null);
@@ -395,6 +396,12 @@ export const ChatProvider = ({ children }) => {
         return () => {
             isMountedRef.current = false;
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+
+            if (mediaStreamRef.current) {
+                mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+                mediaStreamRef.current = null;
+            }
+
             const ws = wsRef.current;
             if (!ws) return;
             if (ws.readyState === WebSocket.OPEN) {
@@ -459,13 +466,39 @@ export const ChatProvider = ({ children }) => {
         unlockAudio();
 
         try {
+            if (typeof MediaRecorder === 'undefined') {
+                throw new Error('MediaRecorderUnsupported');
+            }
+
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                connectWebSocket();
+                await new Promise((resolve) => setTimeout(resolve, 700));
+                if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                    throw new Error('WebSocketNotReady');
+                }
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorderRef.current = new MediaRecorder(stream);
+            mediaStreamRef.current = stream;
+
+            const preferredMimeTypes = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4;codecs=mp4a.40.2',
+                'audio/mp4',
+                'audio/ogg;codecs=opus',
+                'audio/ogg'
+            ];
+            const selectedMimeType = preferredMimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+            mediaRecorderRef.current = selectedMimeType
+                ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+                : new MediaRecorder(stream);
             audioChunksRef.current = [];
 
             mediaRecorderRef.current.ondataavailable = (e) => audioChunksRef.current.push(e.data);
             mediaRecorderRef.current.onstop = () => {
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const recordedMimeType = mediaRecorderRef.current?.mimeType || selectedMimeType || 'audio/webm';
+                const blob = new Blob(audioChunksRef.current, { type: recordedMimeType });
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
                 reader.onloadend = async () => {
@@ -483,6 +516,7 @@ export const ChatProvider = ({ children }) => {
                             voice_rate: voiceSpeed,
                             model: model,
                             language: aiLanguage,
+                            content_type: recordedMimeType,
                         };
 
                         const attachment = pendingAttachmentRef.current;
@@ -496,8 +530,15 @@ export const ChatProvider = ({ children }) => {
                         }
                         wsRef.current.send(JSON.stringify(payload));
                         setPendingAttachment(null);
+                    } else {
+                        setMessages(prev => [...prev, { type: 'ai', text: 'Could not send voice. Connection dropped, please try again.', isError: true }]);
                     }
                 };
+
+                if (mediaStreamRef.current) {
+                    mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+                    mediaStreamRef.current = null;
+                }
             };
 
             mediaRecorderRef.current.start();
@@ -507,10 +548,19 @@ export const ChatProvider = ({ children }) => {
             isRecordingRef.current = false;
             setIsListening(false);
 
+            if (mediaStreamRef.current) {
+                mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+                mediaStreamRef.current = null;
+            }
+
             let errMsg = "Microphone access denied.";
             const isSecureContext = window.isSecureContext || (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
             if (!isSecureContext) {
                 errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost/127.0.0.1.";
+            } else if (e.message === 'MediaRecorderUnsupported') {
+                errMsg = "This browser does not support voice recording. Please update your browser or use Chrome/Safari latest version.";
+            } else if (e.message === 'WebSocketNotReady') {
+                errMsg = "Still reconnecting to server. Please try voice again in a moment.";
             } else if (e.name === 'NotAllowedError') {
                 errMsg = "Microphone permission blocked. Please enable it in browser settings.";
             } else if (e.name === 'NotFoundError') {
@@ -530,6 +580,11 @@ export const ChatProvider = ({ children }) => {
             mediaRecorderRef.current.stop();
             isRecordingRef.current = false;
             setIsListening(false);
+        }
+
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
         }
     };
 
