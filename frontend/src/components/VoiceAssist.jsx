@@ -66,10 +66,20 @@ const VoiceAssist = () => {
     }, []);
 
     const startListening = async () => {
+        // Check for secure context first
+        const isSecureContext = window.isSecureContext || (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        if (!isSecureContext) {
+            const errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost/127.0.0.1.";
+            setMessages(prev => [...prev, { type: 'ai', text: `❌ ${errMsg}` }]);
+            alert(errMsg);
+            return;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
             audioChunksRef.current = [];
+            setIsListening(true);
 
             mediaRecorderRef.current.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -90,7 +100,6 @@ const VoiceAssist = () => {
                             content: base64Audio,
                             ...settings
                         };
-                        console.log("📤 Sending Voice Payload:", { ...payload, content: "(base64 hidden)" }); // DEBUG LOG
                         ws.send(JSON.stringify(payload));
                         setMessages(prev => [...prev, { type: 'user-audio', text: '🎤 Processing...' }]);
                     }
@@ -98,18 +107,17 @@ const VoiceAssist = () => {
             };
 
             mediaRecorderRef.current.start();
-            setIsListening(true);
         } catch (err) {
             console.error("Mic access error:", err);
             setIsListening(false);
 
             let errMsg = "Please enable microphone access";
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-                errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost.";
-            } else if (err.name === 'NotAllowedError') {
-                errMsg = "Microphone permission blocked. Please enable it in browser settings.";
-            } else if (err.name === 'NotFoundError') {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errMsg = "Microphone permission blocked. Please enable it in browser settings and reload.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 errMsg = "No microphone detected on this device.";
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errMsg = "Microphone is already in use by another application.";
             }
 
             setMessages(prev => [...prev, { type: 'ai', text: `❌ ${errMsg}` }]);

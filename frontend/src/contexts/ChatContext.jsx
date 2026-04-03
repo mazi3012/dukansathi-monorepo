@@ -24,6 +24,10 @@ export const ChatProvider = ({ children }) => {
     const [pendingAttachment, setPendingAttachment] = useState(null);
     const pendingAttachmentRef = useRef(null);
 
+    // Permission State
+    const [micPermission, setMicPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
+    const [camPermission, setCamPermission] = useState('prompt');
+
     // Environment Detection
     const isMobile = () => {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -92,7 +96,48 @@ export const ChatProvider = ({ children }) => {
         if (audioContextRef.current.state === 'suspended') {
             audioContextRef.current.resume();
         }
+        // Force speech synthesis to "warm up"
+        if (window.speechSynthesis) {
+             window.speechSynthesis.getVoices();
+        }
     }, []);
+
+    const checkPermissions = useCallback(async () => {
+        if (!navigator.permissions || !navigator.permissions.query) return;
+
+        try {
+            const mic = await navigator.permissions.query({ name: 'microphone' });
+            setMicPermission(mic.state);
+            mic.onchange = () => setMicPermission(mic.state);
+
+            const cam = await navigator.permissions.query({ name: 'camera' });
+            setCamPermission(cam.state);
+            cam.onchange = () => setCamPermission(cam.state);
+        } catch (e) {
+            console.warn("Permissions API not fully supported:", e);
+        }
+    }, []);
+
+    const requestPermissions = useCallback(async () => {
+        unlockAudio();
+        try {
+            // Request both Audio and Video to show a combined prompt if possible
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            // Immediately stop the tracks after getting permission
+            stream.getTracks().forEach(track => track.stop());
+            setMicPermission('granted');
+            setCamPermission('granted');
+            return true;
+        } catch (e) {
+            console.error("Permission request failed:", e);
+            checkPermissions(); // Update status from actual state
+            return false;
+        }
+    }, [unlockAudio, checkPermissions]);
+
+    useEffect(() => {
+        checkPermissions();
+    }, [checkPermissions]);
 
     const playAudio = useCallback((base64Data) => {
         if (isMutedRef.current) return;
@@ -415,8 +460,9 @@ export const ChatProvider = ({ children }) => {
             setIsListening(false);
 
             let errMsg = "Microphone access denied.";
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-                errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost.";
+            const isSecureContext = window.isSecureContext || (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+            if (!isSecureContext) {
+                errMsg = "Microphone requires a secure context (HTTPS). Please use HTTPS or access via localhost/127.0.0.1.";
             } else if (e.name === 'NotAllowedError') {
                 errMsg = "Microphone permission blocked. Please enable it in browser settings.";
             } else if (e.name === 'NotFoundError') {
@@ -445,6 +491,7 @@ export const ChatProvider = ({ children }) => {
             isListening, isThinking, setMessages, voice, changeVoice,
             isMuted, toggleMute, unlockAudio, isPlaying, isConnected,
             model, pendingAttachment, setPendingAttachment,
+            micPermission, camPermission, checkPermissions, requestPermissions,
             sendImage: (file) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);

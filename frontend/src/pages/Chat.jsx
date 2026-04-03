@@ -175,7 +175,10 @@ const Chat = () => {
         isPlaying,
         isConnected,
         pendingAttachment,
-        setPendingAttachment
+        setPendingAttachment,
+        micPermission,
+        camPermission,
+        requestPermissions
     } = useChat();
     const { tier } = useSubscription();
     const [input, setInput] = useState('');
@@ -203,11 +206,11 @@ const Chat = () => {
             window.history.replaceState({}, document.title);
 
             // If the user's finger is still exactly on the push-to-talk button
-            if (window.__isMicHeld) {
+            if (window.__isMicHeld && micPermission === 'granted') {
                 startRecording();
             }
         }
-    }, [location.state, startRecording]);
+    }, [location.state, startRecording, micPermission]);
 
     // Note: BottomNav is hidden on /chat page (see MainLayout.jsx), so no nav-mic
     // global events are needed here. The in-page mic button handles everything.
@@ -1124,6 +1127,54 @@ const Chat = () => {
 
     return (
         <div className="absolute inset-0 flex flex-col bg-bg-main overflow-hidden z-50">
+            {/* Permission Guard Overlay */}
+            {(micPermission === 'denied' || camPermission === 'denied') && (
+                <div className="absolute inset-x-4 top-20 z-[60] p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-2xl flex flex-col items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
+                        <Lock size={20} />
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-sm font-bold text-red-500">Permissions Blocked</h3>
+                        <p className="text-xs text-text-muted mt-1 max-w-[240px]">
+                            Microphone or Camera access is blocked in your browser settings. Please enable them to use Voice Chat.
+                        </p>
+                    </div>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-xl hover:bg-red-600 transition-colors"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            )}
+
+            {/* Initial Setup / Prompt Overlay */}
+            {(micPermission === 'prompt' || camPermission === 'prompt') && (
+                <div className="absolute inset-0 z-[60] bg-bg-main/80 backdrop-blur-lg flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                    <div className="max-w-xs space-y-6">
+                        <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl shadow-indigo-500/20">
+                            <Sparkles size={40} className="text-white" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black text-text-main">Ready to Talk?</h2>
+                            <p className="text-sm text-text-muted">
+                                Dukan Sathi needs access to your <span className="font-bold text-indigo-500">Microphone</span> and <span className="font-bold text-indigo-500">Camera</span> to help you manage your store via voice commands.
+                            </p>
+                        </div>
+                        <button
+                            onClick={requestPermissions}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Mic size={20} />
+                            Enable Voice & Camera
+                        </button>
+                        <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-50">
+                            Safe & Secure • Local-First
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Ambient Glows */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
