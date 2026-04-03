@@ -33,22 +33,75 @@ const Onboarding = () => {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
 
-            if (!user) throw new Error("No user found");
+            if (!user) throw new Error("No user found. Please log in again.");
 
+            // Ensure id field matches user.id exactly
             const updates = {
                 id: user.id,
-                ...formData,
+                business_name: formData.business_name || null,
+                business_category: formData.business_category || 'kirana',
+                business_address: formData.business_address || null,
+                city: formData.city || null,
+                state_name: formData.state_name || null,
+                pincode: formData.pincode || null,
+                is_gst_registered: formData.is_gst_registered || false,
+                gstin: formData.gstin || null,
+                state_code: formData.state_code || null,
+                bank_name: formData.bank_name || null,
+                bank_account_no: formData.bank_account_no || null,
+                bank_ifsc: formData.bank_ifsc || null,
+                upi_id: formData.upi_id || null,
+                show_qr_on_invoice: formData.show_qr_on_invoice !== undefined ? formData.show_qr_on_invoice : true,
                 onboarding_completed: true,
-                updated_at: new Date(),
+                updated_at: new Date().toISOString(),
             };
 
-            const { error } = await supabase.from('profiles').upsert(updates);
-            if (error) throw error;
+            console.log("Updating profile with:", { user_id: user.id, ...updates });
+
+            const { error, data } = await supabase
+                .from('profiles')
+                .upsert(updates, { onConflict: 'id' });
+                
+            if (error) {
+                console.error("Supabase error:", error);
+                throw new Error(`Database error: ${error.message || error.code || 'Unknown error'}`);
+            }
+
+            console.log("Profile updated successfully:", data);
+            navigate('/');
+        } catch (error) {
+            console.error("Profile update error:", error);
+            alert(`Error updating profile: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSkipOnboarding = async () => {
+        try {
+            setLoading(true);
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) throw new Error("No user found");
+
+            // Mark onboarding as complete with minimal data
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({ 
+                    id: user.id,
+                    onboarding_completed: true,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+                
+            if (error) {
+                console.error("Skip error:", error);
+                throw new Error(`Could not skip: ${error.message}`);
+            }
 
             navigate('/');
         } catch (error) {
             console.error(error);
-            alert("Error updating profile!");
+            alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -133,14 +186,23 @@ const Onboarding = () => {
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={nextStep}
-                                    disabled={!formData.business_name}
-                                    className="w-full py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-20"
-                                >
-                                    Proceed to Location
-                                    <ChevronRight size={18} />
-                                </button>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleSkipOnboarding}
+                                        disabled={loading}
+                                        className="flex-1 py-5 border-2 border-slate-200 text-slate-600 rounded-[24px] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all"
+                                    >
+                                        Skip
+                                    </button>
+                                    <button
+                                        onClick={nextStep}
+                                        disabled={!formData.business_name}
+                                        className="flex-[2] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-20"
+                                    >
+                                        Proceed to Location
+                                        <ChevronRight size={18} />
+                                    </button>
+                                </div>
                             </motion.div>
                         )}
 
@@ -202,11 +264,18 @@ const Onboarding = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-4">
-                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2">
+                                <div className="flex gap-3">
+                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2 hover:border-slate-200 transition-all">
                                         <ChevronLeft size={16} /> Back
                                     </button>
-                                    <button onClick={nextStep} className="flex-[2] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                                    <button
+                                        onClick={handleSkipOnboarding}
+                                        disabled={loading}
+                                        className="flex-1 py-5 border-2 border-slate-200 text-slate-600 rounded-[24px] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all"
+                                    >
+                                        Skip
+                                    </button>
+                                    <button onClick={nextStep} className="flex-[1.5] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:bg-black transition-all">
                                         Tax Compliance <ChevronRight size={18} />
                                     </button>
                                 </div>
@@ -297,14 +366,21 @@ const Onboarding = () => {
                                     )}
                                 </div>
 
-                                <div className="flex gap-4">
-                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2">
+                                <div className="flex gap-3">
+                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2 hover:border-slate-200 transition-all">
                                         <ChevronLeft size={16} /> Back
+                                    </button>
+                                    <button
+                                        onClick={handleSkipOnboarding}
+                                        disabled={loading}
+                                        className="flex-1 py-5 border-2 border-slate-200 text-slate-600 rounded-[24px] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all"
+                                    >
+                                        Skip
                                     </button>
                                     <button
                                         onClick={nextStep}
                                         disabled={(formData.is_gst_registered && !formData.gstin) || gstinError}
-                                        className="flex-[2] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-20"
+                                        className="flex-[1.5] py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 disabled:opacity-20 hover:bg-black transition-all"
                                     >
                                         Payment Setup <ChevronRight size={18} />
                                     </button>
@@ -370,14 +446,21 @@ const Onboarding = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-4">
-                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2">
+                                <div className="flex gap-3">
+                                    <button onClick={prevStep} className="flex-1 py-5 border-2 border-slate-100 rounded-[24px] font-black uppercase tracking-widest text-[10px] text-slate-400 flex items-center justify-center gap-2 hover:border-slate-200 transition-all">
                                         <ChevronLeft size={16} /> Back
+                                    </button>
+                                    <button
+                                        onClick={handleSkipOnboarding}
+                                        disabled={loading}
+                                        className="flex-1 py-5 border-2 border-slate-200 text-slate-600 rounded-[24px] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all"
+                                    >
+                                        Skip for Now
                                     </button>
                                     <button
                                         onClick={handleUpdateProfile}
                                         disabled={loading}
-                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-indigo-500/40 hover:scale-105 transition-all"
+                                        className="flex-[1.5] py-5 bg-indigo-600 text-white rounded-[24px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-indigo-500/40 hover:scale-105 transition-all disabled:opacity-50"
                                     >
                                         {loading ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
                                         Launch My Shop
