@@ -154,11 +154,13 @@ class SubscriptionService:
         Lookup order:
         1. Find profile by razorpay_subscription_id (primary key match).
         2. If not found, use fallback_user_id from webhook notes.
+        3. If still not found, search for the subscription ID in the database.
         """
         try:
             user_id = None
             
             # 1. Primary lookup: by subscription ID
+            logger.info(f"[Update Sub] Looking up profile by subscription_id: {razorpay_subscription_id}")
             query = self.supabase.table("profiles") \
                 .select("id") \
                 .eq("razorpay_subscription_id", razorpay_subscription_id) \
@@ -166,16 +168,37 @@ class SubscriptionService:
             
             if query.data:
                 user_id = query.data[0]['id']
+                logger.info(f"[Update Sub] Found user {user_id} by subscription_id lookup")
             elif fallback_user_id:
                 # 2. Fallback: use user_id from Razorpay notes
-                logger.info(f"Using fallback user_id from notes: {fallback_user_id}")
+                logger.info(f"[Update Sub] Using fallback user_id from notes: {fallback_user_id}")
                 user_id = fallback_user_id
                 # Also save the subscription ID now so future lookups work
-                self.supabase.table("profiles").update({
-                    "razorpay_subscription_id": razorpay_subscription_id
-                }).eq("id", user_id).execute()
+                try:
+                    self.supabase.table("profiles").update({
+                        "razorpay_subscription_id": razorpay_subscription_id
+                    }).eq("id", user_id).execute()
+                    logger.info(f"[Update Sub] Saved subscription_id to profile {user_id}")
+                except Exception as e:
+                    logger.warning(f"[Update Sub] Failed to save subscription_id: {e}")
             else:
-                logger.warning(f"No user found for sub_id={razorpay_subscription_id}")
+                # 3. Last resort: Search all profiles for matching subscription_id (shouldn't happen)
+                logger.warning(f"[Update Sub] No fallback user_id, searching database for sub_id {razorpay_subscription_id}")
+                search_query = self.supabase.table("profiles") \
+                    .select("id") \
+                    .like("razorpay_subscription_id", f"%{razorpay_subscription_id}%") \
+                    .execute()
+                
+                if search_query.data:
+                    user_id = search_query.data[0]['id']
+                    logger.info(f"[Update Sub] Found user {user_id} by search")
+                else:
+                    logger.error(f"[Update Sub] Cannot identify user for subscription {razorpay_subscription_id}")
+                    return False
+            
+            # Validate tier
+            if tier and tier not in ["free", "starter", "pro", "ultra", "enterprise"]:
+                logger.error(f"[Update Sub] Invalid tier '{tier}' for user {user_id}")
                 return False
             
             update_data = {
@@ -185,19 +208,30 @@ class SubscriptionService:
             
             if tier:
                 update_data["subscription_tier"] = tier
+                logger.info(f"[Update Sub] Updating tier to: {tier}")
+            else:
+                logger.warning(f"[Update Sub] No tier provided, only updating status to: {status}")
             
             # On cancellation, downgrade to free tier
             if status == "cancelled":
                 update_data["subscription_tier"] = "free"
                 update_data["razorpay_subscription_id"] = None
+                logger.info(f"[Update Sub] Cancellation detected, downgrading to free")
             
-            self.supabase.table("profiles") \
+            result = self.supabase.table("profiles") \
                 .update(update_data) \
                 .eq("id", user_id) \
                 .execute()
             
-            logger.info(f"Updated profile {user_id}: status={status}, tier={tier}")
-            return True
+            if result.data:
+                logger.info(f"[Update Sub] Successfully updated profile {user_id}: status={status}, tier={tier}")
+                return True
+            else:
+                logger.error(f"[Update Sub] Update returned no data for user {user_id}")
+                return False
+                
         except Exception as e:
-            logger.error(f"Failed to update subscription: {e}")
+            logger.error(f"[Update Sub] Exception during subscription update: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False

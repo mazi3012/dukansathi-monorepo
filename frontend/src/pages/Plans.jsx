@@ -159,13 +159,14 @@ const Plans = () => {
                 description: `${plan.name} Subscription`,
                 image: '/logo.svg',
                 handler: async function (response) {
-                    const toastId = toast.loading(`Activating ${plan.name} plan...`, { duration: 15000 });
+                    const toastId = toast.loading(`Activating ${plan.name} plan...`, { duration: 30000 });
                     
                     // Poll until tier updates (webhook may take a few seconds)
                     let attempts = 0;
-                    const maxAttempts = 12; // 24 seconds total
+                    const maxAttempts = 30; // 60 seconds total (2s * 30)
                     const poll = async () => {
                         attempts++;
+                        console.log(`[Poll ${attempts}/${maxAttempts}] Checking subscription status...`);
                         try {
                             const { data: { session } } = await supabase.auth.getSession();
                             if (session) {
@@ -181,26 +182,28 @@ const Plans = () => {
                                 
                                 if (res.ok) {
                                     const d = await res.json();
+                                    console.log(`[Poll ${attempts}] Current tier: ${d.stats?.tier}, Target: ${plan.id}`);
                                     if (d.stats?.tier === plan.id) {
-                                        toast.success(`🎉 ${plan.name} plan activated!`, { id: toastId });
+                                        toast.success(`🎉 ${plan.name} plan activated! Welcome aboard.`, { id: toastId });
                                         await refreshSubscription();
                                         return;
                                     }
                                 }
                             }
                         } catch (err) {
-                            console.warn("Polling error:", err);
+                            console.warn(`[Poll ${attempts}] Error:`, err);
                         }
 
                         if (attempts < maxAttempts) {
                             setTimeout(poll, 2000); // 2s delay between attempts
                         } else {
-                            toast.success(`Payment done! Plan will activate shortly.`, { id: toastId });
+                            // After 60 seconds, assume success (webhook is processing)
+                            toast.success(`Payment successful! Your plan is being activated. If not updated in 5 minutes, contact support.`, { id: toastId });
                             await refreshSubscription();
                         }
                     };
                     
-                    // Start polling
+                    // Start polling after 1.5s to give webhook time to fire
                     setTimeout(poll, 1500);
                 },
                 prefill: {

@@ -683,16 +683,19 @@ async def razorpay_webhook(request: Request):
     signature = request.headers.get("X-Razorpay-Signature")
     
     if not sub_service.verify_webhook(raw_body, signature):
+        logger.error("[Webhook] Invalid signature - rejecting webhook")
         raise HTTPException(status_code=400, detail="Invalid signature")
     
     # Parse the already-read bytes
     import json as _json
     try:
         data = _json.loads(raw_body)
-    except Exception:
+    except Exception as e:
+        logger.error(f"[Webhook] JSON parse error: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
     event = data.get("event", "")
+    logger.info(f"[Webhook] Received event: {event}")
     
     # Safely extract subscription entity
     try:
@@ -703,9 +706,12 @@ async def razorpay_webhook(request: Request):
         notes     = sub_entity.get("notes", {}) or {}
         user_id_from_notes = notes.get("user_id", "")
         
-        logger.info(f"[Webhook] Event: {event}, SubID: {sub_id}, PlanID: {plan_id}, UserID: {user_id_from_notes}")
+        logger.info(f"[Webhook] SubID: {sub_id}, Status: {status}, PlanID: {plan_id}")
+        logger.info(f"[Webhook] Notes received: {notes}")
+        logger.info(f"[Webhook] User ID from notes: {user_id_from_notes or 'EMPTY'}")
     except (KeyError, TypeError) as e:
-        logger.error(f"[Webhook] Malformed payload error: {e}")
+        logger.error(f"[Webhook] Malformed payload: {e}")
+        logger.error(f"[Webhook] Full payload: {data}")
         return {"status": "ok"}
     
     # Plan-ID → Tier mapping (must match Plans.jsx rzpPlanId values)
@@ -717,29 +723,40 @@ async def razorpay_webhook(request: Request):
     tier = PLAN_TIER_MAP.get(plan_id)
     
     if not tier and event in ["subscription.authenticated", "subscription.activated", "subscription.charged"]:
-        logger.warning(f"[Webhook] Received event '{event}' for plan_id '{plan_id}' which is NOT in our mapping. Profile tier will not be updated!")
-
+        logger.error(f"[Webhook] Unknown plan_id '{plan_id}' for event '{event}'")
+        logger.error(f"[Webhook] Available mappings: {list(PLAN_TIER_MAP.keys())}")
+        # Still proceed with fallback, but tier will be None
+    
     # ── subscription.authenticated ────────────────────────────────────────
     # Fires immediately after user completes Razorpay checkout (mandate captured).
     if event == "subscription.authenticated":
-        logger.info(f"[Webhook] Authenticated — Updating profile {user_id_from_notes} to tier {tier}")
-        await sub_service.update_user_subscription(
+        logger.info(f"[Webhook] Authenticated event - tier: {tier}")
+        result = await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
         )
+        if not result:
+            logger.error(f"[Webhook] Failed to update subscription for {user_id_from_notes}")
+        return {"status": "ok"}
     
     # ── subscription.activated ────────────────────────────────────────────
     elif event == "subscription.activated":
-        logger.info(f"[Webhook] Activated — Updating profile to tier {tier}")
-        await sub_service.update_user_subscription(
+        logger.info(f"[Webhook] Activated event - tier: {tier}")
+        result = await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
         )
+        if not result:
+            logger.error(f"[Webhook] Failed to activate subscription for {user_id_from_notes}")
+        return {"status": "ok"}
     
     # ── subscription.charged ─────────────────────────────────────────────
     elif event == "subscription.charged":
-        logger.info(f"[Webhook] Charged — Updating profile to tier {tier}")
-        await sub_service.update_user_subscription(
+        logger.info(f"[Webhook] Charged event - tier: {tier}")
+        result = await sub_service.update_user_subscription(
             sub_id, "active", tier, fallback_user_id=user_id_from_notes
         )
+        if not result:
+            logger.error(f"[Webhook] Failed to process charge for {user_id_from_notes}")
+        return {"status": "ok"}
     
     else:
         logger.info(f"[Webhook] Unhandled event (ignored): {event}")
