@@ -50,6 +50,31 @@ const Forecast = () => {
     const [activeTab, setActiveTab] = useState('revenue');
     const [revenuePayload, setRevenuePayload] = useState(null);
     const [inventoryPayload, setInventoryPayload] = useState(null);
+    const [isDark, setIsDark] = useState(() => {
+        if (typeof document === 'undefined') return true;
+        return document.documentElement.getAttribute('data-theme') === 'dark' || 
+               (!document.documentElement.getAttribute('data-theme') && 
+                window.matchMedia('(prefers-color-scheme: dark)').matches);
+    });
+
+    // Listen for theme changes
+    useEffect(() => {
+        const handleThemeChange = () => {
+            const newIsDark = document.documentElement.getAttribute('data-theme') === 'dark' || 
+                            (!document.documentElement.getAttribute('data-theme') && 
+                            window.matchMedia('(prefers-color-scheme: dark)').matches);
+            setIsDark(newIsDark);
+        };
+        
+        const themeObserver = new MutationObserver(handleThemeChange);
+        themeObserver.observe(document.documentElement, { attributes: true });
+        window.addEventListener('theme-changed', handleThemeChange);
+        
+        return () => {
+            themeObserver.disconnect();
+            window.removeEventListener('theme-changed', handleThemeChange);
+        };
+    }, []);
 
     const fetchWithAuth = async (path, options = {}) => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -109,14 +134,19 @@ const Forecast = () => {
         const forecastHead = revenuePayload.forecast.slice(0, 30);
         const labels = [...historyTail.map((d) => compactDate(d.date)), ...forecastHead.map((d) => compactDate(d.date))];
 
+        // Theme-aware colors
+        const actualColor = isDark ? '#38bdf8' : '#0ea5e9';
+        const actualBgColor = isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(14, 165, 233, 0.1)';
+        const forecastColor = isDark ? '#fb923c' : '#f97316';
+
         return {
             labels,
             datasets: [
                 {
                     label: 'Actual',
                     data: [...historyTail.map((d) => d.revenue), ...new Array(forecastHead.length).fill(null)],
-                    borderColor: '#0ea5e9',
-                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                    borderColor: actualColor,
+                    backgroundColor: actualBgColor,
                     borderWidth: 2,
                     tension: 0.3,
                     pointRadius: 0,
@@ -124,7 +154,7 @@ const Forecast = () => {
                 {
                     label: 'Forecast',
                     data: [...new Array(historyTail.length).fill(null), ...forecastHead.map((d) => d.revenue)],
-                    borderColor: '#f97316',
+                    borderColor: forecastColor,
                     borderDash: [6, 4],
                     borderWidth: 2,
                     tension: 0.3,
@@ -132,11 +162,14 @@ const Forecast = () => {
                 },
             ],
         };
-    }, [revenuePayload]);
+    }, [revenuePayload, isDark]);
 
     const demandChart = useMemo(() => {
         if (!inventoryPayload) return null;
         const top = (inventoryPayload.top_demand_products || []).slice(0, 8);
+
+        // Theme-aware bar color
+        const barColor = isDark ? '#818cf8' : '#6366f1';
 
         return {
             labels: top.map((p) => p.name),
@@ -144,12 +177,12 @@ const Forecast = () => {
                 {
                     label: 'Expected Units (Next 7 Days)',
                     data: top.map((p) => p.forecast_next_7_units || 0),
-                    backgroundColor: '#6366f1',
+                    backgroundColor: barColor,
                     borderRadius: 10,
                 },
             ],
         };
-    }, [inventoryPayload]);
+    }, [inventoryPayload, isDark]);
 
     const revenueSummary = revenuePayload?.summary || {};
     const inventorySummary = inventoryPayload?.summary || {};
@@ -254,13 +287,33 @@ const Forecast = () => {
                                 options={{
                                     responsive: true,
                                     maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'bottom' } },
+                                    plugins: { 
+                                        legend: { 
+                                            position: 'bottom',
+                                            labels: {
+                                                color: isDark ? '#cbd5e1' : '#64748b',
+                                                font: { size: 12 }
+                                            }
+                                        } 
+                                    },
                                     scales: {
                                         y: {
+                                            grid: {
+                                                color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                                            },
                                             ticks: {
                                                 callback: (v) => `Rs ${Number(v).toLocaleString('en-IN')}`,
+                                                color: isDark ? '#cbd5e1' : '#64748b',
                                             },
                                         },
+                                        x: {
+                                            grid: {
+                                                color: isDark ? 'rgba(148, 163, 184, 0.05)' : 'rgba(100, 116, 139, 0.05)',
+                                            },
+                                            ticks: {
+                                                color: isDark ? '#cbd5e1' : '#64748b',
+                                            }
+                                        }
                                     },
                                 }}
                             />
@@ -311,9 +364,29 @@ const Forecast = () => {
                                 options={{
                                     responsive: true,
                                     maintainAspectRatio: false,
-                                    plugins: { legend: { display: false } },
+                                    plugins: { 
+                                        legend: { 
+                                            display: false 
+                                        } 
+                                    },
                                     scales: {
-                                        y: { beginAtZero: true },
+                                        y: { 
+                                            beginAtZero: true,
+                                            grid: {
+                                                color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                                            },
+                                            ticks: {
+                                                color: isDark ? '#cbd5e1' : '#64748b',
+                                            }
+                                        },
+                                        x: {
+                                            grid: {
+                                                color: isDark ? 'rgba(148, 163, 184, 0.05)' : 'rgba(100, 116, 139, 0.05)',
+                                            },
+                                            ticks: {
+                                                color: isDark ? '#cbd5e1' : '#64748b',
+                                            }
+                                        }
                                     },
                                 }}
                             />

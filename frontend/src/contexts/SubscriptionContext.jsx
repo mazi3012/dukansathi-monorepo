@@ -13,8 +13,22 @@ export const useSubscription = () => {
 };
 
 export const SubscriptionProvider = ({ children }) => {
-    const [subscription, setSubscription] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // Initialize from localStorage to prevent plan flicker
+    const [subscription, setSubscription] = useState(() => {
+        const cached = localStorage.getItem('ds_subscription_cache');
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (parsed.expiresAt && new Date(parsed.expiresAt) > new Date()) {
+                    console.log('✅ Loaded subscription from cache:', parsed.tier);
+                    return parsed.data;
+                }
+            } catch (_) { /* fallback to null */ }
+        }
+        return null;
+    });
+    
+    const [loading, setLoading] = useState(!subscription); // Only show loading if no cached data
     const [error, setError] = useState(null);
 
     const realtimeChannelRef = useRef(null);
@@ -22,7 +36,35 @@ export const SubscriptionProvider = ({ children }) => {
     const retryCountRef = useRef(0);       // exponential backoff counter
     const retryTimerRef = useRef(null);    // pending retry setTimeout
     const mountedRef = useRef(true);       // prevent state updates after unmount
+    const nextRefreshDayRef = useRef(null); // smart check only on renewal date
     const MAX_REALTIME_RETRIES = 3;        // give up after 3 failures, rely on polling
+
+    // Extract renewal date from cached token and calculate next refresh time
+    const getNextRefreshTime = useCallback(() => {
+        const cached = localStorage.getItem('ds_usage_token');
+        if (!cached) return Date.now(); // Refresh immediately if no cache
+        
+        try {
+            const parts = cached.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(atob(parts[1]));
+                // If token has renewal info, schedule refresh for that day
+                if (payload.renewal_date) {
+                    const renewalDate = new Date(payload.renewal_date);
+                    const now = new Date();
+                    
+                    // If renewal date is in future, schedule check for that day at midnight
+                    if (renewalDate > now) {
+                        renewalDate.setHours(0, 1, 0, 0); // Check 1 minute after midnight
+                        return renewalDate.getTime();
+                    }
+                }
+            }
+        } catch (_) { /* ignore */ }
+        
+        // Default: refresh every 24 hours
+        return Date.now() + (24 * 60 * 60 * 1000);
+    }, []);
 
     const fetchSubscription = useCallback(async () => {
         if (!mountedRef.current) return;
@@ -45,37 +87,40 @@ export const SubscriptionProvider = ({ children }) => {
 
             const data = await response.json();
             if (!mountedRef.current) return;
+            
+            // Cache subscription data with smart expiration
+            const cacheData = {
+                data: data.stats,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                cachedAt: new Date().toISOString()
+            };
+            localStorage.setItem('ds_subscription_cache', JSON.stringify(cacheData));
+            
             setSubscription(data.stats);
             setError(null);
 
+            // Update next refresh time based on token renewal date
             if (data.token) {
                 localStorage.setItem('ds_usage_token', data.token);
+                nextRefreshDayRef.current = getNextRefreshTime();
             }
         } catch (err) {
             if (!mountedRef.current) return;
             setError(err.message);
 
-            // Fallback: decode cached JWT for offline mode
-            const cached = localStorage.getItem('ds_usage_token');
+            // Fallback: use cached subscription if fetch fails
+            const cached = localStorage.getItem('ds_subscription_cache');
             if (cached) {
                 try {
-                    const parts = cached.split('.');
-                    if (parts.length === 3) {
-                        const payload = JSON.parse(atob(parts[1]));
-                        if (payload.tier && payload.usage && payload.limits) {
-                            setSubscription(prev => prev || {
-                                tier: payload.tier,
-                                usage: payload.usage,
-                                limits: payload.limits,
-                            });
-                        }
-                    }
+                    const parsed = JSON.parse(cached);
+                    setSubscription(parsed.data);
+                    console.log('⚠️ Using cached subscription due to fetch error');
                 } catch (_) { /* ignore */ }
             }
         } finally {
             if (mountedRef.current) setLoading(false);
         }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [getNextRefreshTime]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Teardown current Realtime channel cleanly
     const teardownChannel = useCallback(() => {
@@ -163,8 +208,35 @@ export const SubscriptionProvider = ({ children }) => {
         fetchSubscription();
         setupRealtimeSubscription();
 
-        // 5-minute polling as the primary fallback when Realtime gives up
-        refreshIntervalRef.current = setInterval(fetchSubscription, 5 * 60 * 1000);
+        // Smart polling: check on renewal date instead of every 5 minutes
+        const setupSmartRefresh = async () => {
+            nextRefreshDayRef.current = getNextRefreshTime();
+            
+            // Schedule next check based on renewal date
+            const scheduleNextCheck = () => {
+                if (!mountedRef.current) return;
+                
+                const now = Date.now();
+                const nextRefresh = nextRefreshDayRef.current || (now + 24 * 60 * 60 * 1000);
+                const delay = Math.max(0, nextRefresh - now);
+                
+                // Cap delay at 24 hours to ensure eventual refresh
+                const cappedDelay = Math.min(delay, 24 * 60 * 60 * 1000);
+                
+                console.log(`📅 Next subscription check scheduled in ${Math.round(cappedDelay / 1000 / 60)} minutes`);
+                
+                refreshIntervalRef.current = setTimeout(() => {
+                    if (mountedRef.current) {
+                        fetchSubscription();
+                        scheduleNextCheck(); // Reschedule after fetch
+                    }
+                }, cappedDelay);
+            };
+            
+            scheduleNextCheck();
+        };
+
+        setupSmartRefresh();
 
         const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN') {
@@ -174,8 +246,9 @@ export const SubscriptionProvider = ({ children }) => {
             } else if (event === 'SIGNED_OUT') {
                 setSubscription(null);
                 localStorage.removeItem('ds_usage_token');
+                localStorage.removeItem('ds_subscription_cache');
                 teardownChannel();
-                if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+                if (refreshIntervalRef.current) clearTimeout(refreshIntervalRef.current);
             }
         });
 
@@ -183,9 +256,9 @@ export const SubscriptionProvider = ({ children }) => {
             mountedRef.current = false;
             authSub.unsubscribe();
             teardownChannel();
-            if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+            if (refreshIntervalRef.current) clearTimeout(refreshIntervalRef.current);
         };
-    }, [fetchSubscription, setupRealtimeSubscription, teardownChannel]);
+    }, [fetchSubscription, setupRealtimeSubscription, teardownChannel, getNextRefreshTime]);
 
     const tier = subscription?.tier || 'free';
     const usage = subscription?.usage || { products: 0, customers: 0, bills: 0 };
