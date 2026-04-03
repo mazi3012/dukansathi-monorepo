@@ -211,10 +211,11 @@ async def build_inventory_stockout_forecast_response(
     user_id: str,
     lookback_days: int = 60,
 ) -> Dict:
-    """Forecast likely product stockout dates using recent sales velocity."""
+    """Forecast likely product stockout dates using recent sales velocity with demand insights."""
     days = max(14, min(int(lookback_days), 180))
     escaped_user_id = user_id.replace("'", "''")
 
+    # Main inventory query with weekly breakdown
     query = f"""
         SELECT
             p.id AS product_id,
@@ -227,7 +228,33 @@ async def build_inventory_stockout_forecast_response(
                     WHEN s.created_at >= NOW() - INTERVAL '{days} days' THEN si.quantity
                     ELSE 0
                 END
-            ), 0)::float8 AS sold_recent
+            ), 0)::float8 AS sold_recent,
+            COALESCE(SUM(
+                CASE
+                    WHEN s.created_at >= NOW() - INTERVAL '7 days' THEN si.quantity
+                    ELSE 0
+                END
+            ), 0)::float8 AS sold_this_week,
+            COALESCE(SUM(
+                CASE
+                    WHEN s.created_at >= NOW() - INTERVAL '14 days'
+                     AND s.created_at < NOW() - INTERVAL '7 days' THEN si.quantity
+                    ELSE 0
+                END
+            ), 0)::float8 AS sold_last_week,
+            COALESCE(SUM(
+                CASE
+                    WHEN s.created_at >= NOW() - INTERVAL '30 days' THEN si.quantity
+                    ELSE 0
+                END
+            ), 0)::float8 AS sold_this_month,
+            COALESCE(SUM(
+                CASE
+                    WHEN s.created_at >= NOW() - INTERVAL '60 days'
+                     AND s.created_at < NOW() - INTERVAL '30 days' THEN si.quantity
+                    ELSE 0
+                END
+            ), 0)::float8 AS sold_last_month
         FROM products p
         LEFT JOIN sale_items si
                ON si.product_id = p.id
@@ -251,7 +278,31 @@ async def build_inventory_stockout_forecast_response(
         stock = max(0.0, _safe_float(row.get("stock_quantity")))
         min_stock = max(0.0, _safe_float(row.get("min_stock_level"), 5.0))
         sold_recent = max(0.0, _safe_float(row.get("sold_recent")))
+        sold_this_week = max(0.0, _safe_float(row.get("sold_this_week", 0)))
+        sold_last_week = max(0.0, _safe_float(row.get("sold_last_week", 0)))
+        sold_this_month = max(0.0, _safe_float(row.get("sold_this_month", 0)))
+        sold_last_month = max(0.0, _safe_float(row.get("sold_last_month", 0)))
+
         avg_daily_units = sold_recent / days if days > 0 else 0.0
+
+        # Calculate percentage changes for demand insights
+        week_over_week_percent = 0.0
+        if sold_last_week > 0:
+            week_over_week_percent = ((sold_this_week - sold_last_week) / sold_last_week) * 100
+
+        month_over_month_percent = 0.0
+        if sold_last_month > 0:
+            month_over_month_percent = ((sold_this_month - sold_last_month) / sold_last_month) * 100
+
+        # Determine demand trend
+        if week_over_week_percent > 15:
+            demand_trend = "accelerating"
+        elif week_over_week_percent > 0:
+            demand_trend = "growing"
+        elif week_over_week_percent > -15:
+            demand_trend = "stable"
+        else:
+            demand_trend = "declining"
 
         days_to_stockout = None
         stockout_date = None
@@ -283,6 +334,13 @@ async def build_inventory_stockout_forecast_response(
             "current_stock": round(stock, 2),
             "min_stock_level": round(min_stock, 2),
             "sold_recent": round(sold_recent, 2),
+            "sold_this_week": round(sold_this_week, 2),
+            "sold_last_week": round(sold_last_week, 2),
+            "sold_this_month": round(sold_this_month, 2),
+            "sold_last_month": round(sold_last_month, 2),
+            "week_over_week_percent": round(week_over_week_percent, 1),
+            "month_over_month_percent": round(month_over_month_percent, 1),
+            "demand_trend": demand_trend,
             "avg_daily_units": round(avg_daily_units, 3),
             "days_to_stockout": days_to_stockout,
             "expected_stockout_date": stockout_date,

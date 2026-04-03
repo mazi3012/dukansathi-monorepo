@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, CalendarDays, Target, RefreshCw, AlertCircle, Package, Flame, BellRing } from 'lucide-react';
+import { TrendingUp, CalendarDays, Target, RefreshCw, AlertCircle, Package, Flame, BellRing, Zap, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { supabase } from '../lib/supabase';
+import DemandInsightsModal from '../components/DemandInsightsModal';
 
 ChartJS.register(
     CategoryScale,
@@ -56,6 +57,8 @@ const Forecast = () => {
                (!document.documentElement.getAttribute('data-theme') && 
                 window.matchMedia('(prefers-color-scheme: dark)').matches);
     });
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Listen for theme changes
     useEffect(() => {
@@ -168,8 +171,14 @@ const Forecast = () => {
         if (!inventoryPayload) return null;
         const top = (inventoryPayload.top_demand_products || []).slice(0, 8);
 
-        // Theme-aware bar color
-        const barColor = isDark ? '#818cf8' : '#6366f1';
+        // Theme-aware colors based on demand trend
+        const getBarColor = (trend) => {
+            if (trend === 'accelerating') return isDark ? '#ef4444' : '#dc2626';
+            if (trend === 'growing') return isDark ? '#fb923c' : '#f97316';
+            if (trend === 'stable') return isDark ? '#818cf8' : '#6366f1';
+            if (trend === 'declining') return isDark ? '#94a3b8' : '#64748b';
+            return isDark ? '#818cf8' : '#6366f1';
+        };
 
         return {
             labels: top.map((p) => p.name),
@@ -177,8 +186,9 @@ const Forecast = () => {
                 {
                     label: 'Expected Units (Next 7 Days)',
                     data: top.map((p) => p.forecast_next_7_units || 0),
-                    backgroundColor: barColor,
+                    backgroundColor: top.map((p) => getBarColor(p.demand_trend)),
                     borderRadius: 10,
+                    borderSkipped: false,
                 },
             ],
         };
@@ -355,45 +365,192 @@ const Forecast = () => {
             )}
 
             {activeTab === 'demand' && (
-                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
-                    <h2 className="text-lg font-bold text-text-main">Upcoming Product Demand (Next 7 Days)</h2>
-                    <div className="h-[340px]">
-                        {demandChart && (
-                            <Bar
-                                data={demandChart}
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { 
-                                        legend: { 
-                                            display: false 
-                                        } 
-                                    },
-                                    scales: {
-                                        y: { 
-                                            beginAtZero: true,
-                                            grid: {
-                                                color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)',
-                                            },
-                                            ticks: {
-                                                color: isDark ? '#cbd5e1' : '#64748b',
+                <div className="space-y-6">
+                    {/* Demand Insights Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {(() => {
+                            const top = (inventoryPayload?.top_demand_products || []).slice(0, 8);
+                            const accelerating = top.filter(p => p.demand_trend === 'accelerating').length;
+                            const growing = top.filter(p => p.demand_trend === 'growing').length;
+                            const declining = top.filter(p => p.demand_trend === 'declining').length;
+                            
+                            const avgWeekChange = top.length > 0 
+                                ? (top.reduce((sum, p) => sum + (p.week_over_week_percent || 0), 0) / top.length).toFixed(1)
+                                : 0;
+
+                            return (
+                                <>
+                                    <motion.div className="glass-card rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">Accelerating</p>
+                                                <p className="text-3xl font-black text-red-500">{accelerating}</p>
+                                            </div>
+                                            <Zap size={32} className="text-red-500/30" />
+                                        </div>
+                                    </motion.div>
+
+                                    <motion.div className="glass-card rounded-2xl border border-orange-500/30 bg-orange-500/5 p-5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">Growing</p>
+                                                <p className="text-3xl font-black text-orange-500">{growing}</p>
+                                            </div>
+                                            <TrendingUp size={32} className="text-orange-500/30" />
+                                        </div>
+                                    </motion.div>
+
+                                    <motion.div className="glass-card rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-2">Avg WoW Change</p>
+                                                <p className={`text-3xl font-black ${avgWeekChange > 0 ? 'text-orange-500' : 'text-blue-500'}`}>
+                                                    {avgWeekChange > 0 ? '+' : ''}{avgWeekChange}%
+                                                </p>
+                                            </div>
+                                            {avgWeekChange > 0 ? (
+                                                <ArrowUpRight size={32} className="text-orange-500/30" />
+                                            ) : (
+                                                <ArrowDownLeft size={32} className="text-blue-500/30" />
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                </>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Chart */}
+                    <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
+                        <h2 className="text-lg font-bold text-text-main">Upcoming Product Demand (Next 7 Days)</h2>
+                        <div className="h-[340px]">
+                            {demandChart && (
+                                <Bar
+                                    data={demandChart}
+                                    options={{
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        indexAxis: undefined,
+                                        onClick: (event, elements) => {
+                                            if (elements.length > 0) {
+                                                const index = elements[0].index;
+                                                const top = (inventoryPayload?.top_demand_products || []).slice(0, 8);
+                                                if (top[index]) {
+                                                    setSelectedProduct(top[index]);
+                                                    setIsModalOpen(true);
+                                                }
                                             }
                                         },
-                                        x: {
-                                            grid: {
-                                                color: isDark ? 'rgba(148, 163, 184, 0.05)' : 'rgba(100, 116, 139, 0.05)',
+                                        plugins: { 
+                                            legend: { 
+                                                display: false 
                                             },
-                                            ticks: {
-                                                color: isDark ? '#cbd5e1' : '#64748b',
+                                            tooltip: {
+                                                callbacks: {
+                                                    afterLabel: (context) => {
+                                                        const top = (inventoryPayload?.top_demand_products || []).slice(0, 8);
+                                                        const product = top[context.dataIndex];
+                                                        if (product) {
+                                                            return `WoW: ${product.week_over_week_percent > 0 ? '+' : ''}${product.week_over_week_percent.toFixed(1)}%`;
+                                                        }
+                                                        return '';
+                                                    }
+                                                }
                                             }
-                                        }
-                                    },
-                                }}
-                            />
-                        )}
+                                        },
+                                        scales: {
+                                            y: { 
+                                                beginAtZero: true,
+                                                grid: {
+                                                    color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                                                },
+                                                ticks: {
+                                                    color: isDark ? '#cbd5e1' : '#64748b',
+                                                }
+                                            },
+                                            x: {
+                                                grid: {
+                                                    color: isDark ? 'rgba(148, 163, 184, 0.05)' : 'rgba(100, 116, 139, 0.05)',
+                                                },
+                                                ticks: {
+                                                    color: isDark ? '#cbd5e1' : '#64748b',
+                                                }
+                                            }
+                                        },
+                                    }}
+                                />
+                            )}
+                        </div>
+                        <p className="text-xs text-text-muted text-center">Click on any bar to see detailed demand insights</p>
+                    </div>
+
+                    {/* Detailed Demand List */}
+                    <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-3">
+                        <h2 className="text-lg font-bold text-text-main mb-4">Top Demanding Products</h2>
+                        {(inventoryPayload?.top_demand_products || []).slice(0, 12).map((product, idx) => {
+                            const trendColor = {
+                                accelerating: 'text-red-500 bg-red-500/10',
+                                growing: 'text-orange-500 bg-orange-500/10',
+                                stable: 'text-cyan-500 bg-cyan-500/10',
+                                declining: 'text-slate-500 bg-slate-500/10',
+                            }[product.demand_trend] || 'text-indigo-500 bg-indigo-500/10';
+
+                            const percentColor = product.week_over_week_percent > 0 
+                                ? 'text-orange-500' 
+                                : product.week_over_week_percent < -15 
+                                ? 'text-blue-500' 
+                                : 'text-slate-500';
+
+                            return (
+                                <motion.button
+                                    key={product.product_id}
+                                    onClick={() => {
+                                        setSelectedProduct(product);
+                                        setIsModalOpen(true);
+                                    }}
+                                    whileHover={{ scale: 1.01 }}
+                                    className="w-full glass-card rounded-xl border border-card-border p-4 cursor-pointer hover:border-indigo-500/50 transition-all text-left group"
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <h3 className="font-bold text-text-main truncate">{idx + 1}. {product.name}</h3>
+                                                <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap ${trendColor}`}>
+                                                    {product.demand_trend}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                                                <span>This week: {Math.round(product.sold_this_week)} {product.unit}</span>
+                                                <span>•</span>
+                                                <span>Forecast: {Math.round(product.forecast_next_7_units)} {product.unit}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col items-end gap-2">
+                                            <div className={`text-xl font-black ${percentColor}`}>
+                                                {product.week_over_week_percent > 0 ? '+' : ''}{product.week_over_week_percent.toFixed(1)}%
+                                            </div>
+                                            <div className="text-[10px] font-bold uppercase text-text-muted">
+                                                WoW Change
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.button>
+                            );
+                        })}
                     </div>
                 </div>
             )}
+
+        {/* Demand Insights Modal */}
+        <DemandInsightsModal 
+            product={selectedProduct} 
+            isOpen={isModalOpen} 
+            onClose={() => {
+                setIsModalOpen(false);
+                setSelectedProduct(null);
+            }} 
+        />
         </div>
     );
 };
