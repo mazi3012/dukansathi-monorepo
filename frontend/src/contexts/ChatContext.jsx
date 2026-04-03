@@ -30,6 +30,7 @@ export const ChatProvider = ({ children }) => {
     const [camPermission, setCamPermission] = useState('prompt');
     const [isSecure, setIsSecure] = useState(true);
     const [hasExplicitlyDenied, setHasExplicitlyDenied] = useState(false);
+    const micPermissionVerifiedRef = useRef(null); // Track if permission was granted via getUserMedia (to prevent re-query on Firefox)
 
     // Environment Detection
     const isMobile = () => {
@@ -114,6 +115,13 @@ export const ChatProvider = ({ children }) => {
             window.location.hostname === '127.0.0.1';
         setIsSecure(isCurrentlySecure);
 
+        // CRITICAL FIX: Skip Permissions API query if we already verified permission via getUserMedia
+        // On Firefox/others, the Permissions API can return 'prompt' even after successful grant,
+        // causing the modal to re-appear. Once granted via getUserMedia, trust that state.
+        if (micPermissionVerifiedRef.current === 'granted') {
+            return; // Don't re-query, trust the verified grant
+        }
+
         if (!navigator.permissions || !navigator.permissions.query) return;
 
         try {
@@ -151,6 +159,7 @@ export const ChatProvider = ({ children }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
             setMicPermission('granted');
+            micPermissionVerifiedRef.current = 'granted'; // CRITICAL: Mark as verified to prevent re-query on Firefox
             setHasExplicitlyDenied(false); // Reset error state on success
             return true;
         } catch (e) {
@@ -159,6 +168,7 @@ export const ChatProvider = ({ children }) => {
             if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError' || e.name === 'SecurityError') {
                 setMicPermission('denied');
                 setHasExplicitlyDenied(true); // Flag that user actually clicked "Block"
+                micPermissionVerifiedRef.current = 'denied'; // Mark verified denial
             } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
                 // No mic found - alert or handle separately
                 console.warn("No device found");
