@@ -117,7 +117,7 @@
           "local_sales - Offline invoice tracking",
           "local_payments - Offline payment records"
         ],
-        "purpose": "Edge-first caching for PWA offline support",
+        "note": "Edge-first caching for PWA offline support",
         "status": "Working"
       },
       {
@@ -655,7 +655,7 @@
           "igst_percent", "igst_amount",
           "total_price"
         ],
-        "purpose": "Detailed GST reporting per item"
+        "note": "Detailed GST reporting per item"
       },
       {
         "name": "draft_invoices",
@@ -1829,7 +1829,7 @@
         "message_format": {
           "type": "action",
           "draft_type": "invoice_draft",
-          "draft_data": {...}
+          "draft_data": {"example": "payload"}
         }
       },
       {

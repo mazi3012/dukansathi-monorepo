@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 import { syncEngine } from '../lib/db/syncEngine';
 
 export const ChatContext = createContext();
@@ -352,7 +353,6 @@ export const ChatProvider = ({ children }) => {
 
     useEffect(() => {
         const initChat = async () => {
-            const { supabase } = await import('../lib/supabase');
             const { data: { session } } = await supabase.auth.getSession();
 
             if (session?.user?.id) {
@@ -433,12 +433,17 @@ export const ChatProvider = ({ children }) => {
         }
 
         setIsThinking(true);
-        const { supabase } = await import('../lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
+
+        const asksStructuredReport = /\b(pdf|sheet|excel|spreadsheet|csv)\b/i.test(text || '')
+            && /\b(report|sales|inventory|customers|summary|list)\b/i.test(text || '');
+        const enrichedText = asksStructuredReport
+            ? `${text}\n\nPlease return this as a report_draft with title, headers, rows, and summary so I can export it as PDF or Sheet.`
+            : text;
 
         const payload = {
             type: 'text',
-            content: text,
+            content: enrichedText,
             user_id: session?.user?.id || 'anon',
             access_token: session?.access_token,
             voice_id: voice,
@@ -504,7 +509,6 @@ export const ChatProvider = ({ children }) => {
                 reader.onloadend = async () => {
                     const base64 = reader.result.split(',')[1];
                     if (wsRef.current?.readyState === WebSocket.OPEN) {
-                        const { supabase } = await import('../lib/supabase');
                         const { data: { session } } = await supabase.auth.getSession();
 
                         const payload = {

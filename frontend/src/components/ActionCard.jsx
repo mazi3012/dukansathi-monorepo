@@ -1285,17 +1285,32 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
     // 7. REPORT DRAFT CARD (Large lists/tables)
     if (type === 'report_draft') {
         const { title, headers, rows, summary } = localData;
+        const safeTitle = String(title || 'report').trim();
+        const safeHeaders = Array.isArray(headers) ? headers : [];
+        const safeRows = Array.isArray(rows) ? rows : [];
+
+        const csvEscape = (value) => {
+            const text = String(value ?? '');
+            if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+                return `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+        };
+
+        const getCsvContent = () => {
+            const csvHeader = safeHeaders.map(csvEscape).join(',') + '\n';
+            const csvRows = safeRows.map((row) => (Array.isArray(row) ? row : [row]).map(csvEscape).join(',')).join('\n');
+            return csvHeader + csvRows;
+        };
 
         const handleDownloadCSV = () => {
             try {
-                const csvHeader = headers.join(',') + '\n';
-                const csvRows = rows.map(row => row.join(',')).join('\n');
-                const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
+                const blob = new Blob([getCsvContent()], { type: 'text/csv;charset=utf-8' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.setAttribute('hidden', '');
                 a.setAttribute('href', url);
-                a.setAttribute('download', `${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.csv`);
+                a.setAttribute('download', `${safeTitle.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.csv`);
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1304,12 +1319,58 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             }
         };
 
+        const handleDownloadSheet = () => {
+            try {
+                // Excel opens CSV cleanly and this gives a spreadsheet-friendly file directly.
+                const blob = new Blob(["\ufeff" + getCsvContent()], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.setAttribute('hidden', '');
+                a.setAttribute('href', url);
+                a.setAttribute('download', `${safeTitle.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.xls`);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } catch (err) {
+                console.error('Sheet Download failed:', err);
+            }
+        };
+
+        const handleDownloadPDF = async () => {
+            try {
+                const { jsPDF } = await import('jspdf');
+                const autoTable = (await import('jspdf-autotable')).default;
+                const doc = new jsPDF({ orientation: 'landscape' });
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.text(safeTitle || 'Report', 14, 16);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text(summary || '', 14, 24, { maxWidth: 260 });
+
+                autoTable(doc, {
+                    startY: 32,
+                    head: [safeHeaders],
+                    body: safeRows.map((r) => (Array.isArray(r) ? r : [r]).map((c) => (c === null || c === undefined ? '-' : String(c)))),
+                    theme: 'striped',
+                    headStyles: { fillColor: [79, 70, 229] },
+                    styles: { fontSize: 9 },
+                });
+
+                doc.save(`${safeTitle.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.pdf`);
+            } catch (err) {
+                console.error('PDF Download failed:', err);
+            }
+        };
+
         const handleShare = async () => {
-            const shareText = `${title}\n${summary}\n\n${headers.join(' | ')}\n${rows.slice(0, 5).map(r => r.join(' | ')).join('\n')}${rows.length > 5 ? '\n...and more' : ''}`;
+            const previewRows = safeRows.slice(0, 5).map((r) => (Array.isArray(r) ? r : [r]).join(' | ')).join('\n');
+            const shareText = `${safeTitle}\n${summary || ''}\n\n${safeHeaders.join(' | ')}\n${previewRows}${safeRows.length > 5 ? '\n...and more' : ''}`;
             if (navigator.share) {
                 try {
                     await navigator.share({
-                        title: title,
+                        title: safeTitle,
                         text: shareText,
                         url: window.location.href
                     });
@@ -1358,7 +1419,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-bg-main/50 border-b border-card-border/50">
-                                    {headers.map((h, i) => (
+                                    {safeHeaders.map((h, i) => (
                                         <th key={i} className="px-5 py-3 text-[10px] font-black text-text-muted uppercase tracking-widest whitespace-nowrap">
                                             {h}
                                         </th>
@@ -1366,9 +1427,9 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((row, i) => (
+                                {safeRows.map((row, i) => (
                                     <tr key={i} className="border-b border-card-border/10 hover:bg-indigo-500/5 transition-colors">
-                                        {row.map((cell, j) => (
+                                        {(Array.isArray(row) ? row : [row]).map((cell, j) => (
                                             <td key={j} className="px-5 py-3.5 text-sm font-medium text-text-main whitespace-nowrap">
                                                 {cell === null || cell === undefined ? '-' : String(cell)}
                                             </td>
@@ -1386,6 +1447,18 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                             className="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
                         >
                             <Download size={16} /> Download CSV
+                        </button>
+                        <button
+                            onClick={handleDownloadSheet}
+                            className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Download size={16} /> Download Sheet
+                        </button>
+                        <button
+                            onClick={handleDownloadPDF}
+                            className="flex-1 py-3 px-4 bg-orange-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-orange-600 shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Download size={16} /> Download PDF
                         </button>
                         <button
                             onClick={handleShare}

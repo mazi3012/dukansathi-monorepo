@@ -204,3 +204,117 @@ async def build_forecast_response(supabase, user_id: str, lookback_days: int = 1
         "summary": model_output["summary"],
         "model_info": model_output["model_info"],
     }
+
+
+async def build_inventory_stockout_forecast_response(
+    supabase,
+    user_id: str,
+    lookback_days: int = 60,
+) -> Dict:
+    """Forecast likely product stockout dates using recent sales velocity."""
+    days = max(14, min(int(lookback_days), 180))
+    escaped_user_id = user_id.replace("'", "''")
+
+    query = f"""
+        SELECT
+            p.id AS product_id,
+            p.name,
+            COALESCE(p.stock_quantity, 0)::float8 AS stock_quantity,
+            COALESCE(p.min_stock_level, 5)::float8 AS min_stock_level,
+            COALESCE(p.unit, 'pcs') AS unit,
+            COALESCE(SUM(
+                CASE
+                    WHEN s.created_at >= NOW() - INTERVAL '{days} days' THEN si.quantity
+                    ELSE 0
+                END
+            ), 0)::float8 AS sold_recent
+        FROM products p
+        LEFT JOIN sale_items si
+               ON si.product_id = p.id
+              AND si.user_id = p.user_id
+        LEFT JOIN sales s
+               ON s.id = si.sale_id
+              AND s.user_id = p.user_id
+        WHERE p.user_id = '{escaped_user_id}'
+        GROUP BY p.id, p.name, p.stock_quantity, p.min_stock_level, p.unit
+        ORDER BY sold_recent DESC, p.name ASC
+    """
+
+    result = supabase.rpc("exec_sql_secure", {"p_query": query, "p_user_id": user_id}).execute()
+    rows = result.data if result and result.data else []
+
+    today = datetime.now(IST).date()
+    products = []
+    critical_products = []
+
+    for row in rows:
+        stock = max(0.0, _safe_float(row.get("stock_quantity")))
+        min_stock = max(0.0, _safe_float(row.get("min_stock_level"), 5.0))
+        sold_recent = max(0.0, _safe_float(row.get("sold_recent")))
+        avg_daily_units = sold_recent / days if days > 0 else 0.0
+
+        days_to_stockout = None
+        stockout_date = None
+        if avg_daily_units > 0:
+            days_to_stockout = round(stock / avg_daily_units, 1)
+            stockout_date = (today + timedelta(days=max(0, int(days_to_stockout)))).isoformat()
+
+        if stock <= 0:
+            risk_level = "out"
+        elif days_to_stockout is not None and days_to_stockout <= 7:
+            risk_level = "critical"
+        elif days_to_stockout is not None and days_to_stockout <= 14:
+            risk_level = "high"
+        elif days_to_stockout is not None and days_to_stockout <= 30:
+            risk_level = "medium"
+        elif stock <= min_stock:
+            risk_level = "watch"
+        else:
+            risk_level = "healthy"
+
+        buffer_days = 14
+        reorder_target = max(min_stock, avg_daily_units * buffer_days)
+        recommended_reorder_qty = max(0.0, round(reorder_target - stock, 2))
+
+        item = {
+            "product_id": row.get("product_id"),
+            "name": row.get("name") or "Unnamed Product",
+            "unit": row.get("unit") or "pcs",
+            "current_stock": round(stock, 2),
+            "min_stock_level": round(min_stock, 2),
+            "sold_recent": round(sold_recent, 2),
+            "avg_daily_units": round(avg_daily_units, 3),
+            "days_to_stockout": days_to_stockout,
+            "expected_stockout_date": stockout_date,
+            "recommended_reorder_qty": recommended_reorder_qty,
+            "forecast_next_7_units": round(avg_daily_units * 7, 2),
+            "forecast_next_30_units": round(avg_daily_units * 30, 2),
+            "risk_level": risk_level,
+        }
+        products.append(item)
+
+        if risk_level in {"out", "critical", "high"}:
+            critical_products.append(item)
+
+    products_sorted = sorted(
+        products,
+        key=lambda p: (
+            {"out": 0, "critical": 1, "high": 2, "medium": 3, "watch": 4, "healthy": 5}.get(p["risk_level"], 9),
+            p["days_to_stockout"] if p["days_to_stockout"] is not None else 99999,
+        ),
+    )
+    top_demand = sorted(products, key=lambda p: p["sold_recent"], reverse=True)[:15]
+
+    return {
+        "timezone": "Asia/Kolkata",
+        "generated_at": datetime.now(IST).isoformat(),
+        "lookback_days": days,
+        "summary": {
+            "total_products": len(products),
+            "at_risk_count": len([p for p in products if p["risk_level"] in {"out", "critical", "high", "medium"}]),
+            "critical_count": len([p for p in products if p["risk_level"] in {"out", "critical", "high"}]),
+        },
+        "products": products_sorted,
+        "critical_products": critical_products,
+        "top_demand_products": top_demand,
+    }

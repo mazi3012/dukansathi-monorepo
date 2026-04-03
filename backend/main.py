@@ -165,7 +165,8 @@ ALLOWED_ORIGINS = [
 # Subscription Service
 from subscription_service import SubscriptionService
 sub_service = SubscriptionService(supabase)
-from forecast_service import build_forecast_response
+from forecast_service import build_forecast_response, build_inventory_stockout_forecast_response
+from notifications_service import generate_inventory_risk_notifications
 
 # Also allow any Cloud Run preview/service URL
 cloud_run_url = os.getenv("CLOUD_RUN_URL", "")
@@ -487,6 +488,10 @@ class TTSRequest(BaseModel):
     voice_id: str
     rate: str = "+0%"
 
+
+class NotificationReadRequest(BaseModel):
+    notification_id: int
+
 @app.post("/api/tts-preview")
 async def tts_preview(request: TTSRequest, user_id: str = Depends(verify_local_auth)):
     """
@@ -562,6 +567,113 @@ async def get_forecast(
     except Exception as e:
         logger.error(f"Forecast generation failed for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate forecast")
+
+
+@app.get("/api/inventory-forecast")
+async def get_inventory_forecast(
+    lookback_days: int = 60,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Return product-wise demand velocity and stockout risk forecast."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    if lookback_days < 14 or lookback_days > 180:
+        raise HTTPException(status_code=400, detail="lookback_days must be between 14 and 180")
+
+    try:
+        return await build_inventory_stockout_forecast_response(
+            supabase=supabase,
+            user_id=user_id,
+            lookback_days=lookback_days,
+        )
+    except Exception as e:
+        logger.error(f"Inventory forecast failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate inventory forecast")
+
+
+@app.post("/api/notifications/generate")
+async def generate_notifications(
+    lookback_days: int = 60,
+    risk_days_threshold: int = 14,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Generate fresh notifications (currently stockout-risk alerts)."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    if lookback_days < 14 or lookback_days > 180:
+        raise HTTPException(status_code=400, detail="lookback_days must be between 14 and 180")
+    if risk_days_threshold < 1 or risk_days_threshold > 45:
+        raise HTTPException(status_code=400, detail="risk_days_threshold must be between 1 and 45")
+
+    try:
+        result = await generate_inventory_risk_notifications(
+            supabase=supabase,
+            user_id=user_id,
+            lookback_days=lookback_days,
+            risk_days_threshold=risk_days_threshold,
+        )
+        return {
+            "status": "ok",
+            "generated": result.get("created", 0),
+            "skipped": result.get("skipped", 0),
+        }
+    except Exception as e:
+        logger.error(f"Notification generation failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate notifications")
+
+
+@app.get("/api/notifications")
+async def list_notifications(
+    unread_only: bool = False,
+    limit: int = 20,
+    user_id: str = Depends(verify_local_auth)
+):
+    """List user notifications for in-app notification center."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    limit = max(1, min(limit, 100))
+    query = supabase.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+    if unread_only:
+        query = query.eq("is_read", False)
+
+    result = query.execute()
+    rows = result.data if result and result.data else []
+    unread_count = supabase.table("notifications").select("id", count="exact").eq("user_id", user_id).eq("is_read", False).execute().count or 0
+
+    return {
+        "notifications": rows,
+        "unread_count": unread_count,
+    }
+
+
+@app.post("/api/notifications/mark-read")
+async def mark_notification_read(
+    body: NotificationReadRequest,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Mark a single notification as read."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    update_res = (
+        supabase.table("notifications")
+        .update({"is_read": True, "read_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", body.notification_id)
+        .eq("user_id", user_id)
+        .select("id")
+        .execute()
+    )
+    if not update_res:
+        raise HTTPException(status_code=500, detail="Failed to mark notification as read")
+
+    updated_rows = update_res.data if hasattr(update_res, "data") else None
+    if not updated_rows:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return {"status": "ok"}
 
 @app.post("/api/subscription/webhook")
 async def razorpay_webhook(request: Request):

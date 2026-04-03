@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
-import { MessageSquare, Menu, CreditCard, Sparkles } from 'lucide-react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Menu, CreditCard, Sparkles, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -16,11 +16,13 @@ const MainLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tier } = useSubscription();
-    const [isListening, setIsListening] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isNotifOpen, setIsNotifOpen] = useState(false);
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
@@ -83,10 +85,57 @@ const MainLayout = () => {
         }
     };
 
-    const toggleListening = () => {
-        setIsListening(false); // We can rely on the Chat page to handle actual listening
-        navigate('/chat', { state: { autoStartRecord: true } });
+    const fetchNotifications = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) return;
+
+            const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+            const res = await fetch(`${apiUrl}/api/notifications?limit=20`, {
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+            });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            setNotifications(data.notifications || []);
+            setUnreadCount(data.unread_count || 0);
+        } catch (err) {
+            console.error('Failed to fetch notifications:', err);
+        }
     };
+
+    const markNotificationRead = async (notificationId) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) return;
+
+            const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+            await fetch(`${apiUrl}/api/notifications/mark-read`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ notification_id: notificationId }),
+            });
+
+            setNotifications((prev) => prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)));
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (err) {
+            console.error('Failed to mark notification as read:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (!user) return;
+        fetchNotifications();
+        const timer = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(timer);
+    }, [user]);
 
     if (loading) {
         return (
@@ -145,7 +194,48 @@ const MainLayout = () => {
                     </div>
 
                     {/* Right Side Actions: Plan & Upgrade */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 relative">
+                        <button
+                            onClick={() => setIsNotifOpen((v) => !v)}
+                            className="relative w-10 h-10 rounded-full border border-card-border bg-card-bg/50 text-text-muted hover:text-indigo-500 transition-colors flex items-center justify-center"
+                            aria-label="Open notifications"
+                        >
+                            <Bell size={18} />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+
+                        {isNotifOpen && (
+                            <div className="absolute right-0 top-12 w-[320px] max-h-[420px] overflow-y-auto glass-card border border-card-border rounded-2xl shadow-2xl p-2 z-50">
+                                <div className="px-2 py-2 border-b border-card-border/50 flex items-center justify-between">
+                                    <p className="text-sm font-bold text-text-main">Notifications</p>
+                                    <p className="text-xs text-text-muted">{unreadCount} unread</p>
+                                </div>
+                                {(notifications || []).length === 0 ? (
+                                    <p className="text-sm text-text-muted p-3">No notifications yet.</p>
+                                ) : (
+                                    <div className="space-y-1 pt-1">
+                                        {notifications.map((n) => (
+                                            <button
+                                                key={n.id}
+                                                onClick={() => {
+                                                    if (!n.is_read) markNotificationRead(n.id);
+                                                }}
+                                                className={`w-full text-left p-3 rounded-xl border transition-colors ${n.is_read ? 'border-card-border/30 bg-card-bg/30' : 'border-indigo-500/30 bg-indigo-500/10'}`}
+                                            >
+                                                <p className="text-xs font-black uppercase tracking-wider text-text-muted">{n.type}</p>
+                                                <p className="text-sm font-semibold text-text-main mt-1">{n.title}</p>
+                                                <p className="text-xs text-text-muted mt-1">{n.message}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Plan Badge */}
                         <div 
                             onClick={() => navigate('/plans')}

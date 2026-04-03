@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, CalendarDays, Target, RefreshCw, AlertCircle } from 'lucide-react';
+import { TrendingUp, CalendarDays, Target, RefreshCw, AlertCircle, Package, Flame, BellRing } from 'lucide-react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -37,169 +37,132 @@ const compactDate = (iso) => {
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
+const riskTone = (risk) => {
+    if (risk === 'out' || risk === 'critical') return 'text-red-500';
+    if (risk === 'high') return 'text-orange-500';
+    if (risk === 'medium') return 'text-yellow-500';
+    return 'text-emerald-500';
+};
+
 const Forecast = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [payload, setPayload] = useState(null);
+    const [activeTab, setActiveTab] = useState('revenue');
+    const [revenuePayload, setRevenuePayload] = useState(null);
+    const [inventoryPayload, setInventoryPayload] = useState(null);
 
-    const loadForecast = async () => {
+    const fetchWithAuth = async (path, options = {}) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Please login again to continue.');
+        }
+
+        const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+        const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+
+        const res = await fetch(`${apiUrl}${path}`, {
+            method: options.method || 'GET',
+            headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                ...(options.headers || {}),
+            },
+            body: options.body,
+        });
+
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.detail || 'Request failed');
+        }
+
+        return res.json();
+    };
+
+    const loadAll = async () => {
         setLoading(true);
         setError('');
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) {
-                throw new Error('Please login again to view forecast.');
-            }
+            const [revenue, inventory] = await Promise.all([
+                fetchWithAuth('/api/forecast?horizon_days=30&lookback_days=120'),
+                fetchWithAuth('/api/inventory-forecast?lookback_days=60'),
+            ]);
 
-            const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
-            const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+            setRevenuePayload(revenue);
+            setInventoryPayload(inventory);
 
-            const res = await fetch(`${API_URL}/api/forecast?horizon_days=30&lookback_days=120`, {
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                },
-            });
-
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error(body.detail || 'Unable to load forecast');
-            }
-
-            const data = await res.json();
-            setPayload(data);
+            // Generate fresh stockout notifications in the background.
+            fetchWithAuth('/api/notifications/generate?lookback_days=60&risk_days_threshold=14', { method: 'POST' }).catch(() => null);
         } catch (e) {
-            setError(e.message || 'Failed to fetch forecast');
+            setError(e.message || 'Failed to load forecast data');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        loadForecast();
+        loadAll();
     }, []);
 
-    const chartData = useMemo(() => {
-        if (!payload) return null;
+    const revenueChart = useMemo(() => {
+        if (!revenuePayload) return null;
 
-        const historyTail = payload.history.slice(-30);
-        const forecastHead = payload.forecast.slice(0, 30);
-
-        const labels = [
-            ...historyTail.map((d) => compactDate(d.date)),
-            ...forecastHead.map((d) => compactDate(d.date)),
-        ];
-
-        const historySeries = [
-            ...historyTail.map((d) => d.revenue),
-            ...new Array(forecastHead.length).fill(null),
-        ];
-
-        const forecastSeries = [
-            ...new Array(historyTail.length).fill(null),
-            ...forecastHead.map((d) => d.revenue),
-        ];
-
-        const lowerSeries = [
-            ...new Array(historyTail.length).fill(null),
-            ...forecastHead.map((d) => d.lower),
-        ];
-
-        const upperSeries = [
-            ...new Array(historyTail.length).fill(null),
-            ...forecastHead.map((d) => d.upper),
-        ];
-
-        const byWeek = [];
-        for (let i = 0; i < forecastHead.length; i += 7) {
-            const chunk = forecastHead.slice(i, i + 7);
-            byWeek.push(chunk.reduce((sum, d) => sum + d.revenue, 0));
-        }
+        const historyTail = revenuePayload.history.slice(-30);
+        const forecastHead = revenuePayload.forecast.slice(0, 30);
+        const labels = [...historyTail.map((d) => compactDate(d.date)), ...forecastHead.map((d) => compactDate(d.date))];
 
         return {
-            revenueLine: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Actual (Last 30 Days)',
-                        data: historySeries,
-                        borderColor: '#0ea5e9',
-                        backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                        borderWidth: 2,
-                        tension: 0.35,
-                        pointRadius: 0,
-                    },
-                    {
-                        label: 'Forecast (Next 30 Days)',
-                        data: forecastSeries,
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.15)',
-                        borderWidth: 2,
-                        borderDash: [6, 4],
-                        tension: 0.35,
-                        pointRadius: 0,
-                    },
-                    {
-                        label: 'Forecast Lower',
-                        data: lowerSeries,
-                        borderColor: 'rgba(249, 115, 22, 0.3)',
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        tension: 0.25,
-                    },
-                    {
-                        label: 'Forecast Upper',
-                        data: upperSeries,
-                        borderColor: 'rgba(249, 115, 22, 0.3)',
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        tension: 0.25,
-                    },
-                ],
-            },
-            weeklyBars: {
-                labels: byWeek.map((_, i) => `Week ${i + 1}`),
-                datasets: [
-                    {
-                        label: 'Projected Revenue',
-                        data: byWeek,
-                        backgroundColor: ['#22c55e', '#16a34a', '#15803d', '#166534', '#14532d'],
-                        borderRadius: 8,
-                    },
-                ],
-            },
+            labels,
+            datasets: [
+                {
+                    label: 'Actual',
+                    data: [...historyTail.map((d) => d.revenue), ...new Array(forecastHead.length).fill(null)],
+                    borderColor: '#0ea5e9',
+                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'Forecast',
+                    data: [...new Array(historyTail.length).fill(null), ...forecastHead.map((d) => d.revenue)],
+                    borderColor: '#f97316',
+                    borderDash: [6, 4],
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                },
+            ],
         };
-    }, [payload]);
+    }, [revenuePayload]);
 
-    const summaryCards = payload ? [
-        {
-            title: 'Next 7 Days',
-            value: currency.format(payload.summary.next_7_days_revenue || 0),
-            icon: CalendarDays,
-            tone: 'from-sky-500/20 to-cyan-500/5 border-sky-500/30',
-        },
-        {
-            title: 'Next 30 Days',
-            value: currency.format(payload.summary.next_30_days_revenue || 0),
-            icon: Target,
-            tone: 'from-orange-500/20 to-amber-500/5 border-orange-500/30',
-        },
-        {
-            title: 'Trend Signal',
-            value: `${payload.summary.trend_percent > 0 ? '+' : ''}${payload.summary.trend_percent || 0}%`,
-            icon: TrendingUp,
-            tone: 'from-emerald-500/20 to-lime-500/5 border-emerald-500/30',
-        },
-    ] : [];
+    const demandChart = useMemo(() => {
+        if (!inventoryPayload) return null;
+        const top = (inventoryPayload.top_demand_products || []).slice(0, 8);
+
+        return {
+            labels: top.map((p) => p.name),
+            datasets: [
+                {
+                    label: 'Expected Units (Next 7 Days)',
+                    data: top.map((p) => p.forecast_next_7_units || 0),
+                    backgroundColor: '#6366f1',
+                    borderRadius: 10,
+                },
+            ],
+        };
+    }, [inventoryPayload]);
+
+    const revenueSummary = revenuePayload?.summary || {};
+    const inventorySummary = inventoryPayload?.summary || {};
 
     return (
         <div className="space-y-6 pb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-black tracking-tight text-text-main">Revenue Forecast</h1>
-                    <p className="text-sm text-text-muted">AI-backed projection for the next 7 and 30 days (Asia/Kolkata).</p>
+                    <h1 className="text-3xl font-black tracking-tight text-text-main">Forecast Hub</h1>
+                    <p className="text-sm text-text-muted">Revenue trend, product demand, and inventory run-out predictions.</p>
                 </div>
                 <button
-                    onClick={loadForecast}
+                    onClick={loadAll}
                     disabled={loading}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition disabled:opacity-70"
                 >
@@ -218,77 +181,146 @@ const Forecast = () => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {summaryCards.map((card) => (
-                    <motion.div
-                        key={card.title}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`glass-card rounded-2xl border p-5 bg-gradient-to-br ${card.tone}`}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-sky-500/20 to-cyan-500/5 border-sky-500/30">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-text-muted">Next 7 Days Revenue</span>
+                        <CalendarDays size={18} className="text-text-main" />
+                    </div>
+                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                        {currency.format(revenueSummary.next_7_days_revenue || 0)}
+                    </p>
+                </motion.div>
+
+                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-orange-500/20 to-amber-500/5 border-orange-500/30">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-text-muted">Next 30 Days Revenue</span>
+                        <Target size={18} className="text-text-main" />
+                    </div>
+                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                        {currency.format(revenueSummary.next_30_days_revenue || 0)}
+                    </p>
+                </motion.div>
+
+                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-rose-500/20 to-red-500/5 border-rose-500/30">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-text-muted">Critical Stock Alerts</span>
+                        <BellRing size={18} className="text-text-main" />
+                    </div>
+                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                        {inventorySummary.critical_count || 0}
+                    </p>
+                </motion.div>
+
+                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-emerald-500/20 to-lime-500/5 border-emerald-500/30">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-text-muted">Demanding Products</span>
+                        <Flame size={18} className="text-text-main" />
+                    </div>
+                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                        {(inventoryPayload?.top_demand_products || []).length}
+                    </p>
+                </motion.div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {[
+                    { id: 'revenue', label: 'Revenue', icon: TrendingUp },
+                    { id: 'stockout', label: 'Run-out Forecast', icon: Package },
+                    { id: 'demand', label: 'Product Demand', icon: Flame },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap font-semibold transition-all ${
+                            activeTab === tab.id
+                                ? 'bg-indigo-600 text-white shadow-lg'
+                                : 'bg-card-bg text-text-muted hover:text-text-main border border-card-border'
+                        }`}
                     >
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-text-muted">{card.title}</span>
-                            <card.icon size={18} className="text-text-main" />
-                        </div>
-                        <p className="mt-3 text-2xl font-black tracking-tight text-text-main">{loading ? '...' : card.value}</p>
-                    </motion.div>
+                        <tab.icon size={16} />
+                        {tab.label}
+                    </button>
                 ))}
             </div>
 
-            <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
-                <h2 className="text-lg font-bold text-text-main">Actual vs Forecast</h2>
-                <div className="h-[320px]">
-                    {chartData && (
-                        <Line
-                            data={chartData.revenueLine}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: { position: 'bottom' },
-                                },
-                                scales: {
-                                    y: {
-                                        ticks: {
-                                            callback: (v) => `Rs ${Number(v).toLocaleString('en-IN')}`,
+            {activeTab === 'revenue' && (
+                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
+                    <h2 className="text-lg font-bold text-text-main">Actual vs Revenue Forecast</h2>
+                    <div className="h-[320px]">
+                        {revenueChart && (
+                            <Line
+                                data={revenueChart}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: { legend: { position: 'bottom' } },
+                                    scales: {
+                                        y: {
+                                            ticks: {
+                                                callback: (v) => `Rs ${Number(v).toLocaleString('en-IN')}`,
+                                            },
                                         },
                                     },
-                                },
-                            }}
-                        />
-                    )}
+                                }}
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
-                <h2 className="text-lg font-bold text-text-main">Weekly Projection</h2>
-                <div className="h-[260px]">
-                    {chartData && (
-                        <Bar
-                            data={chartData.weeklyBars}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: { display: false },
-                                },
-                                scales: {
-                                    y: {
-                                        ticks: {
-                                            callback: (v) => `Rs ${Number(v).toLocaleString('en-IN')}`,
-                                        },
-                                    },
-                                },
-                            }}
-                        />
-                    )}
+            {activeTab === 'stockout' && (
+                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4 overflow-x-auto">
+                    <h2 className="text-lg font-bold text-text-main">Inventory Run-out Forecast</h2>
+                    <table className="w-full min-w-[900px] text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-card-border/50 text-[11px] uppercase tracking-wider text-text-muted">
+                                <th className="py-2 pr-3">Product</th>
+                                <th className="py-2 pr-3">Stock</th>
+                                <th className="py-2 pr-3">Avg Daily Sale</th>
+                                <th className="py-2 pr-3">Days Left</th>
+                                <th className="py-2 pr-3">Run-out Date</th>
+                                <th className="py-2 pr-3">Reorder Qty</th>
+                                <th className="py-2 pr-3">Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(inventoryPayload?.products || []).slice(0, 25).map((item) => (
+                                <tr key={item.product_id} className="border-b border-card-border/10">
+                                    <td className="py-3 pr-3 font-semibold text-text-main">{item.name}</td>
+                                    <td className="py-3 pr-3 text-text-main">{item.current_stock} {item.unit}</td>
+                                    <td className="py-3 pr-3 text-text-main">{item.avg_daily_units}</td>
+                                    <td className="py-3 pr-3 text-text-main">{item.days_to_stockout ?? '-'}</td>
+                                    <td className="py-3 pr-3 text-text-main">{item.expected_stockout_date || '-'}</td>
+                                    <td className="py-3 pr-3 text-text-main">{item.recommended_reorder_qty}</td>
+                                    <td className={`py-3 pr-3 font-bold uppercase ${riskTone(item.risk_level)}`}>{item.risk_level}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
-                {payload && (
-                    <p className="text-xs text-text-muted">
-                        Model: {payload.model_info?.name || 'n/a'} • History points: {payload.model_info?.history_points || 0}
-                    </p>
-                )}
-            </div>
+            )}
+
+            {activeTab === 'demand' && (
+                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
+                    <h2 className="text-lg font-bold text-text-main">Upcoming Product Demand (Next 7 Days)</h2>
+                    <div className="h-[340px]">
+                        {demandChart && (
+                            <Bar
+                                data={demandChart}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: { legend: { display: false } },
+                                    scales: {
+                                        y: { beginAtZero: true },
+                                    },
+                                }}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
