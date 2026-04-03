@@ -81,11 +81,11 @@ const Landing = () => {
                     </motion.div>
 
                     <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-heading font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300 leading-[1.1] mb-6 tracking-tight">
-                        Just Speak to Create Bills. <br className="hidden md:block" /> Shop Management Made Easy.
+                        Speak Your Orders. <br className="hidden md:block" /> Bills Created Instantly.
                     </motion.h1>
 
                     <motion.p variants={itemVariants} className="text-slate-400 text-lg md:text-xl md:max-w-2xl mb-12 leading-relaxed">
-                        Voice-first billing and inventory. Tell Dukan Sathi your order in English, Hindi, or Bangla, and the bill generates automatically. Manage accounts and stock in one place — zero typing required!
+                        The voice-first billing platform built for Indian shop owners. Dictate orders in your language, and watch invoices generate instantly. Manage customers, inventory, and payments — all with your voice.
                     </motion.p>
 
                     <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -152,33 +152,33 @@ const Landing = () => {
                         </div>
 
                         {/* Invoice Draft Mock */}
-                        <div className="w-full md:w-[400px] bg-white rounded-2xl p-6 shadow-[0_0_50px_-15px_rgba(99,102,241,0.5)] text-slate-950 relative transform md:rotate-2 hover:rotate-0 transition-transform duration-500">
-                            <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600 rounded-t-2xl"></div>
-                            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4 mt-2">
+                        <div className="w-full md:w-[420px] bg-white rounded-3xl p-8 shadow-[0_0_60px_-10px_rgba(99,102,241,0.6)] text-slate-950 relative transform md:rotate-2 hover:rotate-0 transition-transform duration-500">
+                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-500 rounded-t-3xl"></div>
+                            <div className="flex justify-between items-start border-b border-slate-200 pb-4 mb-6 mt-2">
                                 <div>
-                                    <div className="text-xl font-black text-indigo-600 leading-none mb-1">INVOICE DRAFT</div>
-                                    <div className="text-xs text-slate-500 font-bold tracking-wider uppercase">Customer: Ramesh</div>
+                                    <div className="text-2xl font-black text-indigo-600 leading-none mb-2">INVOICE</div>
+                                    <div className="text-xs text-slate-500 font-bold tracking-wider uppercase">📋 Bill #INV-240315-001</div>
                                 </div>
-                                <div className="bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded text-xs uppercase">DUE BILL</div>
+                                <div className="bg-green-100 text-green-700 font-bold px-3 py-1.5 rounded-full text-[11px] uppercase tracking-wide shadow-sm">Ready to Send</div>
                             </div>
-                            <div className="space-y-3 mb-6">
+                            <div className="space-y-3 mb-8">
                                 <div className="flex justify-between text-sm">
-                                    <span className="font-bold text-slate-700">1. Lux Soap (x2)</span>
-                                    <span className="font-bold text-slate-900">₹90.00</span>
+                                    <span className="font-bold text-slate-700">Lux Soap (×2)</span>
+                                    <span className="font-bold text-slate-900">₹90</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="font-bold text-slate-700">2. Aashirvaad Aata (1kg)</span>
-                                    <span className="font-bold text-slate-900">₹65.00</span>
+                                    <span className="font-bold text-slate-700">Aashirvaad Atta (1kg)</span>
+                                    <span className="font-bold text-slate-900">₹65</span>
                                 </div>
-                                <div className="h-px bg-slate-200 my-2"></div>
-                                <div className="flex justify-between text-base">
-                                    <span className="font-bold text-slate-500">Grand Total</span>
-                                    <span className="font-black text-indigo-600 text-xl">₹155.00</span>
+                                <div className="h-px bg-slate-200 my-3"></div>
+                                <div className="flex justify-between items-center text-lg">
+                                    <span className="font-black text-slate-600">Total Amount</span>
+                                    <span className="font-black text-indigo-600 text-2xl">₹155</span>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                                <button className="py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">Edit Karein</button>
-                                <button className="py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 transition-colors">Approve</button>
+                                <button className="py-3 px-4 rounded-2xl border-2 border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition-all hover:shadow-md">✏️ Edit</button>
+                                <button className="py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 hover:from-indigo-700 hover:to-blue-700 transition-all hover:shadow-xl">✓ Approve</button>
                             </div>
                         </div>
                     </motion.div>

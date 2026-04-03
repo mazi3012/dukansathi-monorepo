@@ -54,7 +54,7 @@ const deriveLanguageFromVoice = (voiceId = '') => {
 
 const Settings = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'system' : 'business'); // 'voice' | 'business' | 'system'
+    const [activeTab, setActiveTab] = useState(window.innerWidth < 768 ? 'preferences' : 'business'); // 'voice' | 'business' | 'preferences'
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
@@ -312,14 +312,16 @@ const Settings = () => {
             </header>
 
             <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
-                <TabButton id="business" icon={Briefcase} label="Business Profile" />
-                <TabButton id="voice" icon={Volume2} label="Neural Voice" />
-                <TabButton id="system" icon={Cpu} label="Core System" />
+                <TabButton id="business" icon={Briefcase} label="Business Settings" />
+                <TabButton id="voice" icon={Volume2} label="Voice & Language" />
+                <TabButton id="preferences" icon={Cpu} label="Preferences" />
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24 relative z-0">
 
                 {activeTab === 'business' && (
+                    // Business settings for profiles, location, and payments
+                    //
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* Business Core Info */}
                         <section className="glass-card rounded-[32px] p-8 border-indigo-500/10">
@@ -499,7 +501,9 @@ const Settings = () => {
                     </div>
                 )}
 
-                {activeTab === 'system' && (
+                {activeTab === 'preferences' && (
+                    // System preferences and integrations
+                    //
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* System Hardware section removed — app is cloud-only */}
 
@@ -595,6 +599,8 @@ const Settings = () => {
 
 
                 {activeTab === 'voice' && (
+                    // Voice configuration and language preferences
+                    //
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* AI Language Preference */}
                         <section className="glass-card rounded-3xl p-6">
