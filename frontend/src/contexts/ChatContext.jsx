@@ -25,8 +25,9 @@ export const ChatProvider = ({ children }) => {
     const pendingAttachmentRef = useRef(null);
 
     // Permission State
-    const [micPermission, setMicPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
+    const [micPermission, setMicPermission] = useState('prompt'); 
     const [camPermission, setCamPermission] = useState('prompt');
+    const [isSecure, setIsSecure] = useState(true);
 
     // Environment Detection
     const isMobile = () => {
@@ -103,6 +104,13 @@ export const ChatProvider = ({ children }) => {
     }, []);
 
     const checkPermissions = useCallback(async () => {
+        // 1. Basic Secure Context Check
+        const isCurrentlySecure = window.isSecureContext || 
+            window.location.protocol === 'https:' || 
+            window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1';
+        setIsSecure(isCurrentlySecure);
+
         if (!navigator.permissions || !navigator.permissions.query) return;
 
         try {
@@ -110,33 +118,55 @@ export const ChatProvider = ({ children }) => {
             setMicPermission(mic.state);
             mic.onchange = () => setMicPermission(mic.state);
 
-            const cam = await navigator.permissions.query({ name: 'camera' });
-            setCamPermission(cam.state);
-            cam.onchange = () => setCamPermission(cam.state);
+            // Some browsers don't support 'camera' in query
+            try {
+                const cam = await navigator.permissions.query({ name: 'camera' });
+                setCamPermission(cam.state);
+                cam.onchange = () => setCamPermission(cam.state);
+            } catch (e) { /* ignore camera query if not supported */ }
+
         } catch (e) {
-            console.warn("Permissions API not fully supported:", e);
+            console.warn("Permissions API query failed:", e);
         }
     }, []);
 
-    const requestPermissions = useCallback(async () => {
+    const requestMicPermission = useCallback(async () => {
         unlockAudio();
         try {
-            // Request both Audio and Video to show a combined prompt if possible
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            // Immediately stop the tracks after getting permission
+            // Chrome requirement: getUserMedia must be called immediately after user gesture
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
             setMicPermission('granted');
+            return true;
+        } catch (e) {
+            console.error("Mic request failed:", e);
+            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+                setMicPermission('denied');
+            }
+            return false;
+        }
+    }, [unlockAudio]);
+
+    const requestCamPermission = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach(track => track.stop());
             setCamPermission('granted');
             return true;
         } catch (e) {
-            console.error("Permission request failed:", e);
-            checkPermissions(); // Update status from actual state
+            console.error("Cam request failed:", e);
+            if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+                setCamPermission('denied');
+            }
             return false;
         }
-    }, [unlockAudio, checkPermissions]);
+    }, []);
 
     useEffect(() => {
         checkPermissions();
+        // Fallback polling for browsers where onchange is unreliable
+        const interval = setInterval(checkPermissions, 3000);
+        return () => clearInterval(interval);
     }, [checkPermissions]);
 
     const playAudio = useCallback((base64Data) => {
@@ -491,7 +521,8 @@ export const ChatProvider = ({ children }) => {
             isListening, isThinking, setMessages, voice, changeVoice,
             isMuted, toggleMute, unlockAudio, isPlaying, isConnected,
             model, pendingAttachment, setPendingAttachment,
-            micPermission, camPermission, checkPermissions, requestPermissions,
+            micPermission, camPermission, isSecure, checkPermissions, 
+            requestMicPermission, requestCamPermission,
             sendImage: (file) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);

@@ -178,7 +178,9 @@ const Chat = () => {
         setPendingAttachment,
         micPermission,
         camPermission,
-        requestPermissions
+        isSecure,
+        requestMicPermission,
+        requestCamPermission
     } = useChat();
     const { tier } = useSubscription();
     const [input, setInput] = useState('');
@@ -1127,49 +1129,84 @@ const Chat = () => {
 
     return (
         <div className="absolute inset-0 flex flex-col bg-bg-main overflow-hidden z-50">
-            {/* Permission Guard Overlay */}
-            {(micPermission === 'denied' || camPermission === 'denied') && (
-                <div className="absolute inset-x-4 top-20 z-[60] p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-2xl flex flex-col items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
-                        <Lock size={20} />
+            {/* Permissions & Security Guard Overlay */}
+            {(!isSecure || micPermission === 'denied') && (
+                <div className="absolute inset-x-4 top-20 z-[60] p-6 bg-red-500/10 border border-red-500/20 backdrop-blur-xl rounded-2xl flex flex-col items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 ring-4 ring-red-500/10">
+                        <Lock size={24} />
                     </div>
-                    <div className="text-center">
-                        <h3 className="text-sm font-bold text-red-500">Permissions Blocked</h3>
-                        <p className="text-xs text-text-muted mt-1 max-w-[240px]">
-                            Microphone or Camera access is blocked in your browser settings. Please enable them to use Voice Chat.
+                    
+                    <div className="text-center space-y-2">
+                        <h3 className="text-lg font-black text-red-500">
+                            {!isSecure ? 'Insecure Context' : 'Microphone Blocked'}
+                        </h3>
+                        <p className="text-sm text-text-muted max-w-[280px] mx-auto leading-relaxed">
+                            {!isSecure 
+                                ? 'Chrome requires a secure HTTPS connection (or localhost) to use the Microphone.'
+                                : 'Microphone access is blocked in your browser. Follow these steps to fix it:'}
                         </p>
                     </div>
+
+                    {isSecure && (
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3 w-full text-left space-y-2">
+                            <div className="flex items-start gap-2 text-xs text-text-main">
+                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">1</div>
+                                <span>Click the <b>Lock</b> icon (🔒) or <b>Settings</b> icon (⚙️) in your address bar.</span>
+                            </div>
+                            <div className="flex items-start gap-2 text-xs text-text-main">
+                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">2</div>
+                                <span>Find <b>Microphone</b> and change "Block" to <b>"Allow"</b>.</span>
+                            </div>
+                            <div className="flex items-start gap-2 text-xs text-text-main">
+                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">3</div>
+                                <span>Click <b>"Try Again"</b> below.</span>
+                            </div>
+                        </div>
+                    )}
+
                     <button 
                         onClick={() => window.location.reload()}
-                        className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-xl hover:bg-red-600 transition-colors"
+                        className="w-full py-3 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-all shadow-lg active:scale-95"
                     >
-                        Try Again
+                        {!isSecure ? 'Reload Page' : 'Try Again'}
                     </button>
+                    {!isSecure && (
+                        <p className="text-[10px] text-text-muted italic opacity-60">
+                            Current: {window.location.protocol}//{window.location.hostname}
+                        </p>
+                    )}
                 </div>
             )}
 
-            {/* Initial Setup / Prompt Overlay */}
-            {(micPermission === 'prompt' || camPermission === 'prompt') && (
+            {/* Initial Mic Setup Overlay */}
+            {isSecure && micPermission === 'prompt' && (
                 <div className="absolute inset-0 z-[60] bg-bg-main/80 backdrop-blur-lg flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
                     <div className="max-w-xs space-y-6">
-                        <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl shadow-indigo-500/20">
-                            <Sparkles size={40} className="text-white" />
+                        <div className="relative">
+                            <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl shadow-indigo-500/20 animate-bounce-slow">
+                                <Mic size={40} className="text-white" />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full border-4 border-bg-main flex items-center justify-center text-white">
+                                <Sparkles size={14} />
+                            </div>
                         </div>
+                        
                         <div className="space-y-2">
-                            <h2 className="text-2xl font-black text-text-main">Ready to Talk?</h2>
+                            <h2 className="text-2xl font-black text-text-main leading-tight">Ready for Voice Chat?</h2>
                             <p className="text-sm text-text-muted">
-                                Dukan Sathi needs access to your <span className="font-bold text-indigo-500">Microphone</span> and <span className="font-bold text-indigo-500">Camera</span> to help you manage your store via voice commands.
+                                Dukan Sathi uses your microphone to record sales and manage inventory via voice commands.
                             </p>
                         </div>
+
                         <button
-                            onClick={requestPermissions}
-                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            onClick={requestMicPermission}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 group"
                         >
-                            <Mic size={20} />
-                            Enable Voice & Camera
+                            <span className="group-hover:translate-x-0.5 transition-transform">Enable Microphone</span>
                         </button>
+                        
                         <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold opacity-50">
-                            Safe & Secure • Local-First
+                            Safe & Secure • No Camera Required
                         </p>
                     </div>
                 </div>
