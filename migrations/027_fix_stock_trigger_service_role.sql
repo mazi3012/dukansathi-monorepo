@@ -1,18 +1,16 @@
 /**
- * File: 018_secure_stock_trigger.sql
- * Purpose: Secure the update_stock_on_sale trigger against cross-tenant IDOR
+ * File: 027_fix_stock_trigger_service_role.sql
+ * Purpose: Fix update_stock_on_sale trigger for service_role compatibility (Telegram bot)
+ * Author: Dukan Sathi Team
+ * Created: 2026-04-04
+ *
+ * Issue: The original trigger used auth.uid() which returns NULL when service_role is used
+ * (like in the Telegram bot). This caused all product lookups to fail with P0001.
  * 
- * Vulnerability: The original trigger blindly decreased stock for NEW.product_id
- * without verifying that the product actually belonged to auth.uid(). An attacker
- * could create a sale item with a product_id belonging to a competitor, silently
- * depleting their stock.
+ * Fix: Use NEW.user_id (from sale_items insert) instead of auth.uid() for IDOR protection.
+ * This works for both authenticated users AND service_role access.
  */
 
--- Drop the old insecure trigger and function
-DROP TRIGGER IF EXISTS update_stock_after_sale ON sale_items;
-DROP FUNCTION IF EXISTS update_stock_on_sale();
-
--- Create the secured function
 CREATE OR REPLACE FUNCTION update_stock_on_sale()
 RETURNS TRIGGER 
 SECURITY DEFINER
@@ -48,10 +46,4 @@ BEGIN
 END;
 $$;
 
--- Attach the secure trigger
-CREATE TRIGGER update_stock_after_sale
-  AFTER INSERT ON sale_items
-  FOR EACH ROW
-  EXECUTE FUNCTION update_stock_on_sale();
-
-COMMENT ON FUNCTION update_stock_on_sale IS 'Securely decreases stock only for products owned by the authenticated user';
+COMMENT ON FUNCTION update_stock_on_sale IS 'Securely decreases stock only for products owned by the sale user. Works with both auth and service_role.';

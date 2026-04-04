@@ -1031,20 +1031,6 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
                     qty = float(item.get("quantity", 0))
                     price = float(item.get("price", 0))
                     hsn = item.get("hsn_code")
-                    prod_name = item.get("product_name", "")
-                    
-                    # Validate product_id exists AND is accessible by user
-                    if prod_id:
-                        try:
-                            prod_check = supabase.table("products").select("id").eq("id", prod_id).eq("user_id", user_id).limit(1).execute()
-                            if not prod_check.data:
-                                logger.warning(f"[INVOICE] Product ID {prod_id} ({prod_name}) not found or access denied. Will set to NULL.")
-                                prod_id = None
-                        except Exception as check_err:
-                            logger.warning(f"[INVOICE] Failed to validate product {prod_id}: {check_err}. Will set to NULL.")
-                            prod_id = None
-                    else:
-                        logger.warning(f"[INVOICE] Item '{prod_name}' has no product_id. Will be saved but link will be broken.")
 
                     supabase.table("sale_items").insert({
                         "user_id": user_id,
