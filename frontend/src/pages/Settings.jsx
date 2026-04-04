@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2, FileText } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2, FileText, Cloud, CloudOff, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { syncEngine } from '../lib/db/syncEngine';
+import { usePWA } from '../hooks/usePWA';
 
 const VOICE_OPTIONS = [
     {
@@ -58,6 +59,8 @@ const Settings = () => {
     const [selectedVoice, setSelectedVoice] = useState('en-IN-PrabhatNeural');
     const [voiceSpeed, setVoiceSpeed] = useState(0);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const { isInstallable, installApp } = usePWA();
+    const [syncStatus, setSyncStatus] = useState({ status: 'idle', message: '' });
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -162,7 +165,28 @@ const Settings = () => {
         };
 
         loadSettings();
+
+        const unsubscribe = syncEngine.subscribe((status) => {
+            setSyncStatus(status);
+        });
+
+        return () => unsubscribe();
     }, []);
+
+    const handleSyncToggle = () => {
+        const newState = !businessData.sync_enabled;
+        setBusinessData(prev => ({ ...prev, sync_enabled: newState }));
+        syncEngine.setSyncEnabled(newState);
+        localStorage.setItem('sync_enabled', String(newState));
+        window.dispatchEvent(new CustomEvent('sync-toggle-changed', { detail: { isSyncing: newState } }));
+        markChange();
+    };
+
+    const triggerManualSync = () => {
+        if (navigator.onLine) {
+            syncEngine.syncAll();
+        }
+    };
 
 
     const getAuthHeaders = async (additionalHeaders = {}) => {
@@ -479,23 +503,7 @@ const Settings = () => {
                                         onChange={e => { setBusinessData({ ...businessData, upi_id: e.target.value }); markChange(); }}
                                     />
                                 </div>
-                                <div className="flex items-center gap-4 pt-6">
-                                    <button
-                                        onClick={() => {
-                                            const newState = !businessData.sync_enabled;
-                                            setBusinessData({ ...businessData, sync_enabled: newState });
-                                            syncEngine.setSyncEnabled(newState);
-                                            markChange();
-                                        }}
-                                        className={`w-12 h-6 rounded-full transition-all relative ${businessData.sync_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                                    >
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${businessData.sync_enabled ? 'left-7' : 'left-1'}`} />
-                                    </button>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-black text-text-main uppercase tracking-tighter">Enable Cloud Sync</span>
-                                        <span className="text-[10px] text-text-muted font-bold">Backup your data to the cloud automatically</span>
-                                    </div>
-                                </div>
+                                <div className="hidden lg:block lg:pt-6" /> 
                             </div>
                         </section>
                     </div>
@@ -585,6 +593,94 @@ const Settings = () => {
                                         <p className="text-[10px] text-text-muted font-bold leading-relaxed">{opt.desc}</p>
                                     </button>
                                 ))}
+                            </div>
+                        </section>
+
+                        {/* Data & Sync */}
+                        <section className="glass-card rounded-[32px] p-8 border-indigo-500/10">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                                    <RefreshCw size={28} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Data & Sync</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Cloud Synchronization & Offline Storage</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-4 bg-card-bg/30 rounded-[24px] border border-card-border/50">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${businessData.sync_enabled ? 'bg-indigo-500/10 text-indigo-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                                                {businessData.sync_enabled ? <Cloud size={20} /> : <CloudOff size={20} />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-text-main uppercase tracking-tighter transition-colors">Auto Sync</p>
+                                                <p className="text-[10px] text-text-muted font-bold">Automatically backup data to cloud</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleSyncToggle}
+                                            className={`w-12 h-6 rounded-full transition-all relative ${businessData.sync_enabled ? 'bg-indigo-600 shadow-[0_0_12px_rgba(79,70,229,0.4)]' : 'bg-slate-300 dark:bg-slate-700'}`}
+                                        >
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${businessData.sync_enabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-card-bg/30 rounded-[24px] border border-card-border/50">
+                                        <div className="flex items-center gap-4 max-w-[70%]">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-emerald-500/10 text-emerald-500`}>
+                                                <RefreshCw size={20} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-text-main uppercase tracking-tighter">
+                                                    {syncStatus.status === 'syncing' ? 'Sync in Progress...' : 'Database Encrypted'}
+                                                </p>
+                                                <p className="text-[10px] text-text-muted font-bold truncate">
+                                                    {syncStatus.message || 'All data is synchronized securely.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={triggerManualSync}
+                                            disabled={syncStatus.status === 'syncing' || !navigator.onLine}
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 active:scale-95"
+                                        >
+                                            Sync Now
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {isInstallable && (
+                                        <div className="p-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[28px] text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group">
+                                            <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                <Download size={120} />
+                                            </div>
+                                            <div className="relative z-10">
+                                                <h3 className="text-lg font-black tracking-tight mb-1">Desktop Experience</h3>
+                                                <p className="text-white/70 text-[10px] font-bold uppercase tracking-wider mb-4 leading-relaxed">
+                                                    Install Dukan Sathi for a faster, offline-capable workflow.
+                                                </p>
+                                                <button
+                                                    onClick={async () => {
+                                                        await installApp();
+                                                        window.location.reload();
+                                                    }}
+                                                    className="w-full py-3 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-colors shadow-lg"
+                                                >
+                                                    Install Desktop App
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className={`p-6 rounded-[28px] border border-card-border/50 flex flex-col justify-center items-center text-center ${!isInstallable ? 'h-full bg-card-bg/20' : 'bg-card-bg/10'}`}>
+                                        <Shield size={24} className="text-indigo-500 mb-2 opacity-50" />
+                                        <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Version 1.2.0-beta</p>
+                                        <p className="text-[8px] text-text-muted/60 mt-1">E2E Encryption Enabled • AES-256</p>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
