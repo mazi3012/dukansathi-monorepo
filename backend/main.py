@@ -568,7 +568,7 @@ async def verify_subscription_payment(
     
     # ── Step 1: Verify payment signature (HMAC-SHA256) ─────────────────
     try:
-        sub_service.client.utility.verify_payment_signature({
+        sub_service.client.utility.verify_subscription_payment_signature({
             'razorpay_payment_id': payload.razorpay_payment_id,
             'razorpay_subscription_id': payload.razorpay_subscription_id,
             'razorpay_signature': payload.razorpay_signature
