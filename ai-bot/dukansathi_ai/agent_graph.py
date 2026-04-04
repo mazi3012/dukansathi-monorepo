@@ -1703,6 +1703,21 @@ async def action_node(state: AgentState):
             tasks = [fetch_product_details(item) for item in action_data["items"]]
             updated_items = await asyncio.gather(*tasks)
             
+            # Deduplicate items: combine quantities for same product_name
+            deduplicated = {}
+            for item in updated_items:
+                prod_name = item.get("product_name", "").strip()
+                if prod_name:
+                    if prod_name not in deduplicated:
+                        deduplicated[prod_name] = item.copy()
+                    else:
+                        # Merge: add quantity, recalculate total
+                        deduplicated[prod_name]["quantity"] += item.get("quantity", 0)
+                        deduplicated[prod_name]["total"] = deduplicated[prod_name]["price"] * deduplicated[prod_name]["quantity"]
+            
+            updated_items = list(deduplicated.values())
+            logger.info(f"DEBUG: After deduplication: {len(updated_items)} items (was {len(action_data['items'])})")
+            
             # Calculate total
             for item in updated_items:
                 total_amount += item["total"]
