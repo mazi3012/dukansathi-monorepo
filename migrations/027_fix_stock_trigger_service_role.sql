@@ -18,19 +18,19 @@ SET search_path = public
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Verify the product belongs to the user making the sale before deducting stock
-  -- This prevents cross-tenant stock manipulation (IDOR)
-  -- Use NEW.user_id instead of auth.uid() for service_role compatibility (Telegram bot)
-  UPDATE products
-  SET stock_quantity = GREATEST(0, stock_quantity - NEW.quantity),
-      updated_at = NOW()
-  WHERE id = NEW.product_id 
-    AND user_id = NEW.user_id;
-  
-  -- If the update affected 0 rows, either the product doesn't exist,
-  -- or it belongs to someone else. We raise an exception to abort the sale.
-  IF NOT FOUND THEN
-      RAISE EXCEPTION 'Product % not found or access denied', NEW.product_id;
+  -- Only validate and decrement stock if product_id is provided
+  -- (product_id may be NULL if product wasn't found during enrichment, which is acceptable)
+  IF NEW.product_id IS NOT NULL THEN
+    UPDATE products
+    SET stock_quantity = GREATEST(0, stock_quantity - NEW.quantity),
+        updated_at = NOW()
+    WHERE id = NEW.product_id 
+      AND user_id = NEW.user_id;
+    
+    -- If update affected 0 rows, the product doesn't exist or belongs to someone else
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Product % not found or access denied', NEW.product_id;
+    END IF;
   END IF;
   
   -- Same protection for serial numbers

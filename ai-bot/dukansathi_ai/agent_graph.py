@@ -1277,18 +1277,19 @@ def fast_parse_action(user_query: str) -> str:
     if invoice_pattern:
         customer = invoice_pattern.group(1).strip().title()
         # Extract items: "2 rice", "1 oil", etc.
-        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]+)', ql)
+        # More precise regex: match quantity + product name, but stop at common delimiters
+        # Pattern: digit(s) + whitespace + product name (letters/spaces), but NOT followed by a number/digit
+        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]*?)(?=\s+(?:\d+|and|with|for|paid|payment|₹|rs\.?|$))', ql)
         items = []
-        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees'}
+        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', 'liya', 'diya', 'kiya', 'paid', 'cash', 'online'}
         
         for qty_str, prod_raw in items_raw:
             prod = prod_raw.strip()
-            # Split by keywords to avoid capturing trailing junk
-            for split_word in ['and', 'with', 'for']:
-                if f' {split_word} ' in prod:
-                    prod = prod.split(f' {split_word} ')[0]
-                    
-            if prod.lower() not in skip_words and prod.lower() != customer.lower() and not prod.isdigit():
+            # Clean up trailing spaces
+            prod = re.sub(r'\s+$', '', prod)
+            
+            # Skip if empty, is a skip word, is same as customer, or is just digits
+            if prod and prod.lower() not in skip_words and prod.lower() != customer.lower() and not prod.replace(' ', '').isdigit():
                 items.append({
                     "product_name": prod.title(),
                     "quantity": int(qty_str),
@@ -1296,6 +1297,8 @@ def fast_parse_action(user_query: str) -> str:
                     "tax_percent": 0,
                     "hsn_code": ""
                 })
+        
+        logger.info(f"DEBUG [INVOICE_PATTERN]: Found {len(items)} items from regex: {items}")
         if items:
             return json.dumps({
                 "type": "invoice_draft",
