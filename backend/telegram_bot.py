@@ -23,6 +23,7 @@ import json
 import logging
 import asyncio
 import traceback
+import base64
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 
@@ -384,6 +385,7 @@ def format_draft_for_telegram(draft: dict) -> str:
             hsn_str = f" (HSN:{hsn})" if hsn and is_gst else ""
             lines.append(f"    • {name}{hsn_str} × {qty} {unit}  ₹{item_sub:.2f}")
 
+        # Only show tax details for GST invoices (hide zero tax for non-GST)
         if is_gst:
             lines.append(f"  Taxable Value: ₹{subtotal:.2f}")
             # Tax will be calculated at approval, just note it's GST
@@ -391,6 +393,9 @@ def format_draft_for_telegram(draft: dict) -> str:
                 lines.append("  Tax Type: IGST")
             else:
                 lines.append("  Tax Type: CGST + SGST")
+        else:
+            # For non-GST, just show the subtotal as the total
+            lines.append(f"  Total Amount: ₹{subtotal:.2f}")
 
         lines.append(f"  *Note: Final total calculated on approval*")
         return "\n".join(lines)
@@ -1186,6 +1191,106 @@ async def execute_draft(user_id: str, draft: dict) -> tuple[str, BytesIO | None]
         return user_msg, None
 
 
+async def generate_draft_pdf_preview(user_id: str, draft: dict) -> BytesIO | None:
+    """Generate a PDF preview for an invoice draft (used when toggling GST/IGST)."""
+    if not supabase or draft.get("type") != "invoice_draft":
+        return None
+    
+    try:
+        # Fetch user profile
+        pr = func_get_profile(user_id)
+        if not pr or not pr.data:
+            return None
+        
+        profile = pr.data[0]
+        shop_state = normalize_state(profile.get("state_name", "Unknown"))
+        shop_name = profile.get("business_name", "My Shop")
+        shop_address = profile.get("business_address", "")
+        shop_gstin = profile.get("gstin", "")
+        
+        # Extract draft info
+        customer_name = draft.get("customer_name", "Walk-in")
+        items = draft.get("items", [])
+        invoice_type = draft.get("invoice_type", "regular")
+        is_gst = invoice_type == "gst"
+        is_igst = draft.get("isOutOfState", False)
+        
+        # Calculate taxes
+        subtotal = 0.0
+        total_cgst = 0.0
+        total_sgst = 0.0
+        total_igst = 0.0
+        enriched_items = []
+        
+        for item in items:
+            qty = float(item.get("quantity", 0))
+            prod_name = item.get("product_name", "")
+            
+            v_price = float(item.get("price", 0))
+            v_hsn = item.get("hsn_code", "")
+            v_tax_percent = HSN_TAX_RATES.get(v_hsn, 0)
+            v_tax_type = "exclusive"
+            v_prod_id = None
+            
+            # Fetch product details if available
+            p_res = supabase.table("products").select("id, selling_price, tax_percent, tax_type, hsn_code").ilike("name", prod_name).eq("user_id", user_id).limit(1).execute()
+            if p_res.data:
+                p = p_res.data[0]
+                v_prod_id = p["id"]
+                v_price = float(p.get("selling_price") or v_price)
+                v_tax_percent = float(p.get("tax_percent") or v_tax_percent)
+                v_tax_type = p.get("tax_type", "exclusive")
+                v_hsn = p.get("hsn_code", v_hsn)
+            
+            tc = calculate_tax(v_price, qty, v_tax_percent, v_tax_type, force_inter_state=is_igst) if is_gst else {
+                "taxable": qty * v_price, "cgst": 0, "sgst": 0, "igst": 0, "rate": 0, "total": qty * v_price
+            }
+            
+            subtotal += tc["taxable"]
+            total_cgst += tc["cgst"]
+            total_sgst += tc["sgst"]
+            total_igst += tc["igst"]
+            enriched_items.append({
+                **item,
+                "product_id": v_prod_id,
+                "price": v_price,
+                "hsn_code": v_hsn,
+                "_taxable": tc["taxable"],
+                "_cgst": tc["cgst"],
+                "_sgst": tc["sgst"],
+                "_igst": tc["igst"],
+                "_rate": tc["rate"],
+                "_total": tc["total"]
+            })
+        
+        grand_total = round(subtotal + total_cgst + total_sgst + total_igst, 2)
+        
+        # Generate PDF
+        pdf_buffer = generate_invoice_pdf(
+            shop_name=shop_name,
+            shop_address=shop_address,
+            shop_gstin=shop_gstin,
+            customer_name=customer_name,
+            items=enriched_items,
+            sale_id="DRAFT",
+            is_gst=is_gst,
+            is_igst=is_igst,
+            subtotal=subtotal,
+            cgst_total=total_cgst,
+            sgst_total=total_sgst,
+            igst_total=total_igst,
+            grand_total=grand_total,
+            amount_paid=0,
+            balance_due=grand_total,
+            payment_status="pending",
+            invoice_number=f"DRAFT-{datetime.now().strftime('%H%M%S')}"
+        )
+        return pdf_buffer
+    except Exception as e:
+        logger.warning(f"Failed to generate draft PDF preview: {e}")
+        return None
+
+
 async def handle_ai_interaction(update: Update, text: str, chat_id: int):
     """Shared helper to process text (from message or voice), check for draft approvals, and call AI."""
     user_id = get_user_token_for_chat(chat_id)
@@ -1220,8 +1325,16 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         async with get_draft_lock(chat_id):
             draft = PENDING_DRAFTS.pop(chat_id, None)
             if draft:
-                await _safe_reply_text(update.message, "⏳ Saving to database...")
+                # Show progressive save status
+                status_msg = await update.message.reply_text("⏳ Saving to database...")
+                
                 result_msg, file_buffer = await execute_draft(user_token, draft)
+                
+                # Update status to "Saved!"
+                try:
+                    await status_msg.edit_text("✅ Saved! 📄 Generating preview...")
+                except:
+                    pass
 
                 # Output format if a buffer was returned
                 if file_buffer:
@@ -1237,6 +1350,13 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
                     )
                 else:
                     await _safe_reply_text(update.message, result_msg)
+                
+                # Final status
+                try:
+                    await status_msg.delete()
+                except:
+                    pass
+                
                 _store_telegram_turn(chat_id, user_token, "assistant", result_msg, "action")
 
                 # Silently inform AI of the context
@@ -1509,6 +1629,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             result_msg, file_buffer = await execute_draft(user_token, draft)
 
+            # Update status message
+            try:
+                await _safe_edit_or_reply(query, "✅ Saved! 📄 Generating preview...")
+            except:
+                pass
+
             if file_buffer:
                 ext = ".pdf" if draft.get("type") == "invoice_draft" else ".csv"
                 base_name = draft.get("customer_name") or draft.get("title") or "Document"
@@ -1519,7 +1645,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     filename=f"{safe_name}{ext}",
                     caption=_safe_caption(result_msg)
                 )
-                await _safe_edit_or_reply(query, f"✅ Document generated: {safe_name}{ext}")
+                # Final status message
+                try:
+                    await _safe_edit_or_reply(query, f"✅ {result_msg}")
+                except:
+                    pass
             else:
                 await _safe_edit_or_reply(query, result_msg)
 
@@ -1543,8 +1673,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draft["isOutOfState"] = not draft.get("isOutOfState", False)
             PENDING_DRAFTS[chat_id] = draft
             
-            # Re-format the message & keyboard
-            await update_draft_message(query, draft)
+            # Re-format the message & keyboard, and regenerate PDF preview
+            await update_draft_message(query, draft, user_token)
 
     elif query.data == "draft_gst_toggle":
         if draft.get("type") == "invoice_draft":
@@ -1553,11 +1683,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draft["invoice_type"] = "regular" if current == "gst" else "gst"
             PENDING_DRAFTS[chat_id] = draft
             
-            # Re-format the message & keyboard
-            await update_draft_message(query, draft)
+            # Re-format the message & keyboard, and regenerate PDF preview
+            await update_draft_message(query, draft, user_token)
 
-async def update_draft_message(query, draft):
-    """Shared helper to refresh the draft preview in Telegram after a toggle."""
+async def update_draft_message(query, draft, user_token=None):
+    """Shared helper to refresh the draft preview in Telegram after a toggle, including PDF."""
     draft_message = format_draft_for_telegram(draft)
     
     # Re-create buttons (duplicated logic from handle_ai_interaction for now)
@@ -1590,6 +1720,21 @@ async def update_draft_message(query, draft):
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+    
+    # If it's an invoice and we have user_token, regenerate and display PDF preview
+    if draft.get("type") == "invoice_draft" and user_token:
+        try:
+            pdf_buffer = await generate_draft_pdf_preview(user_token, draft)
+            if pdf_buffer:
+                base_name = draft.get("customer_name", "Invoice")
+                safe_name = base_name.replace(" ", "_").replace("/", "-")
+                await query.message.reply_document(
+                    document=pdf_buffer,
+                    filename=f"{safe_name}_PREVIEW.pdf",
+                    caption="📄 Updated PDF Preview"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send PDF preview after toggle: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages — route to AI"""
