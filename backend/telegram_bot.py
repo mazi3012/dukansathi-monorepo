@@ -301,6 +301,25 @@ def _get_recent_telegram_context(chat_id: int, limit: int = TELEGRAM_CONTEXT_WIN
         return ""
 
 
+def clean_text_for_tts(text: str) -> str:
+    """Clean and prepare text for TTS by removing special characters, markdown, etc."""
+    if not text:
+        return ""
+    
+    # Remove markdown formatting
+    text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+    text = text.replace("`", "").replace("```", "")
+    
+    # Remove emoji and special characters but keep basic punctuation
+    import re
+    text = re.sub(r'[^\w\s\.\,\!\?\-\:\;]', '', text)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+
 def format_draft_for_telegram(draft: dict) -> str:
     """
     Convert a draft JSON object into a readable Telegram message.
@@ -1325,7 +1344,6 @@ async def handle_ai_interaction(update: Update, text: str, chat_id: int):
         # --- 3. Output Voice (TTS) ---
         # If the input was voice, or user requested it, respond with voice
         try:
-            from telegram_bot import clean_text_for_tts
             from voice_service import synthesize_speech
             
             # Fetch text for TTS (either display text or the whole response)

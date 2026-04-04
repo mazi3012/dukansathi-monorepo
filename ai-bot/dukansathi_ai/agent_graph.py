@@ -1276,12 +1276,17 @@ def fast_parse_action(user_query: str) -> str:
     )
     if invoice_pattern:
         customer = invoice_pattern.group(1).strip().title()
+        
+        # Extract ONLY the text after the customer name for item parsing (avoid conversation history pollution)
+        # Find the position where customer name is mentioned, then only look at text after that
+        customer_pos = invoice_pattern.end()
+        items_text = ql[customer_pos:].lower()  # Only parse items from text AFTER customer name
+        
         # Extract items: "2 rice", "1 oil", etc.
-        # More precise regex: match quantity + product name, but stop at common delimiters
-        # Pattern: digit(s) + whitespace + product name (letters/spaces), but NOT followed by a number/digit
-        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]*?)(?=\s+(?:\d+|and|with|for|paid|payment|₹|rs\.?|$))', ql)
+        # More strict pattern: quantity + product name, stop at common delimiters
+        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]*?)(?=\s+(?:\d+|and|with|for|paid|payment|₹|rs\.?|$))', items_text)
         items = []
-        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', 'liya', 'diya', 'kiya', 'paid', 'cash', 'online'}
+        skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', 'liya', 'diya', 'kiya', 'paid', 'cash', 'online', 'usne', 'ne', 'le', 'de'}
         
         for qty_str, prod_raw in items_raw:
             prod = prod_raw.strip()
@@ -1298,7 +1303,7 @@ def fast_parse_action(user_query: str) -> str:
                     "hsn_code": ""
                 })
         
-        logger.info(f"DEBUG [INVOICE_PATTERN]: Found {len(items)} items from regex: {items}")
+        logger.info(f"DEBUG [INVOICE_PATTERN]: Found {len(items)} items from regex after customer: {items}")
         if items:
             return json.dumps({
                 "type": "invoice_draft",
