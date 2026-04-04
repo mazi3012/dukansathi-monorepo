@@ -161,23 +161,58 @@ const Plans = () => {
                 handler: async function (response) {
                     const toastId = toast.loading(`Activating ${plan.name} plan...`, { duration: 30000 });
                     
-                    // Poll until tier updates (webhook may take a few seconds)
+                    const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+                    const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+                    
+                    // ── PRIMARY: Direct server-side verification ──────────
+                    try {
+                        const { data: { session: freshSession } } = await supabase.auth.getSession();
+                        if (!freshSession) throw new Error('Session expired');
+                        
+                        const verifyRes = await fetch(`${API_URL}/api/subscription/verify`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${freshSession.access_token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_subscription_id: response.razorpay_subscription_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+                        
+                        if (verifyRes.ok) {
+                            const result = await verifyRes.json();
+                            console.log('[Verify] ✅ Plan activated:', result);
+                            toast.success(`🎉 ${plan.name} plan activated! Welcome aboard.`, { id: toastId });
+                            // Clear stale cache so context fetches fresh data
+                            localStorage.removeItem('ds_subscription_cache');
+                            localStorage.removeItem('ds_usage_token');
+                            await refreshSubscription();
+                            return;
+                        }
+                        
+                        // Verify endpoint returned an error — log and fall through to polling
+                        const errData = await verifyRes.json().catch(() => ({}));
+                        console.warn('[Verify] Server returned error:', verifyRes.status, errData);
+                    } catch (verifyErr) {
+                        console.warn('[Verify] Direct verification failed, falling back to polling:', verifyErr);
+                    }
+                    
+                    // ── FALLBACK: Poll for webhook-based activation ──────
                     let attempts = 0;
-                    const maxAttempts = 30; // 60 seconds total (2s * 30)
+                    const maxAttempts = 15; // 30 seconds (2s × 15)
                     const poll = async () => {
                         attempts++;
                         console.log(`[Poll ${attempts}/${maxAttempts}] Checking subscription status...`);
                         try {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (session) {
-                                // 1. Refresh Context
+                            const { data: { session: pollSession } } = await supabase.auth.getSession();
+                            if (pollSession) {
                                 await refreshSubscription();
                                 
-                                // 2. Hard Check via API
-                                const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
-                                const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
                                 const res = await fetch(`${API_URL}/api/subscription/usage`, {
-                                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                                    headers: { 'Authorization': `Bearer ${pollSession.access_token}` }
                                 });
                                 
                                 if (res.ok) {
@@ -185,6 +220,8 @@ const Plans = () => {
                                     console.log(`[Poll ${attempts}] Current tier: ${d.stats?.tier}, Target: ${plan.id}`);
                                     if (d.stats?.tier === plan.id) {
                                         toast.success(`🎉 ${plan.name} plan activated! Welcome aboard.`, { id: toastId });
+                                        localStorage.removeItem('ds_subscription_cache');
+                                        localStorage.removeItem('ds_usage_token');
                                         await refreshSubscription();
                                         return;
                                     }
@@ -195,15 +232,14 @@ const Plans = () => {
                         }
 
                         if (attempts < maxAttempts) {
-                            setTimeout(poll, 2000); // 2s delay between attempts
+                            setTimeout(poll, 2000);
                         } else {
-                            // After 60 seconds, assume success (webhook is processing)
                             toast.success(`Payment successful! Your plan is being activated. If not updated in 5 minutes, contact support.`, { id: toastId });
+                            localStorage.removeItem('ds_subscription_cache');
                             await refreshSubscription();
                         }
                     };
                     
-                    // Start polling after 1.5s to give webhook time to fire
                     setTimeout(poll, 1500);
                 },
                 prefill: {

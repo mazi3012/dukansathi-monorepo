@@ -542,6 +542,91 @@ async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class VerifyPaymentRequest(BaseModel):
+    razorpay_payment_id: str
+    razorpay_subscription_id: str
+    razorpay_signature: str
+
+@app.post("/api/subscription/verify")
+async def verify_subscription_payment(
+    payload: VerifyPaymentRequest,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Verify Razorpay payment signature and activate subscription immediately.
+    
+    This is the PRIMARY activation path — called by the frontend right after
+    a successful Razorpay checkout. The webhook remains as a secondary fallback
+    for renewals, cancellations, etc.
+    
+    Security layers:
+      1. JWT auth — only logged-in users can call this
+      2. HMAC signature verification — unforgeable without RAZORPAY_KEY_SECRET
+      3. Server-side plan lookup — tier determined from Razorpay API, not client
+    """
+    if not sub_service.client:
+        raise HTTPException(status_code=503, detail="Payment system not configured")
+    
+    # ── Step 1: Verify payment signature (HMAC-SHA256) ─────────────────
+    try:
+        sub_service.client.utility.verify_payment_signature({
+            'razorpay_payment_id': payload.razorpay_payment_id,
+            'razorpay_subscription_id': payload.razorpay_subscription_id,
+            'razorpay_signature': payload.razorpay_signature
+        })
+        logger.info(f"[Verify] ✅ Signature valid for payment {payload.razorpay_payment_id}")
+    except Exception as e:
+        logger.error(f"[Verify] ❌ Signature verification FAILED: {e}")
+        raise HTTPException(status_code=400, detail="Payment verification failed — invalid signature")
+    
+    # ── Step 2: Fetch subscription from Razorpay API to get plan_id ────
+    try:
+        rzp_subscription = sub_service.client.subscription.fetch(payload.razorpay_subscription_id)
+        plan_id = rzp_subscription.get("plan_id", "")
+        rzp_status = rzp_subscription.get("status", "")
+        logger.info(f"[Verify] Fetched subscription: plan_id={plan_id}, status={rzp_status}")
+    except Exception as e:
+        logger.error(f"[Verify] Failed to fetch subscription from Razorpay: {e}")
+        raise HTTPException(status_code=502, detail="Could not verify subscription with payment provider")
+    
+    # ── Step 3: Map plan_id → tier (server-side, not from client) ──────
+    PLAN_TIER_MAP = {
+        "plan_SYJ1J3QjtX1mAK": "starter",
+        "plan_SYJ1ZJWBFTgZWx": "pro",
+        "plan_SYJ1a3OcE6bwDB": "ultra",
+    }
+    tier = PLAN_TIER_MAP.get(plan_id)
+    
+    if not tier:
+        logger.error(f"[Verify] Unknown plan_id '{plan_id}' — cannot map to tier")
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {plan_id}")
+    
+    # ── Step 4: Update user profile in Supabase ────────────────────────
+    try:
+        result = supabase.table("profiles").update({
+            "subscription_tier": tier,
+            "subscription_status": "active",
+            "razorpay_subscription_id": payload.razorpay_subscription_id,
+            "updated_at": datetime.now().isoformat()
+        }).eq("id", user_id).execute()
+        
+        if not result.data:
+            logger.error(f"[Verify] Profile update returned no data for user {user_id}")
+            raise HTTPException(status_code=500, detail="Failed to update subscription")
+        
+        logger.info(f"[Verify] ✅ Activated {tier.upper()} for user {user_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Verify] Database update failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to activate subscription")
+    
+    return {
+        "status": "active",
+        "tier": tier,
+        "message": f"{tier.capitalize()} plan activated successfully!"
+    }
+
+
 @app.get("/api/forecast")
 async def get_forecast(
     horizon_days: int = 30,
