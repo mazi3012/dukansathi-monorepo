@@ -1,12 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, RefreshCw, CreditCard, Target } from 'lucide-react';
+import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, CreditCard, Target } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.svg';
-import { usePWA } from '../hooks/usePWA';
-import { Download } from 'lucide-react';
 
 const NavItem = ({ to, icon: Icon, label, onClick }) => (
     <NavLink
@@ -28,18 +26,9 @@ const NavItem = ({ to, icon: Icon, label, onClick }) => (
 
 const NavigationDrawer = ({ isOpen, onClose, user }) => {
     const navigate = useNavigate();
-    const [isSyncing, setIsSyncing] = React.useState(true);
-    const { isInstallable, installApp } = usePWA();
     const { tier } = useSubscription();
 
     React.useEffect(() => {
-        const storedSyncState = localStorage.getItem('sync_enabled');
-        if (storedSyncState !== null) {
-            setIsSyncing(storedSyncState === 'true');
-        } else {
-            // Default to true
-            localStorage.setItem('sync_enabled', 'true');
-        }
         // Prevent background scroll when drawer is open
         if (isOpen) {
             document.body.classList.add('overflow-hidden');
@@ -52,12 +41,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
         };
     }, [isOpen]); // Re-check when drawer opens
 
-    const handleSyncToggle = () => {
-        const newState = !isSyncing;
-        setIsSyncing(newState);
-        localStorage.setItem('sync_enabled', String(newState));
-        window.dispatchEvent(new CustomEvent('sync-toggle-changed', { detail: { isSyncing: newState } }));
-    };
+
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -139,37 +123,9 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
                         </div>
 
-                        {/* Footer */}
-                        <div className="pt-4 pb-6 border-t border-card-border/50 flex flex-col gap-2 relative bottom-0">
-                            {/* Sync Toggle */}
-                            <div className="flex items-center justify-between p-3 glass-card rounded-2xl">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-xl transition-colors ${isSyncing ? 'bg-indigo-500/20 text-indigo-500' : 'bg-card-bg text-text-muted'}`}>
-                                        <RefreshCw size={18} strokeWidth={2} />
-                                    </div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-main">Neural Sync</span>
-                                </div>
-                                <button
-                                    onClick={handleSyncToggle}
-                                    className={`w-12 h-6 rounded-full flex items-center transition-all duration-300 p-1 ${isSyncing ? 'bg-indigo-600 shadow-lg shadow-indigo-500/30' : 'bg-card-bg border border-card-border'}`}
-                                >
-                                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${isSyncing ? 'translate-x-6' : 'translate-x-0'}`} />
-                                </button>
-                            </div>
-
-                            {/* PWA Install Button */}
-                            {isInstallable && (
-                                <button
-                                    onClick={async () => {
-                                        await installApp();
-                                        window.location.reload();
-                                    }}
-                                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-2xl transition-all active:scale-95 shadow-lg shadow-indigo-600/30 border border-white/10 font-bold"
-                                >
-                                    <Download size={18} />
-                                    Install Mobile App
-                                </button>
-                            )}
+                        {/* Footer - Minimalist */}
+                        <div className="pt-4 pb-6 border-t border-card-border/50 flex flex-col items-center justify-center relative bottom-0">
+                             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Dukan Sathi v1.2</p>
                         </div>
                     </motion.div>
                 </div>
