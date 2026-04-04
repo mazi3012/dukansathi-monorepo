@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Star, Shield, Zap, TrendingUp, Users, Package, FileText, PhoneCall } from 'lucide-react';
+import { Check, Star, Shield, Zap, TrendingUp, Users, Package, FileText, PhoneCall, ArrowDown } from 'lucide-react';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -25,7 +25,7 @@ const Plans = () => {
             ],
             limits: { products: 50, customers: 50, bills: 100, ai_credits: 20 },
             color: 'gray',
-            buttonText: 'Current Plan'
+            buttonText: 'Free Plan'
         },
         {
             id: 'starter',
@@ -104,9 +104,50 @@ const Plans = () => {
         }
     ];
 
+    const handleCancelSubscription = async () => {
+        if (tier === 'free') return;
+        
+        const confirmed = window.confirm(
+            `Are you sure you want to downgrade from ${tier.toUpperCase()} to FREE?\n\nYou will lose access to paid features immediately.`
+        );
+        if (!confirmed) return;
+        
+        setLoading('free');
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+
+            const response = await fetch(`${API_URL}/api/subscription/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`
+                }
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || 'Failed to cancel subscription');
+            }
+
+            toast.success('Downgraded to Free plan successfully.', { icon: '✅' });
+            localStorage.removeItem('ds_subscription_cache');
+            localStorage.removeItem('ds_usage_token');
+            await refreshSubscription();
+        } catch (err) {
+            console.error(err);
+            toast.error(err.message || 'Failed to downgrade. Please try again.');
+        } finally {
+            setLoading(null);
+        }
+    };
+
     const handleSubscribe = async (plan) => {
         if (plan.id === tier) return;
-        if (plan.id === 'free') return;
+        if (plan.id === 'free') {
+            handleCancelSubscription();
+            return;
+        }
         if (plan.id === 'enterprise') {
             window.open('https://wa.me/your_number', '_blank');
             return;
@@ -375,13 +416,21 @@ const Plans = () => {
                             disabled={tier === plan.id || loading === plan.id}
                             className={`w-full py-4 rounded-2xl font-bold text-sm transition-all ${
                                 tier === plan.id 
-                                ? 'bg-emerald-500/10 text-emerald-500 cursor-default border-emerald-500/20'
+                                ? 'bg-emerald-500/10 text-emerald-500 cursor-default border border-emerald-500/20'
+                                : plan.id === 'free' && tier !== 'free'
+                                ? 'bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20'
                                 : plan.isPopular
                                 ? 'bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-500/20'
                                 : 'bg-card-bg border border-indigo-500/20 text-indigo-500 hover:bg-indigo-500/5'
                             } disabled:opacity-50`}
                         >
-                            {loading === plan.id ? 'Processing...' : (tier === plan.id ? 'Current Plan' : plan.buttonText)}
+                            {loading === plan.id ? 'Processing...' : (
+                                tier === plan.id ? '✓ Current Plan' : (
+                                    plan.id === 'free' && tier !== 'free' 
+                                    ? '↓ Downgrade to Free' 
+                                    : plan.buttonText
+                                )
+                            )}
                         </button>
                     </motion.div>
                 ))}

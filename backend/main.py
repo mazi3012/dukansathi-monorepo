@@ -542,6 +542,58 @@ async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/subscription/cancel")
+async def cancel_subscription(user_id: str = Depends(verify_local_auth)):
+    """Cancel the current Razorpay subscription and downgrade user to free tier."""
+    try:
+        # 1. Get the user's current subscription ID
+        profile_res = supabase.table("profiles") \
+            .select("razorpay_subscription_id, subscription_tier") \
+            .eq("id", user_id).single().execute()
+        
+        if not profile_res or not profile_res.data:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        current_tier = profile_res.data.get("subscription_tier", "free")
+        sub_id = profile_res.data.get("razorpay_subscription_id")
+        
+        if current_tier == "free":
+            raise HTTPException(status_code=400, detail="Already on free plan")
+        
+        # 2. Cancel the Razorpay subscription (if exists)
+        if sub_id and sub_service.client:
+            try:
+                sub_service.client.subscription.cancel(sub_id, {"cancel_at_cycle_end": 0})
+                logger.info(f"[Cancel] Cancelled Razorpay subscription {sub_id} for user {user_id}")
+            except Exception as rzp_err:
+                logger.warning(f"[Cancel] Razorpay cancel failed (may already be cancelled): {rzp_err}")
+                # Continue anyway — we still want to downgrade in our DB
+        
+        # 3. Downgrade profile to free in Supabase
+        result = supabase.table("profiles").update({
+            "subscription_tier": "free",
+            "subscription_status": "cancelled",
+            "razorpay_subscription_id": None,
+            "updated_at": datetime.now().isoformat()
+        }).eq("id", user_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to update profile")
+        
+        logger.info(f"[Cancel] ✅ Downgraded user {user_id} from {current_tier} to free")
+        return {
+            "status": "cancelled",
+            "previous_tier": current_tier,
+            "current_tier": "free",
+            "message": "Subscription cancelled. You are now on the Free plan."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Cancel] Error cancelling subscription: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cancel subscription")
+
+
 class VerifyPaymentRequest(BaseModel):
     razorpay_payment_id: str
     razorpay_subscription_id: str
