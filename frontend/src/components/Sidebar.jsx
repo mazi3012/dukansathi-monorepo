@@ -65,14 +65,6 @@ const Sidebar = () => {
                     <h1 className="font-heading font-extrabold text-xl text-text-main tracking-tight transition-colors">Dukan Sathi</h1>
                     <div className="flex gap-2 items-center">
                         <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/20">BETA</span>
-                        <span className={`text-[9px] uppercase tracking-tighter font-extrabold px-1.5 py-0.5 rounded-md border ${
-                            tier === 'free' ? 'bg-slate-500/10 text-slate-500 border-slate-500/20' :
-                            tier === 'starter' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                            tier === 'pro' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 shadow-[0_0_10px_rgba(79,70,229,0.2)]' :
-                            'bg-purple-500/10 text-purple-500 border-purple-500/20 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
-                        }`}>
-                            {tier}
-                        </span>
                     </div>
                 </div>
             </div>

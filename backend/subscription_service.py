@@ -7,13 +7,13 @@ from supabase import Client
 
 logger = logging.getLogger(__name__)
 
-# Constants for Limits
+# Constants for Limits (ai_credits removed — now handled by credit_ledger)
 TIER_LIMITS = {
-    "free": {"products": 50, "customers": 50, "bills": 100, "ai_credits": 20},
-    "starter": {"products": 500, "customers": 500, "bills": 1000, "ai_credits": 500},
-    "pro": {"products": 2000, "customers": 2000, "bills": 5000, "ai_credits": 2000},
-    "ultra": {"products": 10000, "customers": 10000, "bills": 20000, "ai_credits": 999999},
-    "enterprise": {"products": 999999, "customers": 999999, "bills": 999999, "ai_credits": 999999},
+    "free": {"products": 50, "customers": 50, "bills": 100},
+    "starter": {"products": 500, "customers": 500, "bills": 1000},
+    "pro": {"products": 2000, "customers": 2000, "bills": 5000},
+    "ultra": {"products": 10000, "customers": 10000, "bills": 20000},
+    "enterprise": {"products": 999999, "customers": 999999, "bills": 999999},
 }
 
 USAGE_TOKEN_SECRET = os.getenv("JWT_SECRET", "dukansathi_secret_key_change_me")

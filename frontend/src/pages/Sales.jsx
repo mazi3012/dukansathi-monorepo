@@ -58,8 +58,7 @@ const Sales = () => {
         const computedItems = items.map(item => {
             const qty = parseFloat(item.qty) || 0;
             const price = parseFloat(item.price) || 0;
-            const taxableValue = qty * price;
-
+            let taxableValue = qty * price;
             let cgst = 0, sgst = 0, igst = 0, taxTotal = 0, gstRate = 0;
 
             if (billType === 'GST' && userProfile?.gstin) {
@@ -68,11 +67,12 @@ const Sales = () => {
                     quantity: qty,
                     hsnCode: item.hsn || null,
                     sellerGstin: userProfile.gstin,
-                    buyerGstin: null,
-                    placeOfSupply: isInterStateSale ? 'IGST' : null,
+                    buyerGstin: null, // Could be improved if customer has GSTIN
+                    forceInterState: isInterStateSale,
                     taxRate: item.tax_percent || 0,
                     isInclusive: item.tax_type === 'inclusive'
                 });
+                taxableValue = taxCalc.taxable_value;
                 cgst = taxCalc.cgst_amount;
                 sgst = taxCalc.sgst_amount;
                 igst = taxCalc.igst_amount;
@@ -526,7 +526,7 @@ const Sales = () => {
                             </div>
 
                             <div className="overflow-y-auto flex-1 space-y-8 pr-2 scrollbar-hide">
-                                {/* Configuration */}
+                                {/* GST / Non-GST Toggle */}
                                 {userProfile?.is_gst_registered && (
                                     <div className="bg-card-bg p-1.5 rounded-2xl border border-card-border flex gap-2 shadow-inner">
                                         <button
@@ -544,7 +544,7 @@ const Sales = () => {
                                     </div>
                                 )}
 
-                                {/* Client Selector */}
+                                {/* Customer Selector */}
                                 <div className="space-y-3">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Customer</label>
                                     <div className="flex gap-3">
@@ -574,6 +574,22 @@ const Sales = () => {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* GST: Inter-State Toggle */}
+                                {billType === 'GST' && (
+                                    <div className="flex items-center justify-between bg-card-bg p-4 rounded-2xl border border-card-border">
+                                        <div>
+                                            <p className="text-xs font-bold text-text-main">Out-of-State Supply?</p>
+                                            <p className="text-[9px] text-text-muted">IGST applies for inter-state sales</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsInterStateSale(!isInterStateSale)}
+                                            className={`relative w-12 h-6 rounded-full transition-all ${isInterStateSale ? 'bg-indigo-600' : 'bg-card-border'}`}
+                                        >
+                                            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isInterStateSale ? 'left-6' : 'left-0.5'}`} />
+                                        </button>
+                                    </div>
+                                )}
 
                                 {/* Items Forge */}
                                 <div className="space-y-4">
@@ -619,7 +635,68 @@ const Sales = () => {
                                                         <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} className="flex-1 p-3 bg-bg-main rounded-xl border border-card-border font-black text-text-main focus:border-indigo-500 transition-all shadow-inner" />
                                                     </div>
                                                 </div>
+
+                                                {/* GST: HSN & Tax per item */}
+                                                {billType === 'GST' && (
+                                                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px]">
+                                                        <div className="flex items-center gap-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg px-2.5 py-1.5">
+                                                            <span className="font-black text-text-muted uppercase tracking-widest">HSN</span>
+                                                            <input
+                                                                type="text"
+                                                                value={item.hsn || ''}
+                                                                onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                                                                className="w-16 bg-transparent font-bold text-indigo-500 text-center outline-none"
+                                                                placeholder="—"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 bg-purple-500/5 border border-purple-500/10 rounded-lg px-2.5 py-1.5">
+                                                            <span className="font-black text-text-muted uppercase tracking-widest">Tax %</span>
+                                                            <select
+                                                                value={item.tax_percent || 0}
+                                                                onChange={(e) => handleItemChange(index, 'tax_percent', parseFloat(e.target.value))}
+                                                                className="bg-transparent font-bold text-purple-500 outline-none cursor-pointer"
+                                                            >
+                                                                <option value={0}>0%</option>
+                                                                <option value={5}>5%</option>
+                                                                <option value={12}>12%</option>
+                                                                <option value={18}>18%</option>
+                                                                <option value={28}>28%</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-2.5 py-1.5">
+                                                            <select
+                                                                value={item.tax_type || 'exclusive'}
+                                                                onChange={(e) => handleItemChange(index, 'tax_type', e.target.value)}
+                                                                className="bg-transparent font-bold text-emerald-500 text-[10px] outline-none cursor-pointer uppercase tracking-widest"
+                                                            >
+                                                                <option value="exclusive">Exclusive</option>
+                                                                <option value="inclusive">Inclusive</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Payment Method */}
+                                <div className="space-y-3">
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Payment Method</label>
+                                    <div className="bg-card-bg p-1.5 rounded-2xl border border-card-border flex gap-1 shadow-inner flex-wrap">
+                                        {[
+                                            { val: 'cash', label: '💵 Cash' },
+                                            { val: 'upi', label: '📱 UPI' },
+                                            { val: 'card', label: '💳 Card' },
+                                            { val: 'bank_transfer', label: '🏦 Bank' },
+                                        ].map(pm => (
+                                            <button
+                                                key={pm.val}
+                                                onClick={() => setPaymentMethod(pm.val)}
+                                                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all min-w-[70px] ${paymentMethod === pm.val ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-text-muted hover:bg-card-bg'}`}
+                                            >
+                                                {pm.label}
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
@@ -630,6 +707,34 @@ const Sales = () => {
                                         <span className="text-[10px] font-black uppercase tracking-widest">Subtotal</span>
                                         <span className="font-black text-text-main">₹{totals.subtotal.toLocaleString()}</span>
                                     </div>
+
+                                    {/* GST Tax Breakdown */}
+                                    {billType === 'GST' && totals.totalTax > 0 && (
+                                        <div className="space-y-2 py-2 border-y border-card-border/20">
+                                            {!isInterStateSale ? (
+                                                <>
+                                                    <div className="flex justify-between items-center text-text-muted">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">CGST</span>
+                                                        <span className="font-bold text-text-main text-sm">₹{totals.totalCgst.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-text-muted">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">SGST</span>
+                                                        <span className="font-bold text-text-main text-sm">₹{totals.totalSgst.toFixed(2)}</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex justify-between items-center text-text-muted">
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">IGST</span>
+                                                    <span className="font-bold text-text-main text-sm">₹{totals.totalIgst.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center text-text-muted pt-1">
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Total Tax</span>
+                                                <span className="font-black text-amber-500 text-sm">₹{totals.totalTax.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex justify-between items-center py-4 border-y border-card-border/30">
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Discount</span>

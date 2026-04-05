@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, CreditCard, Sparkles, Bell } from 'lucide-react';
+import { Menu, Coins, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -15,7 +15,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 const MainLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { tier } = useSubscription();
+    const { tier, creditBalance } = useSubscription();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -236,35 +236,20 @@ const MainLayout = () => {
                             </div>
                         )}
 
-                        {/* Plan Badge */}
-                        <div 
-                            onClick={() => navigate('/plans')}
-                            className={`plan-badge cursor-pointer whitespace-nowrap plan-badge-${tier}`}
+                        {/* Credit Coin */}
+                        <button
+                            onClick={() => navigate('/credits')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
+                                creditBalance > 50
+                                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 hover:border-amber-500/40'
+                                    : creditBalance > 10
+                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500 hover:border-orange-500/40'
+                                    : 'bg-red-500/10 border-red-500/20 text-red-500 hover:border-red-500/40 animate-pulse'
+                            }`}
                         >
-                            <CreditCard size={12} />
-                            <span>{tier}</span>
-                        </div>
-
-                        {/* Upgrade Button (Only for Free Tier) */}
-                        {tier === 'free' && (
-                            <button
-                                onClick={() => navigate('/plans')}
-                                className="upgrade-btn premium-pulse hidden sm:flex"
-                            >
-                                <Sparkles size={14} />
-                                <span>Upgrade</span>
-                            </button>
-                        )}
-                        
-                        {/* Mobile Minimal Upgrade Link */}
-                        {tier === 'free' && (
-                            <button
-                                onClick={() => navigate('/plans')}
-                                className="sm:hidden w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-lg"
-                            >
-                                <Sparkles size={14} />
-                            </button>
-                        )}
+                            <Coins size={14} />
+                            <span className="text-xs font-black">{creditBalance.toLocaleString()}</span>
+                        </button>
                     </div>
                 </header>
             )}

@@ -84,14 +84,6 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                                     </h2>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <p className="text-[10px] font-medium text-text-muted lowercase leading-none truncate max-w-[140px]">{String(user?.email || 'App Mode').toLowerCase()}</p>
-                                        <div className={`text-[8px] uppercase font-black px-1 py-0.5 rounded border ${
-                                            tier === 'free' ? 'bg-slate-500/10 text-slate-500 border-slate-500/10' :
-                                            tier === 'starter' ? 'bg-blue-500/10 text-blue-500 border-blue-500/10' :
-                                            tier === 'pro' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/10' :
-                                            'bg-purple-500/10 text-purple-500 border-purple-500/10'
-                                        }`}>
-                                            {tier}
-                                        </div>
                                         <button
                                             onClick={handleLogout}
                                             className="text-[9px] font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"

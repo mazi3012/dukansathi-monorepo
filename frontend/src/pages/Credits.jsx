@@ -16,7 +16,7 @@ const CREDIT_PACKS = [
         color: 'sky',
         gradient: 'from-sky-500 to-cyan-500',
         tagline: 'Running low? Quick refill!',
-        perBill: '₹0.24 / bill',
+        perAction: '₹0.24 / action',
         popular: false,
     },
     {
@@ -28,7 +28,7 @@ const CREDIT_PACKS = [
         color: 'indigo',
         gradient: 'from-indigo-500 to-violet-500',
         tagline: 'Perfect for free plan users',
-        perBill: '₹0.20 / bill',
+        perAction: '₹0.20 / action',
         popular: false,
     },
     {
@@ -40,7 +40,7 @@ const CREDIT_PACKS = [
         color: 'purple',
         gradient: 'from-purple-500 to-pink-500',
         tagline: 'Best value for busy months',
-        perBill: '₹0.12 / bill',
+        perAction: '₹0.12 / action',
         popular: true,
     },
     {
@@ -52,16 +52,16 @@ const CREDIT_PACKS = [
         color: 'amber',
         gradient: 'from-amber-500 to-orange-500',
         tagline: 'Festival season power pack',
-        perBill: '₹0.10 / bill',
+        perAction: '₹0.10 / action',
         popular: false,
     },
 ];
 
 // ── Credit Cost Reference ─────────────────────────────────────────────
 const CREDIT_COSTS = [
-    { action: 'Generate a Bill', cost: 1, icon: '🧾' },
-    { action: 'AI Chat Message', cost: 2, icon: '💬' },
-    { action: 'Voice-to-Bill',   cost: 5, icon: '🎙️' },
+    { action: 'AI Chat Message', cost: 1, icon: '💬' },
+    { action: 'Voice-to-Bill',   cost: 1, icon: '🎙️' },
+    { action: 'Manual Billing',  cost: 0, icon: '🧾' },
     { action: 'Add Product',     cost: 0, icon: '📦' },
     { action: 'Add Customer',    cost: 0, icon: '👤' },
 ];
@@ -242,14 +242,14 @@ export default function Credits() {
                                 <span className="text-2xl font-black text-text-main">{pack.credits.toLocaleString()}</span>
                                 <span className="text-text-muted text-sm">credits</span>
                             </div>
-                            <p className="text-xs text-text-muted mb-6">{pack.perBill}</p>
+                            <p className="text-xs text-text-muted mb-6">{pack.perAction}</p>
 
                             {/* What you get */}
                             <div className="space-y-1 mb-6 flex-1">
                                 {[
-                                    `${pack.credits} bills`,
-                                    `${Math.floor(pack.credits / 2)} AI chats`,
-                                    `${Math.floor(pack.credits / 5)} voice bills`,
+                                    `${pack.credits} AI actions`,
+                                    'AI Chat + Voice billing',
+                                    'Never expires',
                                 ].map((item) => (
                                     <div key={item} className="flex items-center gap-2 text-xs text-text-muted">
                                         <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />

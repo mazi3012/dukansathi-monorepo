@@ -21,18 +21,18 @@ const Plans = () => {
                 '50 Products Limit',
                 '50 Customers Limit',
                 '100 Bills per Month',
-                '20 AI Credits / Month',
+                '100 AI Credits / Month',
                 'Basic Reporting',
                 'Offline Sync'
             ],
-            limits: { products: 50, customers: 50, bills: 100, ai_credits: 20 },
+            limits: { products: 50, customers: 50, bills: 100 },
             color: 'gray',
             buttonText: 'Free Plan'
         },
         {
             id: 'starter',
             name: 'Starter',
-            price: '₹149',
+            price: '₹129',
             period: '/month',
             description: 'Essential tools for growing shops',
             features: [
@@ -342,11 +342,27 @@ const Plans = () => {
                     Current Usage ({tier.toUpperCase()})
                 </h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <UsageProgress label="Products" icon={Package} current={usage.products} max={limits.products === 'Unlimited*' ? 1 : limits.products} color="blue" />
                     <UsageProgress label="Customers" icon={Users} current={usage.customers} max={limits.customers === 'Unlimited*' ? 1 : limits.customers} color="indigo" />
                     <UsageProgress label="Bills (This Month)" icon={FileText} current={usage.bills} max={limits.bills === 'Unlimited*' ? 1 : limits.bills} color="purple" />
-                    <UsageProgress label="AI Credits" icon={Zap} current={usage.ai_credits} max={limits.ai_credits === 'Unlimited*' ? 1 : limits.ai_credits} color="amber" />
+                </div>
+
+                {/* Credit Balance Card */}
+                <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition-all" onClick={() => navigate('/credits')}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+                            <Coins size={18} className="text-white" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-text-main">AI Credits Available</p>
+                            <p className="text-xs text-text-muted">1 credit = 1 AI chat or voice action</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <p className={`text-2xl font-black ${creditBalance > 50 ? 'text-emerald-500' : creditBalance > 10 ? 'text-amber-500' : 'text-red-500'}`}>{creditBalance.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">credits</p>
+                    </div>
                 </div>
                 
                 {tier === 'free' && (

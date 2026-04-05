@@ -26,11 +26,10 @@ TIER_MONTHLY_CREDITS = {
     "enterprise": 999999,
 }
 
-# Credit cost per action
+# Credit cost per action (UNIFIED: all AI actions = 1 credit)
 CREDIT_COSTS = {
-    "bill_created":  1,
-    "ai_chat":       2,
-    "voice_bill":    5,
+    "ai_chat":       1,
+    "voice_bill":    1,
 }
 
 # Credit Pack definitions (price in paise for Razorpay)
@@ -211,6 +210,26 @@ class CreditService:
         pack = CREDIT_PACKS.get(pack_id)
         if not pack:
             raise ValueError(f"Unknown pack_id: {pack_id}")
+
+        # Idempotency: check if this payment was already processed
+        try:
+            existing = self.supabase.table("credit_ledger") \
+                .select("id") \
+                .eq("razorpay_payment_id", razorpay_payment_id) \
+                .limit(1) \
+                .execute()
+            if existing.data:
+                logger.warning(f"[Credits] Duplicate payment detected: {razorpay_payment_id}")
+                balance = self.get_balance(user_id)
+                return {
+                    "success": True,
+                    "credits_added": 0,
+                    "balance": balance,
+                    "pack": pack["label"],
+                    "duplicate": True,
+                }
+        except Exception:
+            pass  # If check fails, proceed normally — the unique index will catch duplicates
 
         # 2. Add credits to ledger
         result = self.add_credits(
