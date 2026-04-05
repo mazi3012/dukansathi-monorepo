@@ -46,7 +46,7 @@ const Plans = () => {
             limits: { products: 500, customers: 500, bills: 1000 },
             color: 'blue',
             buttonText: 'Upgrade to Starter',
-            rzpPlanId: 'plan_SYJ1J3QjtX1mAK'
+            rzpPlanId: 'plan_SZvL8EkGvNvdg2'
         },
         {
             id: 'pro',

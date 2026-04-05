@@ -150,7 +150,7 @@ So if notes are missing, it can't find the user!
 - **Current Mapping:**
   ```python
   PLAN_TIER_MAP = {
-      "plan_SYJ1J3QjtX1mAK": "starter",
+      "plan_SZvL8EkGvNvdg2": "starter",
       "plan_SYJ1ZJWBFTgZWx": "pro",
       "plan_SYJ1a3OcE6bwDB": "ultra",
   }
@@ -158,7 +158,7 @@ So if notes are missing, it can't find the user!
 - **Problem:** Enterprise plan NOT in mapping!
 - **Plans.jsx rzpPlanId values:**
   ```javascript
-  starter: 'plan_SYJ1J3QjtX1mAK'         ✅
+  starter: 'plan_SZvL8EkGvNvdg2'         ✅
   pro: 'plan_SYJ1ZJWBFTgZWx'            ✅
   ultra: 'plan_SYJ1a3OcE6bwDB'          ✅
   enterprise: (no rzpPlanId - "Contact Us") ✅ (OK, no mapping needed)

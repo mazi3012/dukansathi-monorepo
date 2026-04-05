@@ -646,7 +646,7 @@ async def verify_subscription_payment(
     
     # ── Step 3: Map plan_id → tier (server-side, not from client) ──────
     PLAN_TIER_MAP = {
-        "plan_SYJ1J3QjtX1mAK": "starter",
+        "plan_SZvL8EkGvNvdg2": "starter",
         "plan_SYJ1ZJWBFTgZWx": "pro",
         "plan_SYJ1a3OcE6bwDB": "ultra",
     }
@@ -857,7 +857,7 @@ async def razorpay_webhook(request: Request):
     
     # Plan-ID → Tier mapping (must match Plans.jsx rzpPlanId values)
     PLAN_TIER_MAP = {
-        "plan_SYJ1J3QjtX1mAK": "starter",
+        "plan_SZvL8EkGvNvdg2": "starter",
         "plan_SYJ1ZJWBFTgZWx": "pro",
         "plan_SYJ1a3OcE6bwDB": "ultra",
     }

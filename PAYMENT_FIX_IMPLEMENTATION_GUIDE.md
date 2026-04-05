@@ -177,7 +177,7 @@ Check that your actual Razorpay plan IDs match the mapping in `main.py`:
 
 ```python
 PLAN_TIER_MAP = {
-    "plan_SYJ1J3QjtX1mAK": "starter",  # Verify this is correct
+    "plan_SZvL8EkGvNvdg2": "starter",  # Verify this is correct
     "plan_SYJ1ZJWBFTgZWx": "pro",      # Verify this is correct
     "plan_SYJ1a3OcE6bwDB": "ultra",    # Verify this is correct
 }
