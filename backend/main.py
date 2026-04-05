@@ -162,9 +162,13 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
 ]
 
-# Subscription Service
+# Subscription Service (unchanged — keeps tier-based billing working)
 from subscription_service import SubscriptionService
 sub_service = SubscriptionService(supabase)
+
+# Credit Service (new pay-as-you-go layer, additive only)
+from credit_service import CreditService, CREDIT_PACKS
+credit_service = CreditService(supabase)
 from forecast_service import build_forecast_response, build_inventory_stockout_forecast_response
 from notifications_service import generate_inventory_risk_notifications
 
@@ -900,6 +904,84 @@ async def razorpay_webhook(request: Request):
     
     return {"status": "ok"}
 
+
+# ─────────────────────────────────────────────────────────────
+# CREDIT ROUTES (Pay-As-You-Go — additive on top of subscriptions)
+# ─────────────────────────────────────────────────────────────
+
+class CreditOrderRequest(BaseModel):
+    pack_id: str   # 'micro' | 'small' | 'business' | 'retail'
+
+class CreditVerifyRequest(BaseModel):
+    razorpay_order_id:   str
+    razorpay_payment_id: str
+    razorpay_signature:  str
+    pack_id:             str
+
+@app.post("/api/credits/order")
+async def create_credit_order(
+    body: CreditOrderRequest,
+    user_id: str = Depends(verify_local_auth)
+):
+    """Create a Razorpay one-time Order for a credit pack purchase."""
+    try:
+        order = credit_service.create_credit_order(pack_id=body.pack_id, user_id=user_id)
+        pack_info = CREDIT_PACKS.get(body.pack_id, {})
+        return {
+            "order_id":   order["id"],
+            "amount":     order["amount"],
+            "currency":   order["currency"],
+            "credits":    pack_info.get("credits", 0),
+            "label":      pack_info.get("label", ""),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Credits] Order creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create credit order")
+
+
+@app.post("/api/credits/verify")
+async def verify_credit_payment(
+    body: CreditVerifyRequest,
+    user_id: str = Depends(verify_local_auth)
+):
+    """
+    Verify Razorpay payment HMAC and add purchased credits to the ledger.
+    Security: Server verifies signature against RAZORPAY_KEY_SECRET — client cannot forge.
+    """
+    try:
+        result = credit_service.verify_credit_payment(
+            razorpay_order_id=body.razorpay_order_id,
+            razorpay_payment_id=body.razorpay_payment_id,
+            razorpay_signature=body.razorpay_signature,
+            user_id=user_id,
+            pack_id=body.pack_id,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Credits] Payment verification failed for {user_id}: {e}")
+        raise HTTPException(status_code=400, detail="Payment verification failed")
+
+
+@app.get("/api/credits/balance")
+async def get_credit_balance(user_id: str = Depends(verify_local_auth)):
+    """Get current credit balance. Also triggers monthly refresh if not done yet."""
+    try:
+        # Check and apply monthly refresh if needed
+        profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+        tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
+        credit_service.refresh_monthly_credits(user_id, tier)
+
+        balance = credit_service.get_balance(user_id)
+        return {"balance": balance, "tier": tier}
+    except Exception as e:
+        logger.error(f"[Credits] Balance fetch failed for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch credit balance")
+
+
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
     # Rate limit WebSocket connections per IP
@@ -992,13 +1074,20 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
                 profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
                 user_tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
             
-            # AI Credit Check (All tiers)
+            # AI Credit Check — Deduct from credit ledger (2 credits per message)
             if user_id != "anon":
-                if not await sub_service.check_limit(user_id, "ai_credits"):
+                # Determine action cost (voice = 5, text = 2)
+                _credit_action = "voice_bill" if message_type == "voice" else "ai_chat"
+                _credit_result = credit_service.deduct(
+                    user_id=user_id,
+                    action=_credit_action,
+                    description=f"AI {message_type} message"
+                )
+                if not _credit_result.get("success"):
                     await websocket.send_json({
                         "type": "error",
-                        "content": "You have reached your monthly AI credit limit! Please upgrade your plan for more AI Power.",
-                        "code": "UPGRADE_REQUIRED"
+                        "content": f"You're out of credits! Top up from the Credits page to keep chatting. (Balance: {_credit_result.get('balance', 0)})",
+                        "code": "NO_CREDITS"
                     })
                     continue
             

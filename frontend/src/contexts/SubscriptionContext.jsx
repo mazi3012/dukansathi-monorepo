@@ -27,44 +27,81 @@ export const SubscriptionProvider = ({ children }) => {
         }
         return null;
     });
-    
-    const [loading, setLoading] = useState(!subscription); // Only show loading if no cached data
+
+    // ── Credit Balance State (Pay-As-You-Go layer) ─────────────────────
+    const [creditBalance, setCreditBalance] = useState(() => {
+        const cached = localStorage.getItem('ds_credit_balance_cache');
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (parsed.expiresAt && new Date(parsed.expiresAt) > new Date()) {
+                    return parsed.balance;
+                }
+            } catch (_) { }
+        }
+        return null; // null = not yet loaded
+    });
+    // ──────────────────────────────────────────────────────────────────
+
+    const [loading, setLoading] = useState(!subscription);
     const [error, setError] = useState(null);
 
     const realtimeChannelRef = useRef(null);
+    const creditRealtimeRef = useRef(null);
     const refreshIntervalRef = useRef(null);
-    const retryCountRef = useRef(0);       // exponential backoff counter
-    const retryTimerRef = useRef(null);    // pending retry setTimeout
-    const mountedRef = useRef(true);       // prevent state updates after unmount
-    const nextRefreshDayRef = useRef(null); // smart check only on renewal date
-    const MAX_REALTIME_RETRIES = 3;        // give up after 3 failures, rely on polling
+    const retryCountRef = useRef(0);
+    const retryTimerRef = useRef(null);
+    const mountedRef = useRef(true);
+    const nextRefreshDayRef = useRef(null);
+    const MAX_REALTIME_RETRIES = 3;
 
-    // Extract renewal date from cached token and calculate next refresh time
     const getNextRefreshTime = useCallback(() => {
         const cached = localStorage.getItem('ds_usage_token');
-        if (!cached) return Date.now(); // Refresh immediately if no cache
-        
+        if (!cached) return Date.now();
         try {
             const parts = cached.split('.');
             if (parts.length === 3) {
                 const payload = JSON.parse(atob(parts[1]));
-                // If token has renewal info, schedule refresh for that day
                 if (payload.renewal_date) {
                     const renewalDate = new Date(payload.renewal_date);
                     const now = new Date();
-                    
-                    // If renewal date is in future, schedule check for that day at midnight
                     if (renewalDate > now) {
-                        renewalDate.setHours(0, 1, 0, 0); // Check 1 minute after midnight
+                        renewalDate.setHours(0, 1, 0, 0);
                         return renewalDate.getTime();
                     }
                 }
             }
         } catch (_) { /* ignore */ }
-        
-        // Default: refresh every 24 hours
         return Date.now() + (24 * 60 * 60 * 1000);
     }, []);
+
+    // ── Fetch Credit Balance from backend ─────────────────────────────
+    const fetchCreditBalance = useCallback(async () => {
+        if (!mountedRef.current) return;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { setCreditBalance(0); return; }
+
+            const rawApiUrl = import.meta.env.VITE_BACKEND_API_URL || 'http://127.0.0.1:8000';
+            const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
+
+            const res = await fetch(`${API_URL}/api/credits/balance`, {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!mountedRef.current) return;
+
+            setCreditBalance(data.balance);
+            localStorage.setItem('ds_credit_balance_cache', JSON.stringify({
+                balance: data.balance,
+                expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+            }));
+        } catch (err) {
+            console.warn('[Credits] Failed to fetch balance:', err);
+        }
+    }, []);
+    // ──────────────────────────────────────────────────────────────────
 
     const fetchSubscription = useCallback(async () => {
         if (!mountedRef.current) return;
@@ -87,19 +124,17 @@ export const SubscriptionProvider = ({ children }) => {
 
             const data = await response.json();
             if (!mountedRef.current) return;
-            
-            // Cache subscription data with smart expiration
+
             const cacheData = {
                 data: data.stats,
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                 cachedAt: new Date().toISOString()
             };
             localStorage.setItem('ds_subscription_cache', JSON.stringify(cacheData));
-            
+
             setSubscription(data.stats);
             setError(null);
 
-            // Update next refresh time based on token renewal date
             if (data.token) {
                 localStorage.setItem('ds_usage_token', data.token);
                 nextRefreshDayRef.current = getNextRefreshTime();
@@ -107,8 +142,6 @@ export const SubscriptionProvider = ({ children }) => {
         } catch (err) {
             if (!mountedRef.current) return;
             setError(err.message);
-
-            // Fallback: use cached subscription if fetch fails
             const cached = localStorage.getItem('ds_subscription_cache');
             if (cached) {
                 try {
@@ -122,11 +155,14 @@ export const SubscriptionProvider = ({ children }) => {
         }
     }, [getNextRefreshTime]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Teardown current Realtime channel cleanly
     const teardownChannel = useCallback(() => {
         if (realtimeChannelRef.current) {
             supabase.removeChannel(realtimeChannelRef.current).catch(() => {});
             realtimeChannelRef.current = null;
+        }
+        if (creditRealtimeRef.current) {
+            supabase.removeChannel(creditRealtimeRef.current).catch(() => {});
+            creditRealtimeRef.current = null;
         }
         if (retryTimerRef.current) {
             clearTimeout(retryTimerRef.current);
@@ -134,119 +170,107 @@ export const SubscriptionProvider = ({ children }) => {
         }
     }, []);
 
-    // Setup Supabase Realtime with exponential backoff + max retry cap
     const setupRealtimeSubscription = useCallback(async () => {
         if (!mountedRef.current) return;
-
-        // Check user is actually logged in before attempting
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) return;
-
-        // Stop trying after MAX_REALTIME_RETRIES — polling covers us
         if (retryCountRef.current >= MAX_REALTIME_RETRIES) return;
 
         teardownChannel();
-
         const userId = session.user.id;
+
+        // ── Subscription tier realtime ──────────────────────────────
         const channel = supabase
-            .channel(`profile-sub-${userId}-${Date.now()}`)  // unique name avoids stale state
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'profiles',
-                    filter: `id=eq.${userId}`,
-                },
-                (payload) => {
-                    if (!mountedRef.current) return;
-                    const { subscription_tier } = payload.new;
-
-                    if (subscription_tier) {
-                        setSubscription(prev => {
-                            if (!prev) return prev;
-                            return { ...prev, tier: subscription_tier };
+            .channel(`profile-sub-${userId}-${Date.now()}`)
+            .on('postgres_changes', {
+                event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}`,
+            }, (payload) => {
+                if (!mountedRef.current) return;
+                const { subscription_tier } = payload.new;
+                if (subscription_tier) {
+                    setSubscription(prev => prev ? { ...prev, tier: subscription_tier } : prev);
+                    if (subscription_tier !== 'free') {
+                        toast.success(`🎉 Plan activated: ${subscription_tier.toUpperCase()}!`, {
+                            duration: 5000, id: 'tier-update',
                         });
-
-                        if (subscription_tier !== 'free') {
-                            toast.success(`🎉 Plan activated: ${subscription_tier.toUpperCase()}!`, {
-                                duration: 5000,
-                                id: 'tier-update',
-                            });
-                        }
                     }
-                    // Full refresh for accurate usage counts
-                    fetchSubscription();
                 }
-            )
+                fetchSubscription();
+            })
             .subscribe((status) => {
                 if (!mountedRef.current) return;
-
                 if (status === 'SUBSCRIBED') {
-                    // Reset retry counter on successful connection
                     retryCountRef.current = 0;
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                     retryCountRef.current += 1;
                     if (retryCountRef.current < MAX_REALTIME_RETRIES) {
-                        // Exponential backoff: 3s, 6s, 12s
                         const delay = Math.pow(2, retryCountRef.current) * 3000;
                         retryTimerRef.current = setTimeout(() => {
                             if (mountedRef.current) setupRealtimeSubscription();
                         }, delay);
                     }
-                    // else: give up — the 5-min polling interval handles updates
                 }
-                // CLOSED: silently ignored (expected on unmount/navigation)
             });
-
         realtimeChannelRef.current = channel;
+
+        // ── Credit ledger realtime — update balance on any INSERT ───
+        const creditChannel = supabase
+            .channel(`credit-ledger-${userId}-${Date.now()}`)
+            .on('postgres_changes', {
+                event: 'INSERT', schema: 'public', table: 'credit_ledger', filter: `user_id=eq.${userId}`,
+            }, (payload) => {
+                if (!mountedRef.current) return;
+                const { amount } = payload.new;
+                setCreditBalance(prev => (prev ?? 0) + amount);
+                localStorage.removeItem('ds_credit_balance_cache');
+                if (amount > 0) {
+                    toast.success(`✨ +${amount} credits added!`, { id: 'credit-add', duration: 3000 });
+                }
+            })
+            .subscribe();
+        creditRealtimeRef.current = creditChannel;
+
     }, [fetchSubscription, teardownChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         mountedRef.current = true;
-
         fetchSubscription();
+        fetchCreditBalance();
         setupRealtimeSubscription();
 
-        // Smart polling: check on renewal date instead of every 5 minutes
         const setupSmartRefresh = async () => {
             nextRefreshDayRef.current = getNextRefreshTime();
-            
-            // Schedule next check based on renewal date
             const scheduleNextCheck = () => {
                 if (!mountedRef.current) return;
-                
                 const now = Date.now();
                 const nextRefresh = nextRefreshDayRef.current || (now + 24 * 60 * 60 * 1000);
                 const delay = Math.max(0, nextRefresh - now);
-                
-                // Cap delay at 24 hours to ensure eventual refresh
                 const cappedDelay = Math.min(delay, 24 * 60 * 60 * 1000);
-                
                 console.log(`📅 Next subscription check scheduled in ${Math.round(cappedDelay / 1000 / 60)} minutes`);
-                
                 refreshIntervalRef.current = setTimeout(() => {
                     if (mountedRef.current) {
                         fetchSubscription();
-                        scheduleNextCheck(); // Reschedule after fetch
+                        fetchCreditBalance();
+                        scheduleNextCheck();
                     }
                 }, cappedDelay);
             };
-            
             scheduleNextCheck();
         };
-
         setupSmartRefresh();
 
         const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN') {
-                retryCountRef.current = 0; // reset retries on fresh login
+                retryCountRef.current = 0;
                 fetchSubscription();
+                fetchCreditBalance();
                 setupRealtimeSubscription();
             } else if (event === 'SIGNED_OUT') {
                 setSubscription(null);
+                setCreditBalance(null);
                 localStorage.removeItem('ds_usage_token');
                 localStorage.removeItem('ds_subscription_cache');
+                localStorage.removeItem('ds_credit_balance_cache');
                 teardownChannel();
                 if (refreshIntervalRef.current) clearTimeout(refreshIntervalRef.current);
             }
@@ -258,7 +282,7 @@ export const SubscriptionProvider = ({ children }) => {
             teardownChannel();
             if (refreshIntervalRef.current) clearTimeout(refreshIntervalRef.current);
         };
-    }, [fetchSubscription, setupRealtimeSubscription, teardownChannel, getNextRefreshTime]);
+    }, [fetchSubscription, fetchCreditBalance, setupRealtimeSubscription, teardownChannel, getNextRefreshTime]);
 
     const tier = subscription?.tier || 'free';
     const usage = subscription?.usage || { products: 0, customers: 0, bills: 0 };
@@ -294,12 +318,21 @@ export const SubscriptionProvider = ({ children }) => {
         return true;
     };
 
+    // ── Credit Helpers ─────────────────────────────────────────────────
+    const canAfford = (cost = 1) => (creditBalance ?? 0) >= cost;
+    const refreshCredits = fetchCreditBalance;
+    // ──────────────────────────────────────────────────────────────────
+
     return (
         <SubscriptionContext.Provider value={{
             subscription, loading, error,
             refreshSubscription: fetchSubscription,
             isFeatureEnabled, isLimitReached, getUsagePercent, canAdd,
-            tier, usage, limits
+            tier, usage, limits,
+            // Credit system (additive — works alongside subscriptions)
+            creditBalance: creditBalance ?? 0,
+            refreshCredits,
+            canAfford,
         }}>
             {children}
         </SubscriptionContext.Provider>

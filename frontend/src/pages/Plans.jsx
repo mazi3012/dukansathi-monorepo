@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Star, Shield, Zap, TrendingUp, Users, Package, FileText, PhoneCall, ArrowDown } from 'lucide-react';
+import { Check, Star, Shield, Zap, TrendingUp, Users, Package, FileText, PhoneCall, ArrowDown, Coins, ArrowRight } from 'lucide-react';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 const Plans = () => {
-    const { tier, usage, limits, refreshSubscription } = useSubscription();
+    const { tier, usage, limits, refreshSubscription, creditBalance } = useSubscription();
     const [loading, setLoading] = useState(null);
+    const navigate = useNavigate();
 
     const plans = [
         {
@@ -358,6 +360,27 @@ const Plans = () => {
                     </div>
                 )}
             </section>
+
+            {/* ── Pay-As-You-Go Credits Banner ── */}
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => navigate('/credits')}
+                className="cursor-pointer flex items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all group"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+                        <Coins size={22} className="text-white" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-text-main text-sm">Need more AI power? Buy Credits</p>
+                        <p className="text-xs text-text-muted">Current balance: <span className="font-bold text-amber-500">{creditBalance.toLocaleString()} credits</span> · Credits never expire · All features unlocked</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1 text-amber-500 font-semibold text-sm group-hover:gap-2 transition-all">
+                    Top Up <ArrowRight size={14} />
+                </div>
+            </motion.div>
 
             {/* Pricing Tiers */}
             <div className="text-center space-y-4">
