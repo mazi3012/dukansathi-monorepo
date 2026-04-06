@@ -28,12 +28,40 @@ const Onboarding = () => {
         show_qr_on_invoice: true
     });
 
+    const ensureProfileExists = async (userId, email) => {
+        // Check if profile row exists; if not, create a minimal one first
+        const { data: existing } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (!existing) {
+            console.log('No profile found — creating one for', userId);
+            const { error: insertErr } = await supabase
+                .from('profiles')
+                .insert({
+                    id: userId,
+                    email: email || null,
+                    subscription_tier: 'free',
+                    onboarding_completed: false,
+                    subscription_status: 'active',
+                });
+            if (insertErr) {
+                console.warn('Profile bootstrap insert (may already exist):', insertErr.message);
+            }
+        }
+    };
+
     const handleUpdateProfile = async () => {
         try {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
 
             if (!user) throw new Error("No user found. Please log in again.");
+
+            // Ensure profile row exists before upserting (handles trigger failures)
+            await ensureProfileExists(user.id, user.email);
 
             // Ensure id field matches user.id exactly
             const updates = {
@@ -58,7 +86,7 @@ const Onboarding = () => {
 
             console.log("Updating profile with:", { user_id: user.id, ...updates });
 
-            const { error, data } = await supabase
+            const { error } = await supabase
                 .from('profiles')
                 .upsert(updates, { onConflict: 'id' });
                 
@@ -67,7 +95,7 @@ const Onboarding = () => {
                 throw new Error(`Database error: ${error.message || error.code || 'Unknown error'}`);
             }
 
-            console.log("Profile updated successfully:", data);
+            console.log("Profile updated successfully");
             navigate('/');
         } catch (error) {
             console.error("Profile update error:", error);
@@ -82,7 +110,10 @@ const Onboarding = () => {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
 
-            if (!user) throw new Error("No user found");
+            if (!user) throw new Error("No user found. Please log in again.");
+
+            // Ensure profile row exists before upserting
+            await ensureProfileExists(user.id, user.email);
 
             // Mark onboarding as complete with minimal data
             const { error } = await supabase

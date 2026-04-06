@@ -66,12 +66,12 @@ const MainLayout = () => {
                 navigate('/landing');
             } else {
                 setUser(user);
-                // Check onboarding status
+                // Check onboarding status (maybeSingle avoids error when profile doesn't exist)
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('onboarding_completed')
                     .eq('id', user.id)
-                    .single();
+                    .maybeSingle();
 
                 if (!profile || !profile.onboarding_completed) {
                     navigate('/onboarding');

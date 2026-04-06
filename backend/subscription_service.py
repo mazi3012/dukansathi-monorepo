@@ -60,8 +60,8 @@ class SubscriptionService:
                 .execute()
             ai_count = ai_res.count if ai_res else 0
 
-            # 5. Get User Tier
-            profile_res = self.supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+            # 5. Get User Tier (use maybe_single to avoid crash when profile doesn't exist)
+            profile_res = self.supabase.table("profiles").select("subscription_tier").eq("id", user_id).maybe_single().execute()
             tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
 
             return {

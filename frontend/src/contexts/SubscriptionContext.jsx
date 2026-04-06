@@ -53,11 +53,15 @@ export const SubscriptionProvider = ({ children }) => {
     const retryTimerRef = useRef(null);
     const mountedRef = useRef(true);
     const nextRefreshDayRef = useRef(null);
+    const fetchErrorCountRef = useRef(0);
+    const fetchInProgressRef = useRef(false);
     const MAX_REALTIME_RETRIES = 3;
+    const MIN_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes minimum between polls
 
     const getNextRefreshTime = useCallback(() => {
         const cached = localStorage.getItem('ds_usage_token');
-        if (!cached) return Date.now();
+        // Always return at least MIN_POLL_INTERVAL_MS in the future
+        if (!cached) return Date.now() + MIN_POLL_INTERVAL_MS;
         try {
             const parts = cached.split('.');
             if (parts.length === 3) {
@@ -78,6 +82,7 @@ export const SubscriptionProvider = ({ children }) => {
     // ── Fetch Credit Balance from backend ─────────────────────────────
     const fetchCreditBalance = useCallback(async () => {
         if (!mountedRef.current) return;
+        if (fetchInProgressRef.current) return; // prevent concurrent fetches
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { setCreditBalance(0); return; }
@@ -105,6 +110,8 @@ export const SubscriptionProvider = ({ children }) => {
 
     const fetchSubscription = useCallback(async () => {
         if (!mountedRef.current) return;
+        if (fetchInProgressRef.current) return; // prevent concurrent fetches
+        fetchInProgressRef.current = true;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -134,6 +141,7 @@ export const SubscriptionProvider = ({ children }) => {
 
             setSubscription(data.stats);
             setError(null);
+            fetchErrorCountRef.current = 0; // reset error backoff on success
 
             if (data.token) {
                 localStorage.setItem('ds_usage_token', data.token);
@@ -141,6 +149,7 @@ export const SubscriptionProvider = ({ children }) => {
             }
         } catch (err) {
             if (!mountedRef.current) return;
+            fetchErrorCountRef.current += 1;
             setError(err.message);
             const cached = localStorage.getItem('ds_subscription_cache');
             if (cached) {
@@ -151,6 +160,7 @@ export const SubscriptionProvider = ({ children }) => {
                 } catch (_) { /* ignore */ }
             }
         } finally {
+            fetchInProgressRef.current = false;
             if (mountedRef.current) setLoading(false);
         }
     }, [getNextRefreshTime]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -244,7 +254,13 @@ export const SubscriptionProvider = ({ children }) => {
                 if (!mountedRef.current) return;
                 const now = Date.now();
                 const nextRefresh = nextRefreshDayRef.current || (now + 24 * 60 * 60 * 1000);
-                const delay = Math.max(0, nextRefresh - now);
+                const rawDelay = Math.max(0, nextRefresh - now);
+                // Apply exponential backoff on errors: 5min, 10min, 20min, 40min… capped at 1 hour
+                const errorBackoff = fetchErrorCountRef.current > 0
+                    ? Math.min(MIN_POLL_INTERVAL_MS * Math.pow(2, fetchErrorCountRef.current - 1), 60 * 60 * 1000)
+                    : 0;
+                // CRITICAL: never go below MIN_POLL_INTERVAL_MS to prevent infinite loops
+                const delay = Math.max(MIN_POLL_INTERVAL_MS, rawDelay, errorBackoff);
                 const cappedDelay = Math.min(delay, 24 * 60 * 60 * 1000);
                 console.log(`📅 Next subscription check scheduled in ${Math.round(cappedDelay / 1000 / 60)} minutes`);
                 refreshIntervalRef.current = setTimeout(() => {

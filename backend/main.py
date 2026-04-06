@@ -971,7 +971,7 @@ async def get_credit_balance(user_id: str = Depends(verify_local_auth)):
     """Get current credit balance. Also triggers monthly refresh if not done yet."""
     try:
         # Check and apply monthly refresh if needed
-        profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+        profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).maybe_single().execute()
         tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
         credit_service.refresh_monthly_credits(user_id, tier)
 
@@ -1071,7 +1071,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
             # --- TIER ENFORCEMENT ---
             user_tier = "free"
             if user_id != "anon":
-                profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+                profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).maybe_single().execute()
                 user_tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
             
             # AI Credit Check — Deduct from credit ledger (2 credits per message)
