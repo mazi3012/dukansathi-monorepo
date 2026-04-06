@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Package, Users, Activity, Loader, Zap } from 'lucide-react';
+import { TrendingUp, ShoppingBag, AlertTriangle, Plus, ChevronRight, MessageSquare, Package, Users, Activity, Loader, Zap, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardSkeleton } from '../components/Skeleton';
 import { supabase } from '../lib/supabase';
@@ -301,9 +301,21 @@ const Dashboard = () => {
                     <div className="hidden md:flex w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
                         <Activity className="w-8 h-8" strokeWidth={2.5} />
                     </div>
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
-                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                            <h1 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Overview</h1>
+                            <motion.button
+                                onClick={() => navigate('/forecast')}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="ml-auto md:ml-2 flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:border-indigo-500/50 hover:from-indigo-500/30 transition-all text-[9px] md:text-[10px] font-bold uppercase tracking-wider"
+                                title="View AI Forecast predictions"
+                            >
+                                <Target size={14} className="hidden md:inline" />
+                                <span>AI Forecast</span>
+                            </motion.button>
+                        </div>
+                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] transition-colors">
                             <span className="md:hidden">Business Insights</span>
                             <span className="hidden md:inline">Store Analytics</span>
                         </p>

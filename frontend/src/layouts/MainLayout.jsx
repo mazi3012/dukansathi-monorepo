@@ -283,11 +283,7 @@ const MainLayout = () => {
                 <div className="md:hidden">
                     <BottomNav
                         onCenterClick={() => {
-                            if (tier === 'free') {
-                                navigate('/plans');
-                            } else {
-                                navigate('/chat');
-                            }
+                            navigate('/chat');
                         }}
                     />
                 </div>

@@ -47,7 +47,6 @@ const Sidebar = () => {
         { path: '/', icon: Home, label: 'Overview' },
         { path: '/chat', icon: MessageSquare, label: 'Dukan Sathi AI' },
         { path: '/sales', icon: TrendingUp, label: 'Sales Ledger' },
-        { path: '/forecast', icon: Target, label: 'Forecast' },
         { path: '/inventory', icon: Package, label: 'Inventory' },
         { path: '/customers', icon: Users, label: 'Customers' },
         { path: '/connections', icon: LinkIcon, label: 'Connections' },

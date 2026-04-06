@@ -27,11 +27,11 @@ import Credits from './pages/Credits';
 registerSW({ immediate: true });
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(false);
   useEffect(() => {
-    // Only show splash on first load
-    const timer = setTimeout(() => setShowSplash(false), 1400);
-    return () => clearTimeout(timer);
+    // Splash screen disabled - removed per user request
+    // const timer = setTimeout(() => setShowSplash(false), 1400);
+    // return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

@@ -83,6 +83,7 @@ export const SubscriptionProvider = ({ children }) => {
     const fetchCreditBalance = useCallback(async () => {
         if (!mountedRef.current) return;
         if (fetchInProgressRef.current) return; // prevent concurrent fetches
+        fetchInProgressRef.current = true;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { setCreditBalance(0); return; }
@@ -98,12 +99,15 @@ export const SubscriptionProvider = ({ children }) => {
             if (!mountedRef.current) return;
 
             setCreditBalance(data.balance);
+            console.log('✅ Credit balance refreshed:', data.balance);
             localStorage.setItem('ds_credit_balance_cache', JSON.stringify({
                 balance: data.balance,
                 expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
             }));
         } catch (err) {
             console.warn('[Credits] Failed to fetch balance:', err);
+        } finally {
+            fetchInProgressRef.current = false;
         }
     }, []);
     // ──────────────────────────────────────────────────────────────────
