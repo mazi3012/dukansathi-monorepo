@@ -292,10 +292,17 @@ export const SubscriptionProvider = ({ children }) => {
         if (!subscription) return false;
         if (tier === 'free') {
             const aiFeatures = ['ai_chat', 'voice_billing', 'predictive_analytics', 'telegram_bot'];
-            if (aiFeatures.includes(feature)) return false;
+            if (aiFeatures.includes(feature)) {
+                // Allow AI Chat and Voice Billing for free users if credits > 0
+                if (feature === 'ai_chat' || feature === 'voice_billing') {
+                    return creditBalance > 0;
+                }
+                return false;
+            }
         }
         return true;
     };
+
 
     const isLimitReached = (feature) => {
         if (!subscription) return false;
