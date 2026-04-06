@@ -186,7 +186,7 @@ const Chat = () => {
         requestCamPermission
     } = useChat();
     const { isIOSDevice, showIOSInstructions, setShowIOSInstructions } = usePWA();
-    const { tier } = useSubscription();
+    const { tier, creditBalance } = useSubscription();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -1607,7 +1607,7 @@ const Chat = () => {
 
                         <button
                             onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                            disabled={isThinking || !isConnected || tier === 'free'}
+                            disabled={isThinking || !isConnected || (tier === 'free' && (!creditBalance || creditBalance === 0))}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showAttachmentMenu
                                 ? 'bg-indigo-500/10 text-indigo-500 shadow-inner'
                                 : 'text-text-muted hover:bg-card-bg/80 hover:text-indigo-500'
@@ -1618,24 +1618,24 @@ const Chat = () => {
                         </button>
                     </div>
 
-                    {/* Content Area: UI Restriction for Free Tier */}
-                    {tier === 'free' ? (
+                    {/* Content Area: UI Restriction for Free Tier without Credits */}
+                    {tier === 'free' && (!creditBalance || creditBalance === 0) ? (
                         <div className="flex-1 flex items-center justify-between bg-indigo-500/5 border border-indigo-500/20 rounded-3xl px-4 py-2.5 shadow-inner">
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0">
                                     <Lock size={14} />
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">AI is a Pro feature</span>
-                                    <span className="text-[10px] text-text-muted truncate">Upgrade for AI Billing & Sathi Assistant</span>
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">Out of Credits</span>
+                                    <span className="text-[10px] text-text-muted truncate">Get credits to use AI Assistant</span>
                                 </div>
                             </div>
                             <button
-                                onClick={() => navigate('/plans')}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 shrink-0"
+                                onClick={() => navigate('/credits')}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 shrink-0"
                             >
                                 <div className="flex items-center gap-1">
-                                    Upgrade <Sparkles size={10} fill="currentColor" />
+                                    Get Credits <Sparkles size={10} fill="currentColor" />
                                 </div>
                             </button>
                         </div>

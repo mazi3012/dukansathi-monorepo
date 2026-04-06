@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Coins, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -85,7 +85,7 @@ const MainLayout = () => {
         }
     };
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) return;
@@ -105,9 +105,9 @@ const MainLayout = () => {
         } catch (err) {
             console.error('Failed to fetch notifications:', err);
         }
-    };
+    }, []);
 
-    const markNotificationRead = async (notificationId) => {
+    const markNotificationRead = useCallback(async (notificationId) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) return;
@@ -128,7 +128,7 @@ const MainLayout = () => {
         } catch (err) {
             console.error('Failed to mark notification as read:', err);
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (!user) return;
@@ -236,20 +236,23 @@ const MainLayout = () => {
                             </div>
                         )}
 
-                        {/* Credit Coin */}
-                        <button
+                        {/* Credit Coin - Enhanced */}
+                        <motion.button
                             onClick={() => navigate('/credits')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
-                                creditBalance > 50
-                                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 hover:border-amber-500/40'
-                                    : creditBalance > 10
-                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500 hover:border-orange-500/40'
-                                    : 'bg-red-500/10 border-red-500/20 text-red-500 hover:border-red-500/40 animate-pulse'
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all cursor-pointer font-bold text-sm shadow-lg ${
+                                (creditBalance ?? 0) > 50
+                                    ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border-amber-400 text-amber-400 hover:from-amber-500/30 hover:to-yellow-500/20 shadow-amber-500/20'
+                                    : (creditBalance ?? 0) > 10
+                                    ? 'bg-gradient-to-r from-orange-500/20 to-orange-400/10 border-orange-400 text-orange-400 hover:from-orange-500/30 hover:to-orange-400/20 shadow-orange-500/20'
+                                    : 'bg-gradient-to-r from-red-500/20 to-red-400/10 border-red-400 text-red-400 hover:from-red-500/30 hover:to-red-400/20 shadow-red-500/20 animate-pulse'
                             }`}
+                            title="Click to buy more credits"
                         >
-                            <Coins size={14} />
-                            <span className="text-xs font-black">{creditBalance.toLocaleString()}</span>
-                        </button>
+                            <Coins size={16} className="fill-current" />
+                            <span>{(creditBalance ?? 0).toLocaleString()}</span>
+                        </motion.button>
                     </div>
                 </header>
             )}

@@ -73,9 +73,9 @@ const Combobox = ({
                         setIsOpen(true);
                     }}
                     onFocus={() => setIsOpen(true)}
-                    className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full p-2 bg-bg-main dark:bg-slate-800 text-text-main dark:text-text-main rounded-lg border border-card-border dark:border-slate-700 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-colors"
                 />
-                <div className="absolute right-2 top-2.5 text-slate-400 pointer-events-none">
+                <div className="absolute right-2 top-2.5 text-text-muted dark:text-slate-500 pointer-events-none">
                     <ChevronDown size={16} />
                 </div>
             </div>
@@ -86,7 +86,7 @@ const Combobox = ({
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 5 }}
-                        className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto"
+                        className="absolute z-50 w-full mt-1 bg-card-bg dark:bg-slate-800 rounded-xl shadow-xl border border-card-border dark:border-slate-700 max-h-60 overflow-y-auto"
                     >
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((option, index) => {
@@ -97,8 +97,8 @@ const Combobox = ({
                                     <button
                                         key={index} // better to use id if available
                                         onClick={() => handleSelect(option)}
-                                        className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0 flex items-center justify-between
-                                            ${isSelected ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}
+                                        className={`w-full text-left px-4 py-3 text-sm hover:bg-card-bg/50 dark:hover:bg-slate-700 border-b border-card-border/30 dark:border-slate-700/50 last:border-0 flex items-center justify-between transition-colors
+                                            ${isSelected ? 'bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-text-main dark:text-text-main'}
                                         `}
                                     >
                                         {renderItem ? renderItem(option) : (
@@ -109,14 +109,14 @@ const Combobox = ({
                                 );
                             })
                         ) : (
-                            <div className="p-4 text-center text-xs text-slate-400">
+                            <div className="p-4 text-center text-xs text-text-muted">
                                 No results found
                             </div>
                         )}
 
                         {/* Add New Option Link (Mock) */}
-                        <div className="p-2 border-t border-slate-100 bg-slate-50">
-                            <button className="w-full py-2 text-xs font-bold text-indigo-600 bg-white rounded-lg border border-slate-200 shadow-sm hover:bg-indigo-50">
+                        <div className="p-2 border-t border-card-border/30 dark:border-slate-700/50 bg-card-bg/40 dark:bg-slate-800/40">
+                            <button className="w-full py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-bg-main dark:bg-slate-700 rounded-lg border border-indigo-200 dark:border-indigo-500/30 shadow-sm hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition-colors">
                                 + Add New "{searchTerm}"
                             </button>
                         </div>

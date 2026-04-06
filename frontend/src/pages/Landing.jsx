@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Smartphone, Shield, Zap, Mic, BarChart3, Users, Wifi, WifiOff, Database, Cpu, LayoutDashboard, TrendingDown, Download } from 'lucide-react';
+import { ArrowRight, CheckCircle, Smartphone, Shield, Zap, Mic, BarChart3, Users, Wifi, WifiOff, Database, Cpu, LayoutDashboard, TrendingDown } from 'lucide-react';
 import logo from '../assets/logo.svg';
-import { usePWA } from '../hooks/usePWA';
+import PWAInstallButton from '../components/PWAInstallButton';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -19,7 +19,6 @@ const itemVariants = {
 };
 
 const Landing = () => {
-    const { isInstallable, isInstalled, installApp } = usePWA();
     const isElectron = !!window.electronAPI;
 
     return (
@@ -27,6 +26,9 @@ const Landing = () => {
             {/* Background Ambient Effects */}
             <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/30 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-600/20 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
+
+            {/* PWA Install Banner */}
+            <PWAInstallButton variant="banner" />
 
             {/* Navbar */}
             <motion.nav
@@ -48,21 +50,7 @@ const Landing = () => {
             </motion.nav>
 
             {/* PWA Notification Bar */}
-            {isInstallable && !isInstalled && (
-                <motion.div 
-                    initial={{ y: -50, opacity: 0 }}
-                    animate={{ y: 80, opacity: 1 }}
-                    className="fixed top-0 left-0 w-full z-40 bg-indigo-600 px-4 py-2 flex items-center justify-center gap-4 text-xs sm:text-sm font-bold shadow-lg"
-                >
-                    <span>🚀 Experience Dukan Sathi as an App!</span>
-                    <button 
-                        onClick={() => installApp()}
-                        className="bg-white text-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-50 transition-colors"
-                    >
-                        Install Now
-                    </button>
-                </motion.div>
-            )}
+            {/* Removed - using banner variant instead */}
 
             {/* Hero Section */}
             <section className="relative pt-40 pb-20 px-4 max-w-6xl mx-auto">
@@ -94,27 +82,8 @@ const Landing = () => {
                             <ArrowRight className="inline ml-2 group-hover:translate-x-1 transition-transform" size={18} />
                         </Link>
 
-                        {isInstallable && !isInstalled && (
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        await installApp();
-                                        if ('serviceWorker' in navigator) {
-                                            const registration = await navigator.serviceWorker.getRegistration();
-                                            if (registration) await registration.update();
-                                        }
-                                        window.location.reload();
-                                    } catch (err) {
-                                        console.error("Install failed:", err);
-                                    }
-                                }}
-                                className="group relative px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-base font-bold rounded-2xl hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center justify-center shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] hover:shadow-[0_0_60px_-10px_rgba(99,102,241,0.7)] animate-pulse-slow active:scale-95 border-2 border-white/20 overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                                <Download className="inline mr-2 relative z-10 group-hover:-translate-y-1 transition-transform" size={18} />
-                                <span className="relative z-10">Download App</span>
-                            </button>
-                        )}
+                        {/* PWA Download Button */}
+                        <PWAInstallButton variant="button" className="text-base px-8 py-4 shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] hover:shadow-[0_0_60px_-10px_rgba(99,102,241,0.7)]" />
                     </motion.div>
                 </motion.div>
 
@@ -185,40 +154,29 @@ const Landing = () => {
                 </div>
 
                 {/* PWA App Download CTA */}
-                {/* PWA App Download CTA */}
-                {isInstallable && !isInstalled && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="mt-20 max-w-3xl mx-auto p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-[32px] backdrop-blur-xl flex flex-col md:flex-row items-center gap-8 text-left"
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="mt-20 max-w-3xl mx-auto p-8 bg-gradient-to-r from-indigo-600/10 via-purple-600/5 to-indigo-600/10 border border-indigo-500/30 rounded-[32px] backdrop-blur-xl flex flex-col md:flex-row items-center gap-8 text-left"
+                >
+                    <motion.div 
+                        animate={{ y: [0, -8, 0] }}
+                        transition={{ duration: 3, repeat: Infinity }}
+                        className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-2xl shadow-indigo-500/40"
                     >
-                        <div className="w-20 h-20 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-2xl shadow-indigo-500/30">
-                            <Download size={40} />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="text-2xl font-bold mb-2">Install Dukan Sathi App</h3>
-                            <p className="text-slate-400 text-sm leading-relaxed text-balance">
-                                Install the Dukan Sathi app on your phone. Experience 2x faster performance, offline-ready billing, and a smooth native interface while saving storage space.
-                            </p>
-                        </div>
-                        <button
-                            onClick={async () => {
-                                await installApp();
-                                if ('serviceWorker' in navigator) {
-                                    const registration = await navigator.serviceWorker.getRegistration();
-                                    if (registration) await registration.update();
-                                }
-                                window.location.reload();
-                            }}
-                            className="group relative px-8 py-4 bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold rounded-2xl hover:from-indigo-600 hover:to-blue-700 transition-all shadow-xl shadow-indigo-600/30 border-2 border-white/20 overflow-hidden flex items-center gap-2 w-full md:w-auto mt-4 md:mt-0 justify-center"
-                        >
-                            <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
-                            <Download size={20} className="relative z-10 group-hover:scale-110 transition-transform" />
-                            <span className="relative z-10">Install Now</span>
-                        </button>
+                        <Smartphone size={40} />
                     </motion.div>
-                )}
+                    <div className="flex-1">
+                        <h3 className="text-2xl font-bold mb-2 text-white">Get the Native App</h3>
+                        <p className="text-slate-300 text-sm leading-relaxed text-balance">
+                            Install Dukan Sathi for 2x faster performance, offline-ready billing, better voice recognition, and a smooth native interface.
+                        </p>
+                    </div>
+                    <div className="shrink-0">
+                        <PWAInstallButton variant="button" className="px-8 py-4 shadow-xl shadow-indigo-600/40" />
+                    </div>
+                </motion.div>
             </section>
 
             {/* Features Section */}

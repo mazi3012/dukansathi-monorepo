@@ -512,7 +512,7 @@ const Sales = () => {
                         <motion.div
                             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                            className="bg-white w-full max-w-md h-[92vh] sm:h-[85vh] sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
+                            className="bg-card-bg dark:bg-slate-900 w-full max-w-md md:max-w-2xl h-[92vh] sm:h-[85vh] sm:rounded-[32px] rounded-t-[32px] p-4 sm:p-6 pointer-events-auto flex flex-col shadow-2xl border border-card-border relative z-10 overflow-hidden"
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
                             <div className="flex justify-between items-center mb-8">
@@ -546,9 +546,12 @@ const Sales = () => {
 
                                 {/* Customer Selector */}
                                 <div className="space-y-3">
-                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1">Customer</label>
+                                    <label className="text-[10px] text-text-muted font-black uppercase tracking-widest block ml-1 flex items-center gap-2">
+                                        <Search size={12} />
+                                        Customer (Type to Search)
+                                    </label>
                                     <div className="flex gap-3">
-                                        <div className="flex-1 bg-card-bg p-1 rounded-2xl border border-card-border overflow-hidden">
+                                        <div className="flex-1 bg-card-bg dark:bg-slate-800 p-1 rounded-2xl border border-card-border dark:border-slate-700 overflow-hidden">
                                             <Combobox
                                                 options={customers}
                                                 value={customerName}
@@ -561,13 +564,13 @@ const Sales = () => {
                                                         setSelectedCustomerId(null);
                                                     }
                                                 }}
-                                                placeholder="Select Customer..."
+                                                placeholder="Search by name or add new..."
                                                 labelKey="name"
                                             />
                                         </div>
                                         <button 
                                             onClick={() => window.location.href = '/customers'}
-                                            className="w-14 h-14 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-all shadow-indigo-500/5"
+                                            className="w-14 h-14 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/20 dark:border-indigo-500/30 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 transition-all shadow-indigo-500/5"
                                             title="Add New Customer"
                                         >
                                             <Plus size={24} />
@@ -786,10 +789,10 @@ const Sales = () => {
                         />
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl relative z-10 flex flex-col"
+                            className="bg-card-bg dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl relative z-10 flex flex-col"
                         >
-                            <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
-                                <h2 className="text-lg font-bold text-slate-800">
+                            <div className="flex justify-between items-center p-4 border-b border-card-border bg-card-bg/50 dark:bg-slate-800/50">
+                                <h2 className="text-lg font-bold text-text-main">
                                     {receiptSale.invoice_type === 'gst' ? 'Tax Invoice' : 'Bill of Supply'} Preview
                                 </h2>
                                 <div className="flex gap-2">
@@ -808,13 +811,13 @@ const Sales = () => {
                                     >
                                         <Printer size={16} /> <span className="hidden sm:inline">Print</span>
                                     </button>
-                                    <button onClick={() => setShowReceiptModal(false)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                                    <button onClick={() => setShowReceiptModal(false)} className="p-2 text-text-muted hover:text-text-main transition-colors">
                                         <X size={20} />
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto bg-slate-500/20 p-4 sm:p-8">
+                            <div className="flex-1 overflow-y-auto bg-card-bg/40 dark:bg-slate-800/40 p-4 sm:p-8">
                                 <div className="shadow-lg">
                                     <InvoiceTemplate
                                         ref={invoiceRef}

@@ -4,12 +4,14 @@ import { supabase } from '../lib/supabase';
 import { Loader2, Store, FileText, Check, MapPin, CreditCard, ShieldCheck, ChevronRight, ChevronLeft, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStateFromGSTIN, validateGSTIN } from '../utils/gstUtils';
+import WelcomePopup from '../components/WelcomePopup';
 
 const Onboarding = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [gstinError, setGstinError] = useState('');
+    const [showWelcomePopup, setShowWelcomePopup] = useState(false);
 
     const [formData, setFormData] = useState({
         business_name: '',
@@ -96,7 +98,7 @@ const Onboarding = () => {
             }
 
             console.log("Profile updated successfully");
-            navigate('/');
+            setShowWelcomePopup(true);
         } catch (error) {
             console.error("Profile update error:", error);
             alert(`Error updating profile: ${error.message}`);
@@ -502,6 +504,16 @@ const Onboarding = () => {
                     </AnimatePresence>
                 </div>
             </div>
+
+            {/* Welcome Popup Modal */}
+            <WelcomePopup 
+                isOpen={showWelcomePopup}
+                onClose={() => {
+                    setShowWelcomePopup(false);
+                    navigate('/');
+                }}
+                creditBalance={100}
+            />
         </div>
     );
 };

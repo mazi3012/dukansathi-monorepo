@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 /**
  * Detect if running on iOS Safari (including PWA mode)
@@ -14,71 +14,112 @@ const isIOSPWA = () => {
     return isIOS() && (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches);
 };
 
+/**
+ * Check if already in standalone/fullscreen mode
+ */
+const isRunningAsApp = () => {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.matchMedia('(display-mode: fullscreen)').matches ||
+           window.matchMedia('(display-mode: minimal-ui)').matches ||
+           window.navigator.standalone === true;
+};
+
 export const usePWA = () => {
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isIOSDevice, setIsIOSDevice] = useState(false);
     const [showIOSInstructions, setShowIOSInstructions] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
 
     useEffect(() => {
+        // Detect iOS
+        setIsIOSDevice(isIOS());
+
+        // Check if already installed
+        if (isRunningAsApp() || isIOSPWA()) {
+            setIsInstalled(true);
+        }
+
         const handleBeforeInstallPrompt = (e) => {
             // Prevent the default browser prompt
             e.preventDefault();
             // Store the event so it can be triggered later
             setInstallPrompt(e);
-            console.log("PWA Install Prompt captured");
+            setDeferredPrompt(e);
+            console.log("✅ PWA Install Prompt captured (beforeinstallprompt)");
         };
 
         const handleAppInstalled = () => {
             setInstallPrompt(null);
+            setDeferredPrompt(null);
             setIsInstalled(true);
-            console.log("PWA was installed");
+            console.log("✅ PWA was installed successfully");
         };
 
-        // Detect iOS
-        setIsIOSDevice(isIOS());
+        // Check display mode changes
+        const mediaQuery = window.matchMedia('(display-mode: standalone)');
+        const handleDisplayModeChange = () => {
+            if (mediaQuery.matches) {
+                setIsInstalled(true);
+            }
+        };
+        mediaQuery.addEventListener('change', handleDisplayModeChange);
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
 
-        // Check if already installed
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            setIsInstalled(true);
-        }
-
         return () => {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
             window.removeEventListener('appinstalled', handleAppInstalled);
+            mediaQuery.removeEventListener('change', handleDisplayModeChange);
         };
     }, []);
 
-    const installApp = async () => {
-        if (!installPrompt) {
-            console.log("Install prompt not available");
+    const installApp = useCallback(async () => {
+        if (!installPrompt && !deferredPrompt) {
+            console.log("ℹ️ Install prompt not available - likely iOS or already installed");
             // On iOS, show custom instructions
             if (isIOSDevice) {
                 setShowIOSInstructions(true);
+                return { success: false, isIOS: true };
             }
-            return;
+            return { success: false, isIOS: false };
         }
 
-        // Show the prompt (Chromium-based browsers)
-        installPrompt.prompt();
+        try {
+            const promptToUse = installPrompt || deferredPrompt;
+            
+            // Show the prompt (Chromium-based browsers)
+            if (promptToUse && promptToUse.prompt) {
+                promptToUse.prompt();
 
-        // Wait for the user to respond to the prompt
-        const { outcome } = await installPrompt.userChoice;
-        console.log(`User response to install prompt: ${outcome}`);
+                // Wait for the user to respond to the prompt
+                const { outcome } = await promptToUse.userChoice;
+                console.log(`👤 User response to install prompt: ${outcome}`);
 
-        // We've used the prompt, and can't use it again, throw it away
-        setInstallPrompt(null);
-    };
+                if (outcome === 'accepted') {
+                    setInstallPrompt(null);
+                    setDeferredPrompt(null);
+                    setIsInstalled(true);
+                    return { success: true, outcome };
+                } else {
+                    return { success: false, outcome };
+                }
+            }
+        } catch (err) {
+            console.error("❌ Install error:", err);
+            return { success: false, error: err.message };
+        }
+    }, [installPrompt, deferredPrompt, isIOSDevice]);
 
     return {
-        isInstallable: !!installPrompt || isIOSDevice,
-        isInstalled: isInstalled || isIOSPWA(),
+        isInstallable: !!installPrompt || !!deferredPrompt || isIOSDevice,
+        isInstalled: isInstalled || isIOSPWA() || isRunningAsApp(),
+        isRunningAsApp: isRunningAsApp(),
         installApp,
         isIOSDevice,
         showIOSInstructions,
-        setShowIOSInstructions
+        setShowIOSInstructions,
+        hasDeferredPrompt: !!installPrompt || !!deferredPrompt,
     };
 };

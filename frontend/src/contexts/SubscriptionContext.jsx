@@ -145,7 +145,7 @@ export const SubscriptionProvider = ({ children }) => {
 
             if (data.token) {
                 localStorage.setItem('ds_usage_token', data.token);
-                nextRefreshDayRef.current = getNextRefreshTime();
+                // No dependency on getNextRefreshTime - avoid circular dependency
             }
         } catch (err) {
             if (!mountedRef.current) return;
@@ -163,7 +163,7 @@ export const SubscriptionProvider = ({ children }) => {
             fetchInProgressRef.current = false;
             if (mountedRef.current) setLoading(false);
         }
-    }, [getNextRefreshTime]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []); // ✅ NO dependencies - fetches data only, doesn't depend on other callbacks
 
     const teardownChannel = useCallback(() => {
         if (realtimeChannelRef.current) {
@@ -240,7 +240,7 @@ export const SubscriptionProvider = ({ children }) => {
             .subscribe();
         creditRealtimeRef.current = creditChannel;
 
-    }, [fetchSubscription, teardownChannel]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []); // ✅ Empty array - setup once when context initializes
 
     useEffect(() => {
         mountedRef.current = true;
@@ -298,7 +298,7 @@ export const SubscriptionProvider = ({ children }) => {
             teardownChannel();
             if (refreshIntervalRef.current) clearTimeout(refreshIntervalRef.current);
         };
-    }, [fetchSubscription, fetchCreditBalance, setupRealtimeSubscription, teardownChannel, getNextRefreshTime]);
+    }, []); // ✅ Empty array - setup once on mount
 
     const tier = subscription?.tier || 'free';
     const usage = subscription?.usage || { products: 0, customers: 0, bills: 0 };
