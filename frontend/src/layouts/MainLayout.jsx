@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Coins, Bell } from 'lucide-react';
+import { Menu, Coins, Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from '../components/BottomNav';
 import Sidebar from '../components/Sidebar';
@@ -11,6 +11,7 @@ import { Toaster } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.svg';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import WelcomePopup from '../components/WelcomePopup';
 
 const MainLayout = () => {
     const navigate = useNavigate();
@@ -23,6 +24,8 @@ const MainLayout = () => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
+    const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+    const [showWelcomeCreditBadge, setShowWelcomeCreditBadge] = useState(false);
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
@@ -136,6 +139,31 @@ const MainLayout = () => {
         const timer = setInterval(fetchNotifications, 60000);
         return () => clearInterval(timer);
     }, [user]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        if (creditBalance === null || creditBalance <= 0) return;
+
+        const seenKey = `ds_welcome_popup_seen_${user.id}`;
+        const badgeDismissedKey = `ds_welcome_badge_dismissed_${user.id}`;
+        if (localStorage.getItem(seenKey)) return;
+
+        setShowWelcomePopup(true);
+        if (!sessionStorage.getItem(badgeDismissedKey)) {
+            setShowWelcomeCreditBadge(true);
+        }
+        localStorage.setItem(seenKey, 'true');
+    }, [user?.id, creditBalance]);
+
+    const dismissWelcomeCreditBadge = useCallback(() => {
+        if (!user?.id) {
+            setShowWelcomeCreditBadge(false);
+            return;
+        }
+        const badgeDismissedKey = `ds_welcome_badge_dismissed_${user.id}`;
+        sessionStorage.setItem(badgeDismissedKey, 'true');
+        setShowWelcomeCreditBadge(false);
+    }, [user?.id]);
 
     if (loading) {
         return (
@@ -253,6 +281,19 @@ const MainLayout = () => {
                             <Coins size={16} className="fill-current" />
                             <span>{(creditBalance ?? 0).toLocaleString()}</span>
                         </motion.button>
+
+                        {showWelcomeCreditBadge && (
+                            <div className="absolute top-12 right-0 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/20 backdrop-blur-md">
+                                <span className="text-[10px] font-black uppercase tracking-wider">Free Credits Added</span>
+                                <button
+                                    onClick={dismissWelcomeCreditBadge}
+                                    className="rounded-full p-0.5 hover:bg-emerald-400/20 transition-colors"
+                                    aria-label="Dismiss free credit badge"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </header>
             )}
@@ -277,6 +318,12 @@ const MainLayout = () => {
 
             {/* Global Toast Notifications */}
             <Toaster position="top-center" />
+
+            <WelcomePopup
+                isOpen={showWelcomePopup}
+                onClose={() => setShowWelcomePopup(false)}
+                creditBalance={creditBalance ?? 0}
+            />
 
             {/* Sticky Bottom Nav (Hidden on Desktop or specifically on Chat page) */}
             {location.pathname !== '/chat' && (

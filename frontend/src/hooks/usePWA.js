@@ -83,7 +83,7 @@ export const usePWA = () => {
                 setShowIOSInstructions(true);
                 return { success: false, isIOS: true };
             }
-            return { success: false, isIOS: false };
+            return { success: false, isIOS: false, reason: 'prompt_unavailable' };
         }
 
         try {

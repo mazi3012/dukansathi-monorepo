@@ -54,7 +54,8 @@ export const SubscriptionProvider = ({ children }) => {
     const mountedRef = useRef(true);
     const nextRefreshDayRef = useRef(null);
     const fetchErrorCountRef = useRef(0);
-    const fetchInProgressRef = useRef(false);
+    const subscriptionFetchInProgressRef = useRef(false);
+    const creditFetchInProgressRef = useRef(false);
     const MAX_REALTIME_RETRIES = 3;
     const MIN_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes minimum between polls
 
@@ -82,8 +83,8 @@ export const SubscriptionProvider = ({ children }) => {
     // ── Fetch Credit Balance from backend ─────────────────────────────
     const fetchCreditBalance = useCallback(async () => {
         if (!mountedRef.current) return;
-        if (fetchInProgressRef.current) return; // prevent concurrent fetches
-        fetchInProgressRef.current = true;
+        if (creditFetchInProgressRef.current) return; // prevent concurrent credit fetches
+        creditFetchInProgressRef.current = true;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) { setCreditBalance(0); return; }
@@ -99,6 +100,16 @@ export const SubscriptionProvider = ({ children }) => {
             if (!mountedRef.current) return;
 
             setCreditBalance(data.balance);
+            const now = new Date();
+            const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+            const welcomeToastKey = `ds_welcome_credits_seen_${session.user.id}_${monthKey}`;
+            if (data.balance > 0 && !sessionStorage.getItem(welcomeToastKey)) {
+                toast.success(`✨ ${data.balance} credits available in your account`, {
+                    id: 'welcome-credits',
+                    duration: 4000,
+                });
+                sessionStorage.setItem(welcomeToastKey, 'true');
+            }
             console.log('✅ Credit balance refreshed:', data.balance);
             localStorage.setItem('ds_credit_balance_cache', JSON.stringify({
                 balance: data.balance,
@@ -107,15 +118,15 @@ export const SubscriptionProvider = ({ children }) => {
         } catch (err) {
             console.warn('[Credits] Failed to fetch balance:', err);
         } finally {
-            fetchInProgressRef.current = false;
+            creditFetchInProgressRef.current = false;
         }
     }, []);
     // ──────────────────────────────────────────────────────────────────
 
     const fetchSubscription = useCallback(async () => {
         if (!mountedRef.current) return;
-        if (fetchInProgressRef.current) return; // prevent concurrent fetches
-        fetchInProgressRef.current = true;
+        if (subscriptionFetchInProgressRef.current) return; // prevent concurrent subscription fetches
+        subscriptionFetchInProgressRef.current = true;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -164,7 +175,7 @@ export const SubscriptionProvider = ({ children }) => {
                 } catch (_) { /* ignore */ }
             }
         } finally {
-            fetchInProgressRef.current = false;
+            subscriptionFetchInProgressRef.current = false;
             if (mountedRef.current) setLoading(false);
         }
     }, []); // ✅ NO dependencies - fetches data only, doesn't depend on other callbacks

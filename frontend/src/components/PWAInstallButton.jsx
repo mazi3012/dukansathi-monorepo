@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
  * Comprehensive PWA Install Button Component
  * Handles both Android (via beforeinstallprompt) and iOS (via instructions modal)
  */
-export default function PWAInstallButton({ variant = 'button', className = '' }) {
+export default function PWAInstallButton({ variant = 'button', className = '', forceShow = false }) {
     const { 
         isInstallable, 
         isInstalled, 
@@ -26,7 +26,7 @@ export default function PWAInstallButton({ variant = 'button', className = '' })
     }
 
     // Don't show if not installable
-    if (!isInstallable) {
+    if (!isInstallable && !forceShow) {
         return null;
     }
 
@@ -48,6 +48,11 @@ export default function PWAInstallButton({ variant = 'button', className = '' })
             } else if (result.outcome === 'dismissed') {
                 toast('You dismissed the install prompt', {
                     duration: 2000,
+                });
+            } else if (result.reason === 'prompt_unavailable') {
+                toast('Open browser menu and tap "Install app" or "Add to Home Screen".', {
+                    duration: 4500,
+                    icon: '📲',
                 });
             }
         } catch (err) {
@@ -74,7 +79,7 @@ export default function PWAInstallButton({ variant = 'button', className = '' })
                     <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                     <Download className="relative z-10 w-5 h-5 group-hover:-translate-y-1 transition-transform" />
                     <span className="relative z-10">
-                        {isInstalling ? 'Installing...' : isIOSDevice ? 'Add to Home Screen' : 'Download App'}
+                        {isInstalling ? 'Installing...' : isIOSDevice ? 'Add to Home Screen' : 'Install App'}
                     </span>
                 </motion.button>
 

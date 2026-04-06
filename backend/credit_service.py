@@ -40,6 +40,8 @@ CREDIT_PACKS = {
     "retail":   {"credits": 10000, "amount_paise": 99900, "label": "Retail King (₹999)"},
 }
 
+WELCOME_BONUS_CREDITS = 20
+
 
 class CreditService:
     def __init__(self, supabase: Client):
@@ -156,6 +158,32 @@ class CreditService:
             )
         except Exception as e:
             logger.error(f"[Credits] refresh_monthly_credits error for {user_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    def ensure_welcome_bonus(self, user_id: str) -> dict:
+        """
+        Ensure a one-time welcome bonus exists.
+        This is a fallback safety net in case DB auth trigger failed during signup.
+        """
+        try:
+            existing = self.supabase.table("credit_ledger") \
+                .select("id") \
+                .eq("user_id", user_id) \
+                .eq("action_type", "welcome_bonus") \
+                .limit(1) \
+                .execute()
+
+            if existing.data:
+                return {"success": True, "skipped": True, "credits": WELCOME_BONUS_CREDITS}
+
+            return self.add_credits(
+                user_id=user_id,
+                amount=WELCOME_BONUS_CREDITS,
+                action="welcome_bonus",
+                description=f"Welcome bonus: {WELCOME_BONUS_CREDITS} free credits for Dukan Sathi AI!",
+            )
+        except Exception as e:
+            logger.error(f"[Credits] ensure_welcome_bonus error for {user_id}: {e}")
             return {"success": False, "error": str(e)}
 
     # ------------------------------------------------------------------

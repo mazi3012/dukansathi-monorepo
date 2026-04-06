@@ -83,7 +83,7 @@ const Landing = () => {
                         </Link>
 
                         {/* PWA Download Button */}
-                        <PWAInstallButton variant="button" className="text-base px-8 py-4 shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] hover:shadow-[0_0_60px_-10px_rgba(99,102,241,0.7)]" />
+                        <PWAInstallButton variant="button" forceShow className="text-base px-8 py-4 shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] hover:shadow-[0_0_60px_-10px_rgba(99,102,241,0.7)]" />
                     </motion.div>
                 </motion.div>
 
@@ -174,7 +174,7 @@ const Landing = () => {
                         </p>
                     </div>
                     <div className="shrink-0">
-                        <PWAInstallButton variant="button" className="px-8 py-4 shadow-xl shadow-indigo-600/40" />
+                        <PWAInstallButton variant="button" forceShow className="px-8 py-4 shadow-xl shadow-indigo-600/40" />
                     </div>
                 </motion.div>
             </section>

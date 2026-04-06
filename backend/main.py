@@ -970,6 +970,9 @@ async def verify_credit_payment(
 async def get_credit_balance(user_id: str = Depends(verify_local_auth)):
     """Get current credit balance. Also triggers monthly refresh if not done yet."""
     try:
+        # Ensure one-time welcome bonus exists (fallback if signup trigger missed)
+        credit_service.ensure_welcome_bonus(user_id)
+
         # Check and apply monthly refresh if needed
         profile_res = supabase.table("profiles").select("subscription_tier").eq("id", user_id).maybe_single().execute()
         tier = profile_res.data.get("subscription_tier", "free") if profile_res and profile_res.data else "free"
