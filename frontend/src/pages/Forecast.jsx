@@ -198,19 +198,19 @@ const Forecast = () => {
     const inventorySummary = inventoryPayload?.summary || {};
 
     return (
-        <div className="space-y-6 pb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-text-main">Forecast Hub</h1>
-                    <p className="text-sm text-text-muted">Revenue trend, product demand, and inventory run-out predictions.</p>
+        <div className="space-y-4 md:space-y-6 pb-8 w-full overflow-x-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-2xl md:text-4xl font-black tracking-tighter font-heading text-text-main truncate">Forecast Hub</h1>
+                    <p className="text-[10px] md:text-sm font-black text-text-muted uppercase tracking-widest md:tracking-[0.3em] mt-0.5 md:mt-1 truncate">Predict trends & demand</p>
                 </div>
                 <button
                     onClick={loadAll}
                     disabled={loading}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition disabled:opacity-70"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 md:px-4 md:py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs md:text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shrink-0"
                 >
-                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                    Refresh
+                    <RefreshCw size={16} className={`md:w-5 md:h-5 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="uppercase tracking-widest font-black">Refresh</span>
                 </button>
             </div>
 
@@ -224,72 +224,72 @@ const Forecast = () => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-sky-500/20 to-cyan-500/5 border-sky-500/30">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-text-muted">Next 7 Days Revenue</span>
-                        <CalendarDays size={18} className="text-text-main" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 shrink-0">
+                <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-sky-500/10 to-cyan-500/5 border-sky-500/20">
+                    <div className="flex items-center justify-between text-text-muted">
+                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">7 Days</span>
+                        <CalendarDays size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main truncate">
                         {currency.format(revenueSummary.next_7_days_revenue || 0)}
                     </p>
                 </motion.div>
 
-                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-orange-500/20 to-amber-500/5 border-orange-500/30">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-text-muted">Next 30 Days Revenue</span>
-                        <Target size={18} className="text-text-main" />
+                <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-orange-500/10 to-amber-500/5 border-orange-500/20">
+                    <div className="flex items-center justify-between text-text-muted">
+                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">30 Days</span>
+                        <Target size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main truncate">
                         {currency.format(revenueSummary.next_30_days_revenue || 0)}
                     </p>
                 </motion.div>
 
-                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-rose-500/20 to-red-500/5 border-rose-500/30">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-text-muted">Critical Stock Alerts</span>
-                        <BellRing size={18} className="text-text-main" />
+                <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-rose-500/10 to-red-500/5 border-rose-500/20">
+                    <div className="flex items-center justify-between text-text-muted">
+                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">Alerts</span>
+                        <BellRing size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main">
                         {inventorySummary.critical_count || 0}
                     </p>
                 </motion.div>
 
-                <motion.div className="glass-card rounded-2xl border p-5 bg-gradient-to-br from-emerald-500/20 to-lime-500/5 border-emerald-500/30">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-text-muted">Demanding Products</span>
-                        <Flame size={18} className="text-text-main" />
+                <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-emerald-500/10 to-lime-500/5 border-emerald-500/20">
+                    <div className="flex items-center justify-between text-text-muted">
+                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">Hot</span>
+                        <Flame size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-3 text-2xl font-black tracking-tight text-text-main">
+                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main">
                         {(inventoryPayload?.top_demand_products || []).length}
                     </p>
                 </motion.div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide w-full shrink-0 border-b border-card-border/30 mb-2">
                 {[
                     { id: 'revenue', label: 'Revenue', icon: TrendingUp },
-                    { id: 'stockout', label: 'Run-out Forecast', icon: Package },
-                    { id: 'demand', label: 'Product Demand', icon: Flame },
+                    { id: 'stockout', label: 'Stockout', icon: Package },
+                    { id: 'demand', label: 'Demand', icon: Flame },
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap font-semibold transition-all ${
+                        className={`flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl whitespace-nowrap text-[11px] md:text-sm font-black md:font-bold tracking-widest md:tracking-normal uppercase md:normal-case transition-all shrink-0 ${
                             activeTab === tab.id
-                                ? 'bg-indigo-600 text-white shadow-lg'
-                                : 'bg-card-bg text-text-muted hover:text-text-main border border-card-border'
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'bg-card-bg/30 text-text-muted hover:text-text-main border border-card-border/50'
                         }`}
                     >
-                        <tab.icon size={16} />
+                        <tab.icon size={14} className="md:w-4 md:h-4" />
                         {tab.label}
                     </button>
                 ))}
             </div>
 
             {activeTab === 'revenue' && (
-                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4">
-                    <h2 className="text-lg font-bold text-text-main">Actual vs Revenue Forecast</h2>
+                <div className="glass-card rounded-2xl md:rounded-3xl border border-card-border p-3 md:p-6 space-y-4 w-full">
+                    <h2 className="text-sm md:text-lg font-black text-text-main uppercase tracking-widest font-heading">Trends</h2>
                     <div className="h-[320px]">
                         {revenueChart && (
                             <Line
@@ -333,19 +333,20 @@ const Forecast = () => {
             )}
 
             {activeTab === 'stockout' && (
-                <div className="glass-card rounded-3xl border border-card-border p-4 md:p-6 space-y-4 overflow-x-auto">
-                    <h2 className="text-lg font-bold text-text-main">Inventory Run-out Forecast</h2>
-                    <table className="w-full min-w-[900px] text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-card-border/50 text-[11px] uppercase tracking-wider text-text-muted">
-                                <th className="py-2 pr-3">Product</th>
-                                <th className="py-2 pr-3">Stock</th>
-                                <th className="py-2 pr-3">Avg Daily Sale</th>
-                                <th className="py-2 pr-3">Days Left</th>
-                                <th className="py-2 pr-3">Run-out Date</th>
-                                <th className="py-2 pr-3">Reorder Qty</th>
-                                <th className="py-2 pr-3">Risk</th>
-                            </tr>
+                <div className="glass-card rounded-2xl md:rounded-3xl border border-card-border p-3 md:p-6 space-y-4 w-full">
+                    <h2 className="text-sm md:text-lg font-bold text-text-main">Inventory Run-out Forecast</h2>
+                    <div className="overflow-x-auto w-full scrollbar-hide pb-2">
+                        <table className="w-full min-w-[700px] text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-card-border/50 text-[10px] md:text-[11px] uppercase tracking-widest text-text-muted">
+                                    <th className="py-2 pr-2">Product</th>
+                                    <th className="py-2 pr-2">Stock</th>
+                                    <th className="py-2 pr-2">Avg Sale</th>
+                                    <th className="py-2 pr-2">Left</th>
+                                    <th className="py-2 pr-2">Run-out</th>
+                                    <th className="py-2 pr-2">Reorder</th>
+                                    <th className="py-2 pr-2">Risk</th>
+                                </tr>
                         </thead>
                         <tbody>
                             {(inventoryPayload?.products || []).slice(0, 25).map((item) => (
@@ -361,13 +362,14 @@ const Forecast = () => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 
             {activeTab === 'demand' && (
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6 w-full">
                     {/* Demand Insights Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
                         {(() => {
                             const top = (inventoryPayload?.top_demand_products || []).slice(0, 8);
                             const accelerating = top.filter(p => p.demand_trend === 'accelerating').length;
