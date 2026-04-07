@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle, Coins } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle, Coins, Printer } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
@@ -1446,9 +1446,26 @@ const Chat = () => {
                                                         alert("Failed to download PDF. Please try opening via the link.");
                                                     }
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-1 shadow-sm order-1 sm:order-none"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-indigo-500/10 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex-[1_1_100%] sm:flex-auto shadow-sm"
                                             >
                                                 <Download size={16} /> <span className="whitespace-nowrap">Download</span>
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const response = await fetch(msg.pdf_url);
+                                                        const blob = await response.blob();
+                                                        const url = window.URL.createObjectURL(blob);
+                                                        window.open(url, '_blank');
+                                                        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+                                                    } catch (error) {
+                                                        console.error("Print failed:", error);
+                                                        alert("Failed to open PDF for printing.");
+                                                    }
+                                                }}
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-orange-500/10 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-500/20 transition-colors border border-orange-500/20 flex-[1_1_48%] sm:flex-auto shadow-sm"
+                                            >
+                                                <Printer size={16} /> <span className="whitespace-nowrap">Print</span>
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -1458,7 +1475,7 @@ const Chat = () => {
                                                         : `https://wa.me/?text=${encodeURIComponent(waMsg)}`;
                                                     window.open(waLink, '_blank');
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-[#25D366]/10 text-[#25D366] rounded-lg text-sm font-bold hover:bg-[#25D366]/20 transition-colors border border-[#25D366]/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-2 sm:order-none"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-[#25D366]/10 text-[#25D366] rounded-lg text-sm font-bold hover:bg-[#25D366]/20 transition-colors border border-[#25D366]/20 flex-[1_1_48%] sm:flex-auto shadow-sm"
                                             >
                                                 <MessageCircle size={16} /> <span className="whitespace-nowrap">WhatsApp</span>
                                             </button>
@@ -1495,7 +1512,7 @@ const Chat = () => {
                                                         console.log('Error sharing:', err);
                                                     }
                                                 }}
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_48%] sm:flex-1 shadow-sm order-3 sm:order-none"
+                                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-bold hover:bg-green-500/20 transition-colors border border-green-500/20 flex-[1_1_48%] sm:flex-auto shadow-sm"
                                             >
                                                 <Share2 size={16} /> <span className="whitespace-nowrap">Share</span>
                                             </button>

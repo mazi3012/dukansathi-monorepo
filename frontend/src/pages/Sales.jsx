@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp, ChevronRight } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader, Eye, Printer, X, Receipt, ArrowUpRight, TrendingUp, ChevronRight, Download, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
+import PrintFormatModal from '../components/PrintFormatModal';
 import { TaxCalculator, isInterState } from '../utils/gstUtils';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import SalesInvoiceCard from '../components/SalesInvoiceCard';
@@ -52,6 +53,10 @@ const Sales = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptSale, setReceiptSale] = useState(null);
     const [receiptItems, setReceiptItems] = useState([]);
+    
+    // Print Format Modal State
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
     // Calculations
     const totals = useMemo(() => {
@@ -217,14 +222,22 @@ const Sales = () => {
         }
     };
 
-    const handlePrint = async () => {
+    const handlePrintClick = () => {
+        if (!receiptSale) {
+            toast.error("No invoice selected");
+            return;
+        }
+        setShowPrintModal(true);
+    };
+
+    const handlePrint = async (format = 'a4') => {
         if (!receiptSale || !receiptItems) {
             toast.error("No invoice data to print");
             return;
         }
 
         try {
-            setLoading(true);
+            setIsGeneratingPDF(true);
             const isGst = receiptSale.invoice_type === 'gst';
             const isOutOfState = receiptSale.is_out_of_state || parseFloat(receiptSale.igst_amount) > 0;
 
@@ -233,26 +246,64 @@ const Sales = () => {
                 ? customers.find(c => c.id === receiptSale.customer_id)
                 : null;
 
-            // Generate PDF using unified utility
+            // Generate PDF using unified utility with format
             const doc = await generateInvoicePDF({
                 sale: receiptSale,
                 items: receiptItems,
                 businessProfile: userProfile,
                 customerData,
                 isGst,
-                isOutOfState
+                isOutOfState,
+                format
             });
 
-            // Download PDF
+            // Print the PDF
+            doc.print();
+            toast.success("Opening print dialog...");
+        } catch (error) {
+            console.error("Print Error:", error);
+            toast.error("Failed to generate invoice for printing");
+        } finally {
+            setIsGeneratingPDF(false);
+        }
+    };
+
+    const handleDownload = async (format = 'a4') => {
+        if (!receiptSale || !receiptItems) {
+            toast.error("No invoice data to download");
+            return;
+        }
+
+        try {
+            setIsGeneratingPDF(true);
+            const isGst = receiptSale.invoice_type === 'gst';
+            const isOutOfState = receiptSale.is_out_of_state || parseFloat(receiptSale.igst_amount) > 0;
+
+            // Find customer data if linked
+            const customerData = receiptSale.customer_id
+                ? customers.find(c => c.id === receiptSale.customer_id)
+                : null;
+
+            // Generate PDF using unified utility with format
+            const doc = await generateInvoicePDF({
+                sale: receiptSale,
+                items: receiptItems,
+                businessProfile: userProfile,
+                customerData,
+                isGst,
+                isOutOfState,
+                format
+            });
+
+            // Download the PDF
             const fileName = `Invoice_${receiptSale.id}_${new Date().toISOString().slice(0, 10)}.pdf`;
             doc.save(fileName);
-
             toast.success("Invoice downloaded successfully!");
         } catch (error) {
             console.error("PDF Generation Error:", error);
             toast.error("Failed to generate invoice PDF");
         } finally {
-            setLoading(false);
+            setIsGeneratingPDF(false);
         }
     };
 
@@ -822,7 +873,7 @@ const Sales = () => {
                                 <h2 className="text-lg font-bold text-text-main">
                                     Invoice Preview
                                 </h2>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
                                     <button
                                         onClick={(e) => {
                                             handleDeleteSale(receiptSale.id, e);
@@ -833,12 +884,11 @@ const Sales = () => {
                                         <Trash2 size={16} /> <span className="hidden sm:inline">Delete</span>
                                     </button>
                                     <button
-                                        onClick={handlePrint}
-                                        disabled={loading}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-[10px] sm:text-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:opacity-60 transition-all shadow-md"
+                                        onClick={handlePrintClick}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-[10px] sm:text-sm hover:bg-indigo-700 transition-all shadow-md"
                                     >
-                                        {loading ? <Loader size={16} className="animate-spin" /> : <Printer size={16} />}
-                                        <span className="hidden sm:inline">{loading ? 'Generating...' : 'Download'}</span>
+                                        <Printer size={16} />
+                                        <span className="hidden sm:inline">Print & Share</span>
                                     </button>
                                     <button onClick={() => setShowReceiptModal(false)} className="p-2 text-text-muted hover:text-text-main transition-colors">
                                         <X size={20} />
@@ -857,6 +907,21 @@ const Sales = () => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Print Format Modal */}
+            <PrintFormatModal
+                isOpen={showPrintModal}
+                onClose={() => setShowPrintModal(false)}
+                sale={receiptSale}
+                onPrint={handlePrint}
+                onDownload={handleDownload}
+                isGenerating={isGeneratingPDF}
+                showShare={true}
+                onShare={(platform) => {
+                    console.log('Shared via:', platform);
+                    // Optional: Add analytics or tracking here
+                }}
+            />
         </div>
     );
 };
