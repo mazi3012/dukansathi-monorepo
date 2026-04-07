@@ -48,6 +48,8 @@ const riskTone = (risk) => {
 const Forecast = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [aiInsights, setAiInsights] = useState(null);
+    const [loadingAi, setLoadingAi] = useState(false);
     const [activeTab, setActiveTab] = useState('revenue');
     const [revenuePayload, setRevenuePayload] = useState(null);
     const [inventoryPayload, setInventoryPayload] = useState(null);
@@ -129,6 +131,18 @@ const Forecast = () => {
     useEffect(() => {
         loadAll();
     }, []);
+
+    const loadAiInsights = async () => {
+        setLoadingAi(true);
+        try {
+            const res = await fetchWithAuth('/api/forecast/ai-insights');
+            setAiInsights(res.insights);
+        } catch (e) {
+            setError(e.message || 'Failed to generate AI insights');
+        } finally {
+            setLoadingAi(false);
+        }
+    };
 
     const revenueChart = useMemo(() => {
         if (!revenuePayload) return null;
@@ -224,43 +238,88 @@ const Forecast = () => {
                 </div>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 shrink-0">
+            {/* AI Executive Summary Banner */}
+            <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card rounded-2xl md:rounded-3xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/5 via-fuchsia-500/5 to-indigo-500/5 relative overflow-hidden"
+            >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500 opacity-50"></div>
+                <div className="p-4 md:p-6 flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                    <div className="flex items-center gap-3 md:pt-1">
+                        <div className="bg-gradient-to-br from-indigo-500 to-fuchsia-500 p-2 md:p-3 rounded-xl shadow-lg shadow-indigo-500/20 shrink-0">
+                            <Zap className="text-white w-4 h-4 md:w-6 md:h-6" />
+                        </div>
+                        <h2 className="text-sm md:text-lg font-black tracking-widest text-text-main font-heading md:hidden">AI Insights</h2>
+                    </div>
+                    
+                    <div className="flex-1 space-y-3">
+                        <h2 className="hidden md:block text-lg font-black tracking-widest text-text-main font-heading">Executive AI Summary</h2>
+                        
+                        {!aiInsights ? (
+                            <div className="space-y-3">
+                                <p className="text-xs md:text-sm text-text-muted font-medium">Generate a personalized, AI-driven market analysis based on your current statistical forecast and inventory velocity.</p>
+                                <button
+                                    onClick={loadAiInsights}
+                                    disabled={loadingAi}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-bold text-xs md:text-sm hover:opacity-90 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                    {loadingAi ? (
+                                        <RefreshCw size={16} className="animate-spin" />
+                                    ) : (
+                                        <Zap size={16} />
+                                    )}
+                                    <span>{loadingAi ? 'Analyzing Data...' : 'Generate AI Insight (1 Credit)'}</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <p className="text-sm md:text-base text-text-main font-medium leading-relaxed italic border-l-2 border-indigo-500/30 pl-3">
+                                    "{aiInsights}"
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 shrink-0 px-0.5">
                 <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-sky-500/10 to-cyan-500/5 border-sky-500/20">
-                    <div className="flex items-center justify-between text-text-muted">
-                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">7 Days</span>
+                    <div className="flex items-center justify-between text-text-muted mb-1 md:mb-3">
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest leading-none">Weekly</span>
                         <CalendarDays size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main truncate">
+                    <p className="text-sm md:text-xl font-black tracking-tight text-text-main truncate">
                         {currency.format(revenueSummary.next_7_days_revenue || 0)}
                     </p>
                 </motion.div>
 
                 <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-orange-500/10 to-amber-500/5 border-orange-500/20">
-                    <div className="flex items-center justify-between text-text-muted">
-                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">30 Days</span>
+                    <div className="flex items-center justify-between text-text-muted mb-1 md:mb-3">
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest leading-none">Monthly</span>
                         <Target size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main truncate">
+                    <p className="text-sm md:text-xl font-black tracking-tight text-text-main truncate">
                         {currency.format(revenueSummary.next_30_days_revenue || 0)}
                     </p>
                 </motion.div>
 
                 <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-rose-500/10 to-red-500/5 border-rose-500/20">
-                    <div className="flex items-center justify-between text-text-muted">
-                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">Alerts</span>
+                    <div className="flex items-center justify-between text-text-muted mb-1 md:mb-3">
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest leading-none">Alerts</span>
                         <BellRing size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main">
+                    <p className="text-sm md:text-xl font-black tracking-tight text-text-main">
                         {inventorySummary.critical_count || 0}
                     </p>
                 </motion.div>
 
                 <motion.div className="glass-card rounded-2xl border p-2.5 md:p-5 bg-gradient-to-br from-emerald-500/10 to-lime-500/5 border-emerald-500/20">
-                    <div className="flex items-center justify-between text-text-muted">
-                        <span className="text-[10px] md:text-sm font-black uppercase tracking-widest leading-none">Hot</span>
+                    <div className="flex items-center justify-between text-text-muted mb-1 md:mb-3">
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest leading-none">Hot</span>
                         <Flame size={14} className="md:w-[18px] md:h-[18px]" />
                     </div>
-                    <p className="mt-1 md:mt-3 text-sm md:text-2xl font-black tracking-tight text-text-main">
+                    <p className="text-sm md:text-xl font-black tracking-tight text-text-main">
                         {(inventoryPayload?.top_demand_products || []).length}
                     </p>
                 </motion.div>
@@ -334,8 +393,13 @@ const Forecast = () => {
 
             {activeTab === 'stockout' && (
                 <div className="glass-card rounded-2xl md:rounded-3xl border border-card-border p-3 md:p-6 space-y-4 w-full">
-                    <h2 className="text-sm md:text-lg font-bold text-text-main">Inventory Run-out Forecast</h2>
-                    <div className="overflow-x-auto w-full scrollbar-hide pb-2">
+                    <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-xs md:text-lg font-black text-text-main uppercase tracking-widest font-heading">Inventory Hub</h2>
+                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest hidden md:block">Real-time Stock Tracking</span>
+                    </div>
+
+                    {/* Desktop View: Wide Table */}
+                    <div className="hidden lg:block overflow-x-auto w-full scrollbar-hide pb-2">
                         <table className="w-full min-w-[700px] text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-card-border/50 text-[10px] md:text-[11px] uppercase tracking-widest text-text-muted">
@@ -347,21 +411,53 @@ const Forecast = () => {
                                     <th className="py-2 pr-2">Reorder</th>
                                     <th className="py-2 pr-2">Risk</th>
                                 </tr>
-                        </thead>
-                        <tbody>
-                            {(inventoryPayload?.products || []).slice(0, 25).map((item) => (
-                                <tr key={item.product_id} className="border-b border-card-border/10">
-                                    <td className="py-3 pr-3 font-semibold text-text-main">{item.name}</td>
-                                    <td className="py-3 pr-3 text-text-main">{item.current_stock} {item.unit}</td>
-                                    <td className="py-3 pr-3 text-text-main">{item.avg_daily_units}</td>
-                                    <td className="py-3 pr-3 text-text-main">{item.days_to_stockout ?? '-'}</td>
-                                    <td className="py-3 pr-3 text-text-main">{item.expected_stockout_date || '-'}</td>
-                                    <td className="py-3 pr-3 text-text-main">{item.recommended_reorder_qty}</td>
-                                    <td className={`py-3 pr-3 font-bold uppercase ${riskTone(item.risk_level)}`}>{item.risk_level}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {(inventoryPayload?.products || []).slice(0, 25).map((item) => (
+                                    <tr key={item.product_id} className="border-b border-card-border/10">
+                                        <td className="py-3 pr-3 font-semibold text-text-main">{item.name}</td>
+                                        <td className="py-3 pr-3 text-text-main">{item.current_stock} {item.unit}</td>
+                                        <td className="py-3 pr-3 text-text-main">{item.avg_daily_units}</td>
+                                        <td className="py-3 pr-3 text-text-main">{item.days_to_stockout ?? '-'}</td>
+                                        <td className="py-3 pr-3 text-text-main">{item.expected_stockout_date || '-'}</td>
+                                        <td className="py-3 pr-3 text-text-main">{item.recommended_reorder_qty}</td>
+                                        <td className={`py-3 pr-3 font-bold uppercase ${riskTone(item.risk_level)}`}>{item.risk_level}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile View: Vertical Cards */}
+                    <div className="lg:hidden grid grid-cols-1 gap-3">
+                        {(inventoryPayload?.products || []).slice(0, 15).map((item) => (
+                            <div key={item.product_id} className="glass-card rounded-xl border border-card-border p-3 space-y-2.5">
+                                <div className="flex items-start justify-between">
+                                    <h3 className="font-black text-xs text-text-main leading-tight truncate max-w-[70%]">{item.name}</h3>
+                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${riskTone(item.risk_level)} bg-current/10 border border-current/20`}>
+                                        {item.risk_level}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 py-0.5 border-y border-card-border/5">
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] font-black text-text-muted uppercase tracking-tighter">Stock</span>
+                                        <span className="text-[10px] font-black text-text-main">{item.current_stock}</span>
+                                    </div>
+                                    <div className="flex flex-col border-x border-card-border/5 px-2">
+                                        <span className="text-[8px] font-black text-text-muted uppercase tracking-tighter">Sale</span>
+                                        <span className="text-[10px] font-black text-text-main">~{item.avg_daily_units}</span>
+                                    </div>
+                                    <div className="flex flex-col text-right">
+                                        <span className="text-[8px] font-black text-text-muted uppercase tracking-tighter">Run-out</span>
+                                        <span className="text-[10px] font-black text-accent-red">{item.days_to_stockout ?? '-'}d</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between text-[9px]">
+                                    <span className="text-text-muted font-black uppercase tracking-tighter">Smart Reorder</span>
+                                    <span className="text-indigo-500 font-black">{item.recommended_reorder_qty} Units</span>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -369,7 +465,7 @@ const Forecast = () => {
             {activeTab === 'demand' && (
                 <div className="space-y-4 md:space-y-6 w-full">
                     {/* Demand Insights Summary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                    <div className="grid grid-cols-3 gap-2 md:gap-4 shrink-0">
                         {(() => {
                             const top = (inventoryPayload?.top_demand_products || []).slice(0, 8);
                             const accelerating = top.filter(p => p.demand_trend === 'accelerating').length;

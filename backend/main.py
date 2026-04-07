@@ -733,6 +733,75 @@ async def get_inventory_forecast(
         raise HTTPException(status_code=500, detail="Failed to generate inventory forecast")
 
 
+@app.get("/api/forecast/ai-insights")
+async def get_forecast_ai_insights(
+    user_id: str = Depends(verify_local_auth)
+):
+    """Generate a dynamic AI market summary based on current statistical forecasts."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    try:
+        # Check credits first (costs 1 credit)
+        _credit_result = credit_service.deduct(
+            user_id=user_id,
+            action="ai_chat",
+            description="AI Market Insights Generate"
+        )
+        if not _credit_result.get("success"):
+            raise HTTPException(
+                status_code=402, 
+                detail=f"Not enough credits. Balance: {_credit_result.get('balance', 0)}"
+            )
+
+        # 1. Fetch raw forecast data
+        revenue_data = await build_forecast_response(supabase, user_id, lookback_days=30, horizon_days=7)
+        inventory_data = await build_inventory_stockout_forecast_response(supabase, user_id, lookback_days=30)
+        
+        # 2. Extract key metrics to keep prompt small and token-efficient
+        rev_trend = revenue_data.get("summary", {}).get("trend_percent", 0)
+        next_7_rev = revenue_data.get("summary", {}).get("next_7_days_revenue", 0)
+        critical_items = [p["name"] for p in inventory_data.get("critical_products", [])[:5]]
+        hot_items = [p["name"] for p in inventory_data.get("top_demand_products", [])[:3]]
+        
+        # 3. Construct System Prompt
+        from dukansathi_ai.agent_graph import get_llm
+        from langchain_core.messages import HumanMessage
+        
+        prompt = f"""
+        You are a highly intelligent retail AI assistant. Your job is to provide a very short, punchy 1-2 sentence "Executive Market Summary" for a shop owner.
+        
+        DATA CONTEXT:
+        - Expected revenue next 7 days: ₹{next_7_rev}
+        - Revenue Trend: {rev_trend}% (positive = growth, negative = drop)
+        - Critical low stock items: {', '.join(critical_items) if critical_items else 'None'}
+        - Top selling hot items: {', '.join(hot_items) if hot_items else 'None'}
+        
+        RULES:
+        1. Keep it under 2 sentences. 
+        2. Be direct and insightful. Point out risks (like low stock) or celebrate growth.
+        3. Do NOT use markdown bolding (**) or bullet points. Just plain text.
+        4. Tone should be professional but slightly colloquial (e.g., "Warning: ...", "Great news: ...").
+        
+        Generate the summary now:
+        """
+        
+        llm = get_llm("gemini-3.1-flash-lite-preview")
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        summary_text = response.content.replace('**', '').strip()
+        
+        return {
+            "status": "success",
+            "insights": summary_text,
+            "credits_remaining": _credit_result.get("balance", 0)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI Insights failed for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate AI insights")
+
+
 @app.post("/api/notifications/generate")
 async def generate_notifications(
     lookback_days: int = 60,
