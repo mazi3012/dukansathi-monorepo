@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, CreditCard, Target } from 'lucide-react';
+import { X, Home, Package, Receipt, Users, MessageSquare, User, LogOut, Settings, Send, Link as LinkIcon, CreditCard, Target, FileText } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { supabase } from '../lib/supabase';
@@ -59,7 +59,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="absolute inset-0 bg-bg-main/60 backdrop-blur-2xl pointer-events-auto"
+                        className="absolute inset-0 bg-black/60 pointer-events-auto"
                     />
 
                     {/* Content */}
@@ -68,7 +68,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.98, y: 10 }}
                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                        className="relative z-10 flex flex-col h-[100dvh] pointer-events-auto p-4 md:p-6 overflow-hidden pb-24"
+                        className="relative z-10 flex flex-col h-[100dvh] bg-bg-main pointer-events-auto p-4 md:p-6 overflow-hidden pb-24 overscroll-none"
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-4">
@@ -112,6 +112,7 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/connections" icon={LinkIcon} label="Connections" onClick={onClose} />
                             <NavItem to="/plans" icon={CreditCard} label="Plans & Usage" onClick={onClose} />
                             <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
+                            <NavItem to="/terms" icon={FileText} label="Terms & Policy" onClick={onClose} />
                         </div>
 
                         {/* Footer - Minimalist */}

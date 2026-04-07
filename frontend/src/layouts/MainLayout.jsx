@@ -19,6 +19,11 @@ const MainLayout = () => {
     const { tier, creditBalance } = useSubscription();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
+
+    // Auto-close mobile menu on route change
+    useEffect(() => {
+        setIsMenuOpen(false);
+    }, [location.pathname]);
     const [loading, setLoading] = useState(true);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [notifications, setNotifications] = useState([]);

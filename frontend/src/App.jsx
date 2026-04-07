@@ -15,6 +15,7 @@ import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Connections from './pages/Connections';
 import Forecast from './pages/Forecast';
+import TermsPolicy from './pages/TermsPolicy';
 import { ChatProvider } from './contexts/ChatContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { initSQLite } from './lib/sqlite';
@@ -118,6 +119,7 @@ const AnimatedRoutes = () => {
           <Route path="connections" element={<Connections />} />
           <Route path="plans" element={<Plans />} />
           <Route path="credits" element={<Credits />} />
+          <Route path="terms" element={<TermsPolicy />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
