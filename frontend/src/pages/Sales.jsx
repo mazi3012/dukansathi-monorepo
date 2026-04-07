@@ -6,6 +6,7 @@ import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
 import { TaxCalculator, isInterState } from '../utils/gstUtils';
 import InvoiceTemplate from '../components/InvoiceTemplate';
+import SalesInvoiceCard from '../components/SalesInvoiceCard';
 import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
 import { saleRepo } from '../lib/db/saleRepository';
@@ -150,7 +151,7 @@ const Sales = () => {
                 // We'll add a custom query to saleRepo if needed, or join manually
                 const db = getDB();
                 const sql = `
-                    SELECT s.*, c.name as customer_name 
+                    SELECT s.*, c.name as customer_name, c.phone as customer_phone 
                     FROM sales s 
                     LEFT JOIN customers c ON s.customer_id = c.id 
                     ORDER BY s.created_at DESC 
@@ -566,6 +567,14 @@ const Sales = () => {
                                                 }}
                                                 placeholder="Search by name or add new..."
                                                 labelKey="name"
+                                                renderItem={(customer) => (
+                                                    <div className="flex justify-between items-center w-full px-1">
+                                                        <span className="font-medium text-text-main">{customer.name}</span>
+                                                        <span className={`text-[11px] font-bold tracking-widest ${customer.credit_balance > 0 ? 'text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded' : 'text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded'}`}>
+                                                            {customer.credit_balance > 0 ? `Credit: ₹${customer.credit_balance}` : 'No Credit'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             />
                                         </div>
                                         <button 
@@ -789,11 +798,11 @@ const Sales = () => {
                         />
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-card-bg dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl relative z-10 flex flex-col"
+                            className="w-full max-w-2xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl relative z-10 flex flex-col"
                         >
                             <div className="flex justify-between items-center p-4 border-b border-card-border bg-card-bg/50 dark:bg-slate-800/50">
                                 <h2 className="text-lg font-bold text-text-main">
-                                    {receiptSale.invoice_type === 'gst' ? 'Tax Invoice' : 'Bill of Supply'} Preview
+                                    Invoice Preview
                                 </h2>
                                 <div className="flex gap-2">
                                     <button
@@ -818,7 +827,14 @@ const Sales = () => {
                             </div>
 
                             <div className="flex-1 overflow-y-auto bg-card-bg/40 dark:bg-slate-800/40 p-4 sm:p-8">
-                                <div className="shadow-lg">
+                                {/* Clean Invoice Preview */}
+                                <SalesInvoiceCard
+                                    sale={receiptSale}
+                                    items={receiptItems}
+                                />
+                                
+                                {/* Hidden Print Template (used by window.print) */}
+                                <div className="absolute -left-[10000px]">
                                     <InvoiceTemplate
                                         ref={invoiceRef}
                                         sale={receiptSale}
