@@ -300,49 +300,50 @@ const Settings = () => {
     const TabButton = ({ id, icon: Icon, label, className = '' }) => (
         <button
             onClick={() => setActiveTab(id)}
-            className={`items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border ${activeTab === id
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                : 'text-text-muted border-transparent hover:bg-card-bg hover:text-text-main'
-                } ${className || 'flex'}`}
+            className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[11px] md:text-sm font-black md:font-bold uppercase md:normal-case tracking-widest md:tracking-normal transition-all border shrink-0 ${activeTab === id
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
+                : 'text-text-muted border-card-border/50 bg-card-bg/30 hover:bg-card-bg hover:text-text-main'
+                } ${className}`}
         >
-            <Icon size={16} className="md:w-[18px] md:h-[18px]" />
+            <Icon size={14} className="md:w-[18px] md:h-[18px]" />
             {label}
         </button>
     );
 
     return (
-        <div className="flex flex-col h-full overflow-hidden relative">
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-3 md:px-6 pt-2 md:pt-6 gap-3 md:gap-4 md:gap-6 relative z-10 w-full">
-                <div className="flex items-center gap-3 md:gap-5">
-                    <div className="w-10 h-10 md:w-16 md:h-16 rounded-[18px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
-                        <SettingsIcon className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
+        <div className="flex flex-col h-full overflow-hidden relative w-full max-w-[100vw]">
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-3 md:px-6 pt-2 md:pt-6 gap-3 md:gap-4 md:gap-6 relative z-10 w-full mb-2 md:mb-4">
+                <div className="flex items-center gap-3 md:gap-5 w-full md:w-auto">
+                    <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 rounded-[16px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                        <SettingsIcon className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} />
                     </div>
-                    <div>
-                        <h1 className="text-xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
-                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors truncate max-w-[200px] md:max-w-none">Manage your store preferences</p>
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight truncate">Settings</h1>
+                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-widest md:tracking-[0.3em] mt-0.5 truncate">Manage your store</p>
                     </div>
                 </div>
 
                 <button
                     onClick={saveSettings}
                     disabled={saving || !hasChanges}
-                    className={`flex items-center justify-center md:justify-start gap-4 px-4 md:px-10 py-2.5 md:py-4 rounded-2xl md:rounded-2xl font-black transition-all tracking-[0.2em] text-[10px] uppercase shadow-xl md:shadow-2xl w-full md:w-auto ${hasChanges
+                    className={`flex items-center justify-center gap-2 md:gap-4 px-4 md:px-10 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black transition-all tracking-widest md:tracking-[0.2em] text-[9px] md:text-[10px] uppercase shadow-lg w-full md:w-auto shrink-0 ${hasChanges
                         ? 'bg-indigo-600 text-white shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]'
                         : 'bg-card-bg/50 text-text-muted border border-card-border/50 cursor-not-allowed opacity-50'
                         }`}
                 >
-                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} strokeWidth={2.5} />}
-                    {saving ? 'Saving...' : 'Save Changes'}
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} strokeWidth={2.5} />}
+                    {saving ? 'Saving...' : 'Save Config'}
                 </button>
             </header>
 
-            <div className="flex items-center gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10 w-full">
-                <TabButton id="business" icon={Briefcase} label="Business Settings" />
-                <TabButton id="voice" icon={Volume2} label="Voice & Language" />
-                <TabButton id="preferences" icon={Cpu} label="Preferences" />
+            <div className="flex items-center gap-2 md:gap-3 px-3 md:px-6 py-2 md:py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10 w-full border-b border-card-border/30 pb-3 md:pb-4 shrink-0">
+                <TabButton id="business" icon={Briefcase} label="Business" />
+                <TabButton id="voice" icon={Volume2} label="Speech" />
+                <TabButton id="connections" icon={LinkIcon} label="Integrations" />
+                <TabButton id="preferences" icon={Cpu} label="System" />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-24 relative z-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 space-y-4 md:space-y-6 pb-24 relative z-0 w-full">
 
                 {activeTab === 'business' && (
                     // Business settings for profiles, location, and payments
