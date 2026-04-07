@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2, FileText, Cloud, CloudOff, Shield } from 'lucide-react';
+import { Volume2, Check, User, Save, Loader2, Play, Brain, Gauge, Cpu, Download, RefreshCw, AlertCircle, Moon, Sun, ChevronRight, Settings2 as SettingsIcon, Briefcase, MapPin, CreditCard, Building2, FileText, Cloud, CloudOff, Shield, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { syncEngine } from '../lib/db/syncEngine';
 import { usePWA } from '../hooks/usePWA';
+import Connections from './Connections';
 
 const VOICE_OPTIONS = [
     {
@@ -600,7 +601,7 @@ const Settings = () => {
                         <section className="glass-card rounded-[32px] p-4 md:p-8 border-indigo-500/10">
                             <div className="flex items-center gap-4 mb-4 md:mb-8">
                                 <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                                    <RefreshCw className="w-5 h-5 md:w-7 md:h-7" className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
+                                    <RefreshCw className={`w-5 h-5 md:w-7 md:h-7 ${syncStatus.status === 'syncing' ? 'animate-spin' : ''}`} />
                                 </div>
                                 <div>
                                     <h2 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tight">Data & Sync</h2>
@@ -816,6 +817,10 @@ const Settings = () => {
                             </div>
                         </section>
                     </div>
+                )}
+
+                {activeTab === 'connections' && (
+                    <Connections />
                 )}
 
 

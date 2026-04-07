@@ -50,7 +50,6 @@ const Sidebar = () => {
         { path: '/sales', icon: TrendingUp, label: 'Sales Ledger' },
         { path: '/inventory', icon: Package, label: 'Inventory' },
         { path: '/customers', icon: Users, label: 'Customers' },
-        { path: '/connections', icon: LinkIcon, label: 'Connections' },
         { path: '/plans', icon: CreditCard, label: 'Plans & Usage' },
         { path: '/settings', icon: Settings, label: 'Settings' },
         { path: '/terms', icon: FileText, label: 'Terms & Policy' },

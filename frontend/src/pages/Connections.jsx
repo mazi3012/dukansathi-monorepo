@@ -86,26 +86,8 @@ const Connections = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-bg-main relative overflow-hidden transition-colors">
-            {/* Ambient Background Glows */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
-
-            {/* Page Title Section - Streamlined */}
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-6 gap-6 relative z-20">
-                <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[22px] bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500 shadow-xl shadow-sky-500/5 transition-transform hover:scale-110">
-                        <Send size={32} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Neural Sync</h1>
-                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Channel & Gateway Protocols</p>
-                    </div>
-                </div>
-            </header>
-
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24">
-                {/* ── Telegram Connect Section ─────────── */}
+        <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            {/* ── Telegram Connect Section ─────────── */}
                 <section className="glass-card rounded-[40px] p-8 border border-card-border shadow-2xl overflow-hidden relative group">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500 opacity-50" />
                     <div className="flex items-center gap-3 mb-2">
@@ -188,7 +170,6 @@ const Connections = () => {
                         <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Neural Link Offline • Awaiting API Access</p>
                     </div>
                 </section>
-            </div>
         </div>
     );
 };

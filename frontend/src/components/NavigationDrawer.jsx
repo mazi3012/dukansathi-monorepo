@@ -109,7 +109,6 @@ const NavigationDrawer = ({ isOpen, onClose, user }) => {
                             <NavItem to="/sales" icon={Receipt} label="Sales & Billing" onClick={onClose} />
                             <NavItem to="/inventory" icon={Package} label="Inventory" onClick={onClose} />
                             <NavItem to="/customers" icon={Users} label="Customers" onClick={onClose} />
-                            <NavItem to="/connections" icon={LinkIcon} label="Connections" onClick={onClose} />
                             <NavItem to="/plans" icon={CreditCard} label="Plans & Usage" onClick={onClose} />
                             <NavItem to="/settings" icon={Settings} label="Settings" onClick={onClose} />
                             <NavItem to="/terms" icon={FileText} label="Terms & Policy" onClick={onClose} />

@@ -13,7 +13,6 @@ import Landing from './pages/Landing';
 import SystemSetup from './pages/SystemSetup';
 import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
-import Connections from './pages/Connections';
 import Forecast from './pages/Forecast';
 import TermsPolicy from './pages/TermsPolicy';
 import { ChatProvider } from './contexts/ChatContext';
@@ -116,7 +115,6 @@ const AnimatedRoutes = () => {
           <Route path="sales" element={<Sales />} />
           <Route path="forecast" element={<Forecast />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="connections" element={<Connections />} />
           <Route path="plans" element={<Plans />} />
           <Route path="credits" element={<Credits />} />
           <Route path="terms" element={<TermsPolicy />} />
