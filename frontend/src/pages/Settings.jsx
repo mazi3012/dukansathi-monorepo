@@ -311,13 +311,13 @@ const Settings = () => {
 
     return (
         <div className="flex flex-col h-full overflow-hidden relative">
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-4 md:px-6 pt-4 md:pt-6 gap-4 md:gap-6 relative z-10 w-full">
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-3 md:px-6 pt-2 md:pt-6 gap-3 md:gap-4 md:gap-6 relative z-10 w-full">
                 <div className="flex items-center gap-3 md:gap-5">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-[18px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
+                    <div className="w-10 h-10 md:w-16 md:h-16 rounded-[18px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
                         <SettingsIcon className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
+                        <h1 className="text-xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
                         <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors truncate max-w-[200px] md:max-w-none">Manage your store preferences</p>
                     </div>
                 </div>
@@ -325,7 +325,7 @@ const Settings = () => {
                 <button
                     onClick={saveSettings}
                     disabled={saving || !hasChanges}
-                    className={`flex items-center justify-center md:justify-start gap-4 px-6 md:px-10 py-3 md:py-4 rounded-2xl md:rounded-2xl font-black transition-all tracking-[0.2em] text-[10px] uppercase shadow-xl md:shadow-2xl w-full md:w-auto ${hasChanges
+                    className={`flex items-center justify-center md:justify-start gap-4 px-4 md:px-10 py-2.5 md:py-4 rounded-2xl md:rounded-2xl font-black transition-all tracking-[0.2em] text-[10px] uppercase shadow-xl md:shadow-2xl w-full md:w-auto ${hasChanges
                         ? 'bg-indigo-600 text-white shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]'
                         : 'bg-card-bg/50 text-text-muted border border-card-border/50 cursor-not-allowed opacity-50'
                         }`}
@@ -341,30 +341,30 @@ const Settings = () => {
                 <TabButton id="preferences" icon={Cpu} label="Preferences" />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24 relative z-0">
+            <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-24 relative z-0">
 
                 {activeTab === 'business' && (
                     // Business settings for profiles, location, and payments
                     //
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* Business Core Info */}
-                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-indigo-500/10">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
-                                    <Building2 size={28} />
+                        <section className="glass-card rounded-[32px] p-4 md:p-8 border-indigo-500/10">
+                            <div className="flex items-center gap-4 mb-4 md:mb-8">
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
+                                    <Building2 className="w-5 h-5 md:w-7 md:h-7" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Business Profile</h2>
+                                    <h2 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tight">Business Profile</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Core Business Credentials</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Business Name</label>
                                     <input
                                         placeholder="Ex: Matrix Corp"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.business_name}
                                         onChange={e => { setBusinessData({ ...businessData, business_name: e.target.value }); markChange(); }}
                                     />
@@ -373,7 +373,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Owner Name</label>
                                     <input
                                         placeholder="Ex: John Matrix"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.owner_name}
                                         onChange={e => { setBusinessData({ ...businessData, owner_name: e.target.value }); markChange(); }}
                                     />
@@ -382,7 +382,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">WhatsApp Number</label>
                                     <input
                                         placeholder="+91 XXXXX XXXXX"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.whatsapp_number}
                                         onChange={e => { setBusinessData({ ...businessData, whatsapp_number: e.target.value }); markChange(); }}
                                     />
@@ -391,7 +391,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">GSTIN (Tax ID)</label>
                                     <input
                                         placeholder="27AAAAA0000A1Z5"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main uppercase"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-indigo-500 outline-none transition-all font-bold text-text-main uppercase"
                                         value={businessData.gstin}
                                         onChange={e => { setBusinessData({ ...businessData, gstin: e.target.value.toUpperCase() }); markChange(); }}
                                     />
@@ -400,13 +400,13 @@ const Settings = () => {
                         </section>
 
                         {/* Location Details */}
-                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-purple-500/10">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-xl shadow-purple-500/5 transition-transform hover:scale-110">
-                                    <MapPin size={28} />
+                        <section className="glass-card rounded-[32px] p-4 md:p-8 border-purple-500/10">
+                            <div className="flex items-center gap-4 mb-4 md:mb-8">
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-xl shadow-purple-500/5 transition-transform hover:scale-110">
+                                    <MapPin className="w-5 h-5 md:w-7 md:h-7" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Location Details</h2>
+                                    <h2 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tight">Location Details</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Physical Location Nodes</p>
                                 </div>
                             </div>
@@ -417,17 +417,17 @@ const Settings = () => {
                                     <textarea
                                         placeholder="Full business office address..."
                                         rows={3}
-                                        className="w-full p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main resize-none"
+                                        className="w-full p-3 md:p-5 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main resize-none"
                                         value={businessData.business_address}
                                         onChange={e => { setBusinessData({ ...businessData, business_address: e.target.value }); markChange(); }}
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                                     <div className="space-y-2">
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">City</label>
                                         <input
                                             placeholder="Ex: Mumbai"
-                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
                                             value={businessData.city}
                                             onChange={e => { setBusinessData({ ...businessData, city: e.target.value }); markChange(); }}
                                         />
@@ -436,7 +436,7 @@ const Settings = () => {
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">State / UT</label>
                                         <input
                                             placeholder="Ex: Maharashtra"
-                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
                                             value={businessData.state_name}
                                             onChange={e => { setBusinessData({ ...businessData, state_name: e.target.value }); markChange(); }}
                                         />
@@ -445,7 +445,7 @@ const Settings = () => {
                                         <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Pincode</label>
                                         <input
                                             placeholder="XXXXXX"
-                                            className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
+                                            className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-purple-500 outline-none transition-all font-bold text-text-main"
                                             value={businessData.pincode}
                                             onChange={e => { setBusinessData({ ...businessData, pincode: e.target.value }); markChange(); }}
                                         />
@@ -455,23 +455,23 @@ const Settings = () => {
                         </section>
 
                         {/* Financial Routing */}
-                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-emerald-500/10">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shadow-xl shadow-emerald-500/5 transition-transform hover:scale-110">
-                                    <CreditCard size={28} />
+                        <section className="glass-card rounded-[32px] p-4 md:p-8 border-emerald-500/10">
+                            <div className="flex items-center gap-4 mb-4 md:mb-8">
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shadow-xl shadow-emerald-500/5 transition-transform hover:scale-110">
+                                    <CreditCard className="w-5 h-5 md:w-7 md:h-7" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Bank Details</h2>
+                                    <h2 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tight">Bank Details</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Bank Settlement Details</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Bank Name</label>
                                     <input
                                         placeholder="Ex: HDFC Bank"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.bank_name}
                                         onChange={e => { setBusinessData({ ...businessData, bank_name: e.target.value }); markChange(); }}
                                     />
@@ -480,7 +480,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Account Number</label>
                                     <input
                                         placeholder="Acc No: XXXXXXXX"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono"
                                         value={businessData.bank_account_no}
                                         onChange={e => { setBusinessData({ ...businessData, bank_account_no: e.target.value }); markChange(); }}
                                     />
@@ -489,7 +489,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">IFSC Code</label>
                                     <input
                                         placeholder="HDFC000XXXX"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono uppercase"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main font-mono uppercase"
                                         value={businessData.bank_ifsc}
                                         onChange={e => { setBusinessData({ ...businessData, bank_ifsc: e.target.value.toUpperCase() }); markChange(); }}
                                     />
@@ -498,7 +498,7 @@ const Settings = () => {
                                     <label className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] ml-1">Unified Payments Interface [UPI ID] (Optional)</label>
                                     <input
                                         placeholder="Ex: example@upi"
-                                        className="w-full p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
+                                        className="w-full p-3 md:p-4 bg-card-bg/50 rounded-2xl border border-card-border focus:border-emerald-500 outline-none transition-all font-bold text-text-main"
                                         value={businessData.upi_id}
                                         onChange={e => { setBusinessData({ ...businessData, upi_id: e.target.value }); markChange(); }}
                                     />
@@ -512,12 +512,12 @@ const Settings = () => {
                 {activeTab === 'preferences' && (
                     // System preferences and integrations
                     //
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* System Hardware section removed — app is cloud-only */}
 
                         {/* App Theme */}
-                        <section className="glass-card rounded-3xl p-4 sm:p-6 border-indigo-500/10 bg-indigo-500/[0.01]">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                        <section className="glass-card rounded-3xl p-4 md:p-6 border-indigo-500/10 bg-indigo-500/[0.01]">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-4 md:gap-6">
                                 <div className="flex items-center gap-4 w-full">
                                     <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform group-hover:scale-110">
                                         {theme === 'light' ? <Moon size={24} className="sm:w-7 sm:h-7" /> : <Sun size={24} className="sm:w-7 sm:h-7" />}
@@ -557,10 +557,10 @@ const Settings = () => {
                         </section>
 
                         {/* Invoice Theme */}
-                        <section className="glass-card rounded-3xl p-4 sm:p-6 border-amber-500/10 bg-amber-500/[0.01]">
+                        <section className="glass-card rounded-3xl p-4 md:p-6 border-amber-500/10 bg-amber-500/[0.01]">
                             <div className="flex items-center gap-4 mb-6">
-                                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5">
-                                    <FileText size={28} />
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5">
+                                    <FileText className="w-5 h-5 md:w-7 md:h-7" />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">Invoice Template</h2>
@@ -597,18 +597,18 @@ const Settings = () => {
                         </section>
 
                         {/* Data & Sync */}
-                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-indigo-500/10">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
-                                    <RefreshCw size={28} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
+                        <section className="glass-card rounded-[32px] p-4 md:p-8 border-indigo-500/10">
+                            <div className="flex items-center gap-4 mb-4 md:mb-8">
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
+                                    <RefreshCw className="w-5 h-5 md:w-7 md:h-7" className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black font-heading text-text-main tracking-tight">Data & Sync</h2>
+                                    <h2 className="text-xl md:text-2xl font-black font-heading text-text-main tracking-tight">Data & Sync</h2>
                                     <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1">Cloud Synchronization & Offline Storage</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between p-4 bg-card-bg/30 rounded-[24px] border border-card-border/50">
                                         <div className="flex items-center gap-4">
@@ -654,7 +654,7 @@ const Settings = () => {
 
                                 <div className="space-y-4">
                                     {isInstallable && (
-                                        <div className="p-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[28px] text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group">
+                                        <div className="p-4 md:p-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[28px] text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group">
                                             <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
                                                 <Download size={120} />
                                             </div>
@@ -697,9 +697,9 @@ const Settings = () => {
                 {activeTab === 'voice' && (
                     // Voice configuration and language preferences
                     //
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* AI Language Preference */}
-                        <section className="glass-card rounded-3xl p-4 sm:p-6">
+                        <section className="glass-card rounded-3xl p-4 md:p-6">
                             <div className="flex items-center gap-2 mb-6">
                                 <Brain className="text-indigo-500" size={24} />
                                 <h2 className="font-extrabold text-text-main text-lg">AI Language</h2>
@@ -731,7 +731,7 @@ const Settings = () => {
                         </section>
 
                         {/* Voice Persona */}
-                        <section className="glass-card rounded-3xl p-4 sm:p-6">
+                        <section className="glass-card rounded-3xl p-4 md:p-6">
                             <div className="flex items-center gap-2 mb-6">
                                 <Volume2 className="text-indigo-500" size={24} />
                                 <h2 className="font-extrabold text-text-main text-lg transition-colors">Voice Persona</h2>
@@ -787,8 +787,8 @@ const Settings = () => {
                         </section>
 
                         {/* Speed Control */}
-                        <section className="glass-card rounded-3xl p-4 sm:p-6">
-                            <div className="flex items-center justify-between mb-8">
+                        <section className="glass-card rounded-3xl p-4 md:p-6">
+                            <div className="flex items-center justify-between mb-4 md:mb-8">
                                 <div className="flex items-center gap-2">
                                     <Gauge className="text-indigo-500" size={24} />
                                     <h2 className="font-extrabold text-text-main text-lg transition-colors">Speaking Cadence</h2>
