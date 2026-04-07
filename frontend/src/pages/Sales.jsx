@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
 import Combobox from '../components/Combobox';
 import { TaxCalculator, isInterState } from '../utils/gstUtils';
-import InvoiceTemplate from '../components/InvoiceTemplate';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
 import SalesInvoiceCard from '../components/SalesInvoiceCard';
 import { productRepo } from '../lib/db/productRepository';
 import { customerRepo } from '../lib/db/customerRepository';
@@ -52,7 +52,6 @@ const Sales = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptSale, setReceiptSale] = useState(null);
     const [receiptItems, setReceiptItems] = useState([]);
-    const invoiceRef = useRef();
 
     // Calculations
     const totals = useMemo(() => {
@@ -218,23 +217,42 @@ const Sales = () => {
         }
     };
 
-    const handlePrint = () => {
-        if (invoiceRef.current) {
-            // Basic print: window.print() with CSS hiding others
-            // Ideally we'd stick a style tag, but relying on 'print:hidden' on main wrapper is cleaner if we can specificy it.
-            // But we can't easily wrap the whole app.
-            // Alternative: Open new window
-            const content = invoiceRef.current.innerHTML;
-            const style = `
-    < script src = "https://cdn.tailwindcss.com" ></script >
-        <style>
-            body {background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        </style>
-`;
-            const win = window.open('', '', 'height=700,width=800');
-            win.document.write('<html><head>' + style + '</head><body>' + content + '</body></html>');
-            win.document.close();
-            win.print();
+    const handlePrint = async () => {
+        if (!receiptSale || !receiptItems) {
+            toast.error("No invoice data to print");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const isGst = receiptSale.invoice_type === 'gst';
+            const isOutOfState = receiptSale.is_out_of_state || parseFloat(receiptSale.igst_amount) > 0;
+
+            // Find customer data if linked
+            const customerData = receiptSale.customer_id
+                ? customers.find(c => c.id === receiptSale.customer_id)
+                : null;
+
+            // Generate PDF using unified utility
+            const doc = await generateInvoicePDF({
+                sale: receiptSale,
+                items: receiptItems,
+                businessProfile: userProfile,
+                customerData,
+                isGst,
+                isOutOfState
+            });
+
+            // Download PDF
+            const fileName = `Invoice_${receiptSale.id}_${new Date().toISOString().slice(0, 10)}.pdf`;
+            doc.save(fileName);
+
+            toast.success("Invoice downloaded successfully!");
+        } catch (error) {
+            console.error("PDF Generation Error:", error);
+            toast.error("Failed to generate invoice PDF");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -816,9 +834,11 @@ const Sales = () => {
                                     </button>
                                     <button
                                         onClick={handlePrint}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-[10px] sm:text-sm hover:bg-indigo-700 transition-all shadow-md"
+                                        disabled={loading}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-[10px] sm:text-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:opacity-60 transition-all shadow-md"
                                     >
-                                        <Printer size={16} /> <span className="hidden sm:inline">Print</span>
+                                        {loading ? <Loader size={16} className="animate-spin" /> : <Printer size={16} />}
+                                        <span className="hidden sm:inline">{loading ? 'Generating...' : 'Download'}</span>
                                     </button>
                                     <button onClick={() => setShowReceiptModal(false)} className="p-2 text-text-muted hover:text-text-main transition-colors">
                                         <X size={20} />
@@ -832,17 +852,6 @@ const Sales = () => {
                                     sale={receiptSale}
                                     items={receiptItems}
                                 />
-                                
-                                {/* Hidden Print Template (used by window.print) */}
-                                <div className="absolute -left-[10000px]">
-                                    <InvoiceTemplate
-                                        ref={invoiceRef}
-                                        sale={receiptSale}
-                                        items={receiptItems}
-                                        businessProfile={userProfile}
-                                        theme={userProfile?.invoice_theme || 'classic'}
-                                    />
-                                </div>
                             </div>
                         </motion.div>
                     </div>
