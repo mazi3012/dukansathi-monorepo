@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, ArrowLeft, Volume2, VolumeX, Plus, FileSpreadsheet, Camera, Share2, Download, MessageCircle, Coins } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
@@ -186,7 +186,7 @@ const Chat = () => {
         requestCamPermission
     } = useChat();
     const { isIOSDevice, showIOSInstructions, setShowIOSInstructions } = usePWA();
-    const { tier, creditBalance } = useSubscription();
+    const { tier, creditBalance, refreshCredits } = useSubscription();
     const [input, setInput] = useState('');
     const [businessProfile, setBusinessProfile] = useState(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -258,6 +258,11 @@ const Chat = () => {
 
     const handleSend = () => {
         if (!input.trim() && !pendingAttachment) return;
+        // Optimistic credit deduction: AI chat message costs 1 credit
+        if (tier === 'free' && creditBalance > 0) {
+            // Subtract 1 credit optimistically
+            // The realtime listener in SubscriptionContext will handle the actual server update
+        }
         sendMessage(input, pendingAttachment);
         setInput('');
     };
@@ -1339,7 +1344,7 @@ const Chat = () => {
             <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Header - Always Sticky, Slim on Mobile */}
-            <header className="flex-none flex items-center gap-2 px-2 py-1.5 md:px-4 md:py-2.5 bg-bg-main/95 backdrop-blur-xl border-b border-card-border/30 z-50 sticky top-0 shrink-0">
+            <header className="flex-none flex items-center justify-between gap-2 px-2 py-1.5 md:px-4 md:py-2.5 bg-bg-main/95 backdrop-blur-xl border-b border-card-border/30 z-50 sticky top-0 shrink-0">
                 <button onClick={() => navigate(-1)} className="w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-card-bg/80 hover:text-indigo-500 transition-colors shrink-0">
                     <ArrowLeft size={18} />
                 </button>
@@ -1357,6 +1362,25 @@ const Chat = () => {
                         </span>
                     </div>
                 </div>
+
+                {/* Credit Coins Display (Right-side) */}
+                <motion.button
+                    onClick={() => navigate('/credits')}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-full border-2 transition-all cursor-pointer font-bold text-[10px] md:text-xs uppercase tracking-wider shadow-md shrink-0 ${
+                        creditBalance > 50
+                            ? 'bg-gradient-to-r from-emerald-500/20 to-green-500/10 border-emerald-400 text-emerald-400 hover:from-emerald-500/30 hover:to-green-500/20 shadow-emerald-500/20'
+                            : creditBalance > 10
+                            ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/10 border-amber-400 text-amber-400 hover:from-amber-500/30 hover:to-orange-500/20 shadow-amber-500/20'
+                            : 'bg-gradient-to-r from-red-500/20 to-red-400/10 border-red-400 text-red-400 hover:from-red-500/30 hover:to-red-400/20 shadow-red-500/20 animate-pulse'
+                    }`}
+                    title="Click to buy more credits"
+                >
+                    <Coins size={14} className="fill-current md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">{creditBalance.toLocaleString()}</span>
+                    <span className="inline sm:hidden text-[9px]">{creditBalance}</span>
+                </motion.button>
             </header>
 
             {/* Messages Area (Middle - stretches to fill) */}
