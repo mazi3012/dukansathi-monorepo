@@ -299,33 +299,33 @@ const Settings = () => {
     const TabButton = ({ id, icon: Icon, label, className = '' }) => (
         <button
             onClick={() => setActiveTab(id)}
-            className={`items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${activeTab === id
+            className={`items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border ${activeTab === id
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
                 : 'text-text-muted border-transparent hover:bg-card-bg hover:text-text-main'
                 } ${className || 'flex'}`}
         >
-            <Icon size={18} />
+            <Icon size={16} className="md:w-[18px] md:h-[18px]" />
             {label}
         </button>
     );
 
     return (
         <div className="flex flex-col h-full overflow-hidden relative">
-            <header className="flex flex-col md:flex-row md:items-end justify-between px-6 pt-6 gap-6 relative z-10">
-                <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
-                        <SettingsIcon size={32} strokeWidth={2.5} />
+            <header className="flex flex-col md:flex-row md:items-end justify-between px-4 md:px-6 pt-4 md:pt-6 gap-4 md:gap-6 relative z-10 w-full">
+                <div className="flex items-center gap-3 md:gap-5">
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-[18px] md:rounded-[22px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
+                        <SettingsIcon className="w-6 h-6 md:w-8 md:h-8" strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 className="text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
-                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mt-1 transition-colors">Manage your store preferences</p>
+                        <h1 className="text-2xl md:text-4xl font-black font-heading text-text-main tracking-tighter leading-tight transition-colors">Settings</h1>
+                        <p className="text-[9px] md:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] md:tracking-[0.3em] mt-0.5 md:mt-1 transition-colors truncate max-w-[200px] md:max-w-none">Manage your store preferences</p>
                     </div>
                 </div>
 
                 <button
                     onClick={saveSettings}
                     disabled={saving || !hasChanges}
-                    className={`flex items-center gap-4 px-10 py-4 rounded-2xl font-black transition-all tracking-[0.2em] text-[10px] uppercase shadow-2xl ${hasChanges
+                    className={`flex items-center justify-center md:justify-start gap-4 px-6 md:px-10 py-3 md:py-4 rounded-2xl md:rounded-2xl font-black transition-all tracking-[0.2em] text-[10px] uppercase shadow-xl md:shadow-2xl w-full md:w-auto ${hasChanges
                         ? 'bg-indigo-600 text-white shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98]'
                         : 'bg-card-bg/50 text-text-muted border border-card-border/50 cursor-not-allowed opacity-50'
                         }`}
@@ -335,7 +335,7 @@ const Settings = () => {
                 </button>
             </header>
 
-            <div className="flex items-center gap-3 px-6 py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10">
+            <div className="flex items-center gap-2 md:gap-3 px-4 md:px-6 py-3 md:py-4 overflow-x-auto whitespace-nowrap scrollbar-hide z-10 w-full">
                 <TabButton id="business" icon={Briefcase} label="Business Settings" />
                 <TabButton id="voice" icon={Volume2} label="Voice & Language" />
                 <TabButton id="preferences" icon={Cpu} label="Preferences" />
@@ -348,7 +348,7 @@ const Settings = () => {
                     //
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* Business Core Info */}
-                        <section className="glass-card rounded-[32px] p-8 border-indigo-500/10">
+                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-indigo-500/10">
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform hover:scale-110">
                                     <Building2 size={28} />
@@ -400,7 +400,7 @@ const Settings = () => {
                         </section>
 
                         {/* Location Details */}
-                        <section className="glass-card rounded-[32px] p-8 border-purple-500/10">
+                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-purple-500/10">
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-xl shadow-purple-500/5 transition-transform hover:scale-110">
                                     <MapPin size={28} />
@@ -455,7 +455,7 @@ const Settings = () => {
                         </section>
 
                         {/* Financial Routing */}
-                        <section className="glass-card rounded-[32px] p-8 border-emerald-500/10">
+                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-emerald-500/10">
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shadow-xl shadow-emerald-500/5 transition-transform hover:scale-110">
                                     <CreditCard size={28} />
@@ -516,15 +516,15 @@ const Settings = () => {
                         {/* System Hardware section removed — app is cloud-only */}
 
                         {/* App Theme */}
-                        <section className="glass-card rounded-3xl p-6 border-indigo-500/10 bg-indigo-500/[0.01]">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform group-hover:scale-110">
-                                        {theme === 'light' ? <Moon size={28} /> : <Sun size={28} />}
+                        <section className="glass-card rounded-3xl p-4 sm:p-6 border-indigo-500/10 bg-indigo-500/[0.01]">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                                <div className="flex items-center gap-4 w-full">
+                                    <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5 transition-transform group-hover:scale-110">
+                                        {theme === 'light' ? <Moon size={24} className="sm:w-7 sm:h-7" /> : <Sun size={24} className="sm:w-7 sm:h-7" />}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-black font-heading text-text-main transition-colors tracking-tight">App Theme</h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-1">Light / Dark Mode</p>
+                                        <h2 className="text-lg sm:text-xl font-black font-heading text-text-main transition-colors tracking-tight">App Theme</h2>
+                                        <p className="text-[9px] sm:text-[10px] font-black text-text-muted uppercase tracking-[0.2em] transition-colors mt-0.5 sm:mt-1">Light / Dark Mode</p>
                                     </div>
                                 </div>
                                 <div className="bg-card-bg/50 p-1.5 rounded-2xl border border-card-border/50 flex gap-2 w-full sm:w-auto">
@@ -557,7 +557,7 @@ const Settings = () => {
                         </section>
 
                         {/* Invoice Theme */}
-                        <section className="glass-card rounded-3xl p-6 border-amber-500/10 bg-amber-500/[0.01]">
+                        <section className="glass-card rounded-3xl p-4 sm:p-6 border-amber-500/10 bg-amber-500/[0.01]">
                             <div className="flex items-center gap-4 mb-6">
                                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5">
                                     <FileText size={28} />
@@ -597,7 +597,7 @@ const Settings = () => {
                         </section>
 
                         {/* Data & Sync */}
-                        <section className="glass-card rounded-[32px] p-8 border-indigo-500/10">
+                        <section className="glass-card rounded-[32px] p-5 md:p-8 border-indigo-500/10">
                             <div className="flex items-center gap-4 mb-8">
                                 <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-xl shadow-indigo-500/5">
                                     <RefreshCw size={28} className={syncStatus.status === 'syncing' ? 'animate-spin' : ''} />
@@ -699,7 +699,7 @@ const Settings = () => {
                     //
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* AI Language Preference */}
-                        <section className="glass-card rounded-3xl p-6">
+                        <section className="glass-card rounded-3xl p-4 sm:p-6">
                             <div className="flex items-center gap-2 mb-6">
                                 <Brain className="text-indigo-500" size={24} />
                                 <h2 className="font-extrabold text-text-main text-lg">AI Language</h2>
@@ -731,7 +731,7 @@ const Settings = () => {
                         </section>
 
                         {/* Voice Persona */}
-                        <section className="glass-card rounded-3xl p-6">
+                        <section className="glass-card rounded-3xl p-4 sm:p-6">
                             <div className="flex items-center gap-2 mb-6">
                                 <Volume2 className="text-indigo-500" size={24} />
                                 <h2 className="font-extrabold text-text-main text-lg transition-colors">Voice Persona</h2>
@@ -787,7 +787,7 @@ const Settings = () => {
                         </section>
 
                         {/* Speed Control */}
-                        <section className="glass-card rounded-3xl p-6">
+                        <section className="glass-card rounded-3xl p-4 sm:p-6">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2">
                                     <Gauge className="text-indigo-500" size={24} />
