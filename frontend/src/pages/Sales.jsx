@@ -621,7 +621,7 @@ const Sales = () => {
                                         Customer (Type to Search)
                                     </label>
                                     <div className="flex gap-3">
-                                        <div className="flex-1 bg-card-bg dark:bg-slate-800 p-1 rounded-2xl border border-card-border dark:border-slate-700 overflow-hidden">
+                                        <div className="flex-1 bg-card-bg dark:bg-slate-800 p-1 rounded-2xl border border-card-border dark:border-slate-700">
                                             <Combobox
                                                 options={customers}
                                                 value={customerName}

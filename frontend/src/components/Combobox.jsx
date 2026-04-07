@@ -86,7 +86,7 @@ const Combobox = ({
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 5 }}
-                        className="absolute z-50 w-full mt-1 bg-card-bg dark:bg-slate-800 rounded-xl shadow-xl border border-card-border dark:border-slate-700 max-h-60 overflow-y-auto"
+                        className="absolute z-[9999] w-full mt-1 bg-card-bg dark:bg-slate-800 rounded-xl shadow-xl border border-card-border dark:border-slate-700 max-h-60 overflow-y-auto"
                     >
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((option, index) => {
