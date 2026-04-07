@@ -14,7 +14,7 @@
             "headers": [
                 {
                     "key": "Permissions-Policy",
-                    "value": "microphone=(self), camera=(self), geolocation=(self), web-share=(self)"
+                    "value": "microphone=(self), camera=(self), geolocation=(self)"
                 },
                 {
                     "key": "Content-Security-Policy",
