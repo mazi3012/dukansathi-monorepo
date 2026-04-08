@@ -20,16 +20,6 @@ export default function PWAInstallButton({ variant = 'button', className = '', f
     } = usePWA();
     const [isInstalling, setIsInstalling] = useState(false);
 
-    // Don't show if already installed
-    if (isInstalled || isRunningAsApp) {
-        return null;
-    }
-
-    // Don't show if not installable
-    if (!isInstallable && !forceShow) {
-        return null;
-    }
-
     const handleInstall = useCallback(async () => {
         setIsInstalling(true);
         try {
@@ -65,6 +55,16 @@ export default function PWAInstallButton({ variant = 'button', className = '', f
         }
     }, [installApp]);
 
+    // Don't show if already installed
+    if (isInstalled || isRunningAsApp) {
+        return null;
+    }
+
+    // Don't show if not installable
+    if (!isInstallable && !forceShow) {
+        return null;
+    }
+
     // Button variant
     if (variant === 'button') {
         return (
@@ -84,7 +84,7 @@ export default function PWAInstallButton({ variant = 'button', className = '', f
                 </motion.button>
 
                 {/* iOS Instructions Modal */}
-                <iOSInstallModal 
+                <IOSInstallModal 
                     isOpen={showIOSInstructions}
                     onClose={() => setShowIOSInstructions(false)}
                 />
@@ -164,7 +164,7 @@ export default function PWAInstallButton({ variant = 'button', className = '', f
 /**
  * iOS Install Instructions Modal
  */
-function iOSInstallModal({ isOpen, onClose }) {
+function IOSInstallModal({ isOpen, onClose }) {
     return (
         <AnimatePresence>
             {isOpen && (
