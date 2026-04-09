@@ -250,10 +250,13 @@ def get_voice_rules(language: str = "hinglish") -> str:
     elif language == "hinglish":
         return (
             "VOICE RULE: You are 'Sathi', a Hinglish shop assistant. "
-            "Reply in Hinglish (Roman Script Only). Mix Hindi and English. "
-            "Use phrases: 'Boss', 'Bhai', 'kar diya', 'dekh lo', 'sab set hai'. "
-            "Example: 'Ji Boss, main Sathi hoon.', 'Sathi haazir hai Boss!' "
-            "NEVER use Devanagari script here."
+            "Reply in Hinglish using ROMAN/ENGLISH script ONLY. Mix Hindi words written in English letters. "
+            "NEVER EVER use Devanagari (Hindi) script like 'बॉस', 'रेडी', 'है' in your output. "
+            "ALWAYS write: 'Boss', 'ready', 'hai', 'kar diya', 'dekh lo', 'sab set hai'. "
+            "CORRECT: 'Boss, aaj ka total ₹12,500 hai.' "
+            "CORRECT: 'Boss, Amit ka ₹500 udhar pending hai.' "
+            "WRONG: 'बॉस, आज का टोटल ₹12,500 है।' "
+            "CRITICAL: ZERO DEVANAGARI CHARACTERS IN YOUR OUTPUT. Every Hindi word must be in Roman/English letters."
         )
     else:  # english
         return (
@@ -506,6 +509,8 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     12. THIS MONTH: Use month boundaries in IST via `date_trunc('month', timezone('Asia/Kolkata', NOW()))` on both sides.
     13. Use LIMIT to prevent large result sets (default LIMIT 50 for lists).
     {f"14. SECURITY: The user is a CUSTOMER. You MUST NOT select `cost_price`. NEVER select exact `stock_quantity`, instead use a CASE statement to return 'In Stock' if > 0 else 'Out of Stock'." if role == 'customer' else ""}
+    15. Use COALESCE(SUM(...), 0) for aggregation queries so null results return 0 instead of null.
+    16. BARE WORD DEFAULTS: If user says ONLY "revenue"/"sale"/"bikri"/"profit"/"fayda" with NO time qualifier, DEFAULT to today.
     
     OPENCLAW SKILLS & RULES:
     {OPENCLAW_SKILLS}
@@ -516,17 +521,44 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     Example 2: "List all customers" OR "Show all customers"
     SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
     
-    Example 3: "Customers with pending dues" OR "kiske paas udhar hai"
+    Example 3: "Customers with pending dues" OR "kiske paas udhar hai" OR "কার কাছে বাকি"
     SQL: SELECT name, phone, credit_balance FROM customers WHERE user_id = '{user_id}' AND credit_balance > 0 ORDER BY credit_balance DESC LIMIT 50
     
     Example 4: "Show products"
     SQL: SELECT name, selling_price, stock_quantity FROM products WHERE user_id = '{user_id}' ORDER BY name LIMIT 50
 
     Example 5: "aaj koto takar jinish bikri holo" OR "aaj ka total revenue" OR "today's total sales"
-    SQL: SELECT SUM(total_amount) FROM sales WHERE user_id = '{user_id}' AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
+    SQL: SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE user_id = '{user_id}' AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
 
     Example 6: "mera profit kya hai aaj ka" OR "aaj koto labh holo" OR "today's profit"
-    SQL: SELECT SUM((si.unit_price - p.cost_price) * si.quantity) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND DATE(s.created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
+    SQL: SELECT COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND DATE(s.created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
+
+    Example 7: "kal ka profit" OR "গতকালের লাভ" OR "yesterday's profit"
+    SQL: SELECT COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = '{user_id}' AND DATE(s.created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()) - INTERVAL '1 day')
+
+    Example 8: "is hafte ki bikri" OR "এই সপ্তাহের বিক্রি" OR "this week's revenue"
+    SQL: SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE user_id = '{user_id}' AND created_at >= date_trunc('week', timezone('Asia/Kolkata', NOW())) AT TIME ZONE 'Asia/Kolkata'
+
+    Example 9: "kiske paas udhar hai" OR "কার কাছে বাকি আছে" OR "who has pending dues"
+    SQL: SELECT name, credit_balance FROM customers WHERE user_id = '{user_id}' AND credit_balance > 0 ORDER BY credit_balance DESC LIMIT 50
+
+    Example 10: "kam stock wale products" OR "কম স্টকের জিনিস" OR "low stock items"
+    SQL: SELECT name, stock_quantity, unit FROM products WHERE user_id = '{user_id}' AND stock_quantity <= 5 ORDER BY stock_quantity ASC LIMIT 50
+
+    Example 11: "aaj kitne bill bane" OR "আজ কতগুলো বিল হলো" OR "how many bills today"
+    SQL: SELECT COUNT(*) as bill_count, COALESCE(SUM(total_amount), 0) as total_revenue FROM sales WHERE user_id = '{user_id}' AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
+
+    Example 12: "sabse zyada kya bikta hai" OR "সবচেয়ে বেশি কী বিক্রি হয়" OR "top selling products"
+    SQL: SELECT p.name, SUM(si.quantity) as total_sold FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.user_id = '{user_id}' GROUP BY p.name ORDER BY total_sold DESC LIMIT 10
+
+    Example 13: "Amit ka balance" OR "অমিতের ব্যালেন্স" OR "Amit's dues"
+    SQL: SELECT name, credit_balance FROM customers WHERE user_id = '{user_id}' AND name ILIKE '%Amit%'
+
+    Example 14: "total pending" OR "total udhar" OR "মোট বাকি কত"
+    SQL: SELECT COALESCE(SUM(credit_balance), 0) FROM customers WHERE user_id = '{user_id}' AND credit_balance > 0
+
+    Example 15: "pichle mahine ka revenue" OR "গত মাসের রেভেনিউ" OR "last month revenue"
+    SQL: SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE user_id = '{user_id}' AND created_at >= (date_trunc('month', timezone('Asia/Kolkata', NOW())) - INTERVAL '1 month') AT TIME ZONE 'Asia/Kolkata' AND created_at < date_trunc('month', timezone('Asia/Kolkata', NOW())) AT TIME ZONE 'Asia/Kolkata'
     """
     
     # Use Flash for SQL gen as it's faster
@@ -772,13 +804,22 @@ def categorize_query(msg_lower: str) -> str:
         "price", "cost", "selling", "margin", "tax", "stock", "quantity", "inventory",
         "customer", "client", "buyer", "sale", "sell", "sold", "bill", "invoice", "receipt",
         "draft", "order", "purchase", "revenue", "profit", "loss", "expense", "total", "amount",
-        "kitna", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
+        "kitna", "kitni", "kitne", "batao", "dikhao", "check", "verify", "find", "search", "lookup", "fetch",
         "list", "report", "summary", "count", "number", "how many", "status", "due", "pending",
         "paid", "payment", "transaction", "history", "record", "entry", "data", "info", "details",
         "add", "update", "create", "make", "delete", "remove", "edit", "change", "save",
         "who bought", "what did", "product", "item", "good", "service", "sku", "code",
         "spend", "spent", "credit", "balance", "money", "cash", "upi", "card", "bank",
-        "products", "items", "bills", "invoices", "orders", "customers"
+        "products", "items", "bills", "invoices", "orders", "customers",
+        # Hinglish business words (Roman script)
+        "sales", "bikri", "bechakena", "kamai", "kamao", "fayda", "munafa", "labh",
+        "nuksan", "hisaab", "hisab", "paisa", "paise", "maal", "aaj", "kal", "parso",
+        "hafte", "hafta", "mahina", "mahine", "kiska", "kiske", "kiski", "sabse",
+        "zyada", "kam", "udhar", "baki", "baaki", "kharcha", "average", "compare",
+        "top", "best", "worst", "highest", "lowest", "trend",
+        # Romanized Bangla business words
+        "ajker", "gotokal", "shoptahe", "mashe", "koto", "kacher", "beshi", "khoroch",
+        "taka"
     ]
 
     identity_keywords = [
@@ -817,10 +858,18 @@ def categorize_query(msg_lower: str) -> str:
             'दिखाओ', 'बताओ', 'रेवेन्यू', 'रेविनियो', 'टोटल', 'कुल',
             'बिक्री', 'कमाई', 'मुनाफा', 'फायदा', 'नुकसान', 'हिसाब',
             'लिस्ट', 'आज', 'कितने', 'कितनों', 'जानना', 'देखो',
+            # Additional Hindi business words
+            'बेचा', 'पैसा', 'माल', 'सबसे', 'ज्यादा', 'कम',
+            'खर्चा', 'औसत', 'तुलना', 'रिपोर्ट', 'स्टॉक', 'ग्राहक',
+            'कल', 'हफ्ते', 'महीना', 'लाभ', 'कुल',
             # Bangla question / data words
             'কতো', 'কত', 'কি', 'কে', 'কোথায়', 'কখন', 'কিভাবে',
             'দেখাও', 'বলো', 'রেভিনিউ', 'বিক্রি', 'মোট', 'হিসাব',
             'তালিকা', 'আজকের', 'লাভ', 'ক্ষতি', 'জানতে',
+            # Additional Bangla business words
+            'কামাই', 'টাকা', 'মাল', 'সবচেয়ে', 'বেশি', 'কম',
+            'খরচ', 'গড়', 'তুলনা', 'রিপোর্ট', 'স্টক', 'গ্রাহক',
+            'গতকাল', 'সপ্তাহ', 'মাস',
         ]
         if any(q in msg_lower for q in native_question_words):
             return "BUSINESS"
@@ -829,6 +878,42 @@ def categorize_query(msg_lower: str) -> str:
     
     if any(cp in words for cp in contextual_pronouns):
         return "BUSINESS"
+    
+    # ── English question-word priority ────────────────────────────────────
+    # "who has highest dues" should be BUSINESS, not ACTION
+    english_question_starters = {"who", "what", "how", "which", "where", "when", "whose"}
+    if first_word_raw := (msg_lower.split()[0] if msg_lower.split() else ""):
+        if first_word_raw in english_question_starters:
+            return "BUSINESS"
+    # ── Hinglish/Bangla question pattern (Roman script) ──────────────────
+    # MUST run BEFORE action_keywords, because words like 'udhar', 'maal',
+    # 'paid', 'dikhao' appear in both action and business contexts.
+    # If the query contains a QUESTION word + BUSINESS context → BUSINESS
+    hinglish_question_words = {
+        "kitna", "kitni", "kitne", "kya", "kiska", "kiske", "kiski",
+        "kaun", "kab", "kaise", "kahan", "dikhao", "batao", "hua",
+        "hisaab", "hisab", "kamai", "fayda", "munafa", "bacha",
+        "bikri", "kal", "aaj", "parso", "hafte",
+        # Romanized Bangla question words
+        "koto", "ki", "ke", "kobe", "kivabe", "dekhao", "bolo",
+    }
+    hinglish_biz_context = {
+        "revenue", "profit", "sale", "sales", "total", "udhar", "baki", "baaki",
+        "stock", "maal", "paisa", "paise", "taka", "dues", "pending",
+        "balance", "customer", "product", "bikri", "kamai", "fayda",
+        "hisaab", "hisab", "kamao", "labh", "aaya", "hua",
+    }
+    if words & hinglish_question_words and words & hinglish_biz_context:
+        return "BUSINESS"
+    # If query STARTS with a question word and has biz context
+    first_word = msg_lower.split()[0] if msg_lower.split() else ""
+    if first_word in hinglish_question_words and words & hinglish_biz_context:
+        return "BUSINESS"
+    # Standalone business terms that should always route to BUSINESS
+    if words & {"hisaab", "hisab", "kamai", "fayda", "munafa", "bikri"}:
+        if not words & {"banao", "bana", "karo", "kar", "create", "new", "add"}:
+            return "BUSINESS"
+    
     if any(k in words for k in action_keywords):
         return "ACTION"
     if any(msg_lower.startswith(k) or msg_lower == k for k in greeting_keywords):
@@ -893,6 +978,106 @@ async def get_store_directory(user_id: str) -> str:
             
     return "\n".join(parts)
 
+# ─── Customer Name Normalization (Hindi/Bangla → English) ──────────────────────
+# Common Indian name transliteration map: native script → English/Roman
+_NAME_TRANSLITERATION_MAP = {
+    "hamza":  ["হামজা", "हमजा"],
+    "amit":   ["অমিত", "अमित"],
+    "rahul":  ["রাহুল", "राहुल"],
+    "rohan":  ["রোহন", "रोहन"],
+    "priya":  ["প্রিয়া", "प्रिया"],
+    "suresh": ["সুরেশ", "सुरेश"],
+    "rahim":  ["রহিম", "रहीम", "रहिम"],
+    "vikram": ["বিক্রম", "विक्रम"],
+    "rajesh": ["রাজেশ", "राजेश"],
+    "mohan":  ["মোহন", "मोहन"],
+    "kamal":  ["কমল", "कमल"],
+    "anil":   ["অনিল", "अनिल"],
+    "sanjay": ["সঞ্জয়", "संजय"],
+    "deepak": ["দীপক", "दीपक"],
+    "rakesh": ["রাকেশ", "राकेश"],
+    "manoj":  ["মনোজ", "मनोज"],
+    "ajay":   ["অজয়", "अजय"],
+    "ramesh": ["রমেশ", "रमेश"],
+    "farooq": ["ফারুক", "फारूक"],
+    "imran":  ["ইমরান", "इमरान"],
+    "salim":  ["সেলিম", "सलीम"],
+    "anwar":  ["আনোয়ার", "अनवर"],
+    "kumar":  ["কুমার", "कुमार"],
+    "singh":  ["সিং", "सिंह"],
+    "sharma": ["শর্মা", "शर्मा"],
+    "gupta":  ["গুপ্তা", "गुप्ता"],
+    "das":    ["দাস", "दास"],
+    "patel":  ["প্যাটেল", "पटेल"],
+    "kakeel": ["কাকীল", "काकील"],
+}
+
+def normalize_customer_name(name: str, store_directory: str = "") -> str:
+    """
+    Transliterate Hindi/Bangla customer names to English/Roman script.
+    Priority: 1) Match against STORE CONTEXT, 2) Name map, 3) Return as-is if already Roman.
+    """
+    import re as _re
+    if not name or not isinstance(name, str):
+        return name
+    
+    name = name.strip()
+    
+    # Check if name contains non-Latin script characters (Hindi/Bangla)
+    has_native = bool(_re.search(r'[\u0900-\u097F\u0980-\u09FF]', name))
+    if not has_native:
+        # Already in Roman script — just clean up capitalization
+        return name.strip().title()
+    
+    # Step 1: Check store directory for matching customer name
+    if store_directory:
+        cust_match = _re.search(r'AVAILABLE CUSTOMERS:\s*\[([^\]]+)\]', store_directory)
+        if cust_match:
+            existing_names = [n.strip() for n in cust_match.group(1).split(',')]
+            # Check if any existing English name maps to this native name
+            for eng_name in existing_names:
+                eng_lower = eng_name.lower().strip()
+                if eng_lower in _NAME_TRANSLITERATION_MAP:
+                    for native in _NAME_TRANSLITERATION_MAP[eng_lower]:
+                        if native in name:
+                            return eng_name.strip()
+    
+    # Step 2: Direct transliteration map lookup
+    for eng, natives in _NAME_TRANSLITERATION_MAP.items():
+        for native in natives:
+            if native in name:
+                return eng.title()
+    
+    # Step 3: If still has native chars, return as-is (LLM should have transliterated)
+    # Log a warning so we can expand the map over time
+    logger.warning(f"normalize_customer_name: Could not transliterate '{name}' — returning as-is")
+    return name
+
+
+def _normalize_draft_customer_names(json_str: str, store_directory: str = "") -> str:
+    """
+    Post-process extracted JSON to ensure all customer_name/name fields are English.
+    Applied as a safety net after LLM extraction.
+    """
+    import json as _json
+    try:
+        data = _json.loads(json_str)
+    except (ValueError, TypeError):
+        return json_str
+    
+    draft_type = data.get("type", "")
+    
+    # Normalize customer_name in invoice/payment drafts
+    if "customer_name" in data and data["customer_name"]:
+        data["customer_name"] = normalize_customer_name(data["customer_name"], store_directory)
+    
+    # Normalize name in customer drafts
+    if draft_type == "customer_draft" and "name" in data and data["name"]:
+        data["name"] = normalize_customer_name(data["name"], store_directory)
+    
+    return _json.dumps(data, ensure_ascii=False)
+
+
 async def extract_action_params(user_query: str, history_context: str = "", model: str = "gemini-3.1-flash-lite-preview", user_id: str = None) -> str:
     """
     Extract structured JSON parameters for an action.
@@ -926,12 +1111,12 @@ If an image is provided, scan it using OCR. Extract ALL products visible in the 
 
 MULTILINGUAL MAPPING RULES:
 1. If user says a product or customer name in Bangla, Hindi, or Hinglish (e.g., "Aloo", "Dal", "Chaler", "দাদা", "हमजा"), check the STORE CONTEXT to find the corresponding English/Official name in the database.
-2. Return the Official Name from the database if a match is found, otherwise return the name as spoken (including Hindi/Bangla script).
+2. Return the Official Name from the database if a match is found, otherwise transliterate the name to English/Roman script.
 3. Handle ambiguous quantities (e.g., "ekta packet" -> 1 packet).
 4. Hindi number words: "ek/एक"=1, "do/दो"=2, "teen/तीन"=3, "char/चार"=4, "paanch/पाँच"=5, "cheh/छह"=6, "saat/सात"=7, "aath/आठ"=8, "nau/नौ"=9, "das/दस"=10.
 5. Bangla number words: "ek/এক"=1, "dui/দুই"=2, "tin/তিন"=3, "char/চার"=4, "paach/পাঁচ"=5, "choy/ছয়"=6, "saat/সাত"=7, "aat/আট"=8, "noy/নয়"=9, "dosh/দশ"=10.
 6. CRITICAL: If the same product name appears multiple times in the query, MERGE them into a single item entry with the COMBINED quantity. Never create duplicate item entries.
-7. Customer name may be in Hindi/Bangla script — include it as-is in "customer_name" field.
+7. CUSTOMER NAME RULE: customer_name MUST ALWAYS be in English/Roman script. Transliterate: হামজা→Hamza, অমিত→Amit, रोहन→Rohan, प्रिया→Priya. Check STORE CONTEXT first for official English name.
 
 8. CRITICAL: Identify if the user is requesting a GST invoice. If they say "GST", "Tax", "B2B", or provide a "GSTIN", set "invoice_type": "gst" in the JSON. Otherwise default to "regular" (Bill of Supply).
 
@@ -974,7 +1159,7 @@ If query is vague, return {{"type":"unknown","error":"Missing details"}}"""
         # Attempt 1: Direct JSON parse
         try:
             json.loads(json_str)
-            return json_str
+            return _normalize_draft_customer_names(json_str, directory_context)
         except json.JSONDecodeError:
             pass
 
@@ -982,11 +1167,12 @@ If query is vague, return {{"type":"unknown","error":"Missing details"}}"""
         try:
             if json_str.strip().startswith("{"):
                 py_dict = ast.literal_eval(json_str)
-                return json.dumps(py_dict)
+                result_str = json.dumps(py_dict)
+                return _normalize_draft_customer_names(result_str, directory_context)
         except Exception as ast_err:
             print(f"DEBUG: AST eval failed: {ast_err}")
 
-        return json_str
+        return _normalize_draft_customer_names(json_str, directory_context)
 
     except Exception as e:
         print(f"ERROR extracting params: {e}")
@@ -1553,7 +1739,12 @@ async def action_node(state: AgentState):
             action_json_str = await extract_action_params(last_msg, history_text, model=selected_model, user_id=user_id)
         else:
             action_json_str = await extract_action_params_local(last_msg, history_text, model=selected_model, user_id=user_id)
-        
+            
+    # CRITICAL: Apply normalizer to the final JSON string before hydration as a last-resort safety net
+    directory_context = await get_store_directory(user_id) if user_id else ""
+    if action_json_str and action_json_str.strip().startswith("{"):
+        action_json_str = _normalize_draft_customer_names(action_json_str, directory_context)
+            
     print(f"DEBUG: Extracted JSON: {action_json_str}")
 
     # --- SPECIAL HANDLING: REPORT GENERATION ---
@@ -2223,8 +2414,11 @@ async def chat_node(state: AgentState):
                 f"DATA SNAPSHOT (GROUND TRUTH): {specialist_data}\n"
                 f"USER: \"{last_msg}\"\n"
                 f"GOAL: Answer DIRECTLY from DATA SNAPSHOT. "
+                f"FORMAT: Use ₹ with Indian commas (₹1,50,000 not 150000). Use lakh/crore not million. "
+                f"If snapshot has a single number like [{{\"sum\": 12500}}] or [{{\"coalesce\": 12500}}], say it naturally: "
+                f"'Boss, aaj ka total ₹12,500 hai.' (Hinglish) or 'দাদা, আজকের মোট ₹12,500।' (Bangla). "
                 f"If the snapshot has a number (even 0), report it accurately. "
-                f"If snapshot is empty/unavailable, say: 'Boss, data fetch nahi hua. Thodi der mein try karein.' "
+                f"If snapshot is empty/null/[], say: 'Boss, is period mein koi data nahi mila.' "
                 f"NEVER guess. NEVER say a number not in the snapshot. MAX 2 sentences."
             )
 

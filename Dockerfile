@@ -72,6 +72,12 @@ ENV ENABLE_OFFLINE_STT=false
 
 WORKDIR /app/backend
 
+# --- Security: Run as Non-Root User ---
+RUN useradd -m appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # --- Start Server ---
 # Cloud Run requires listening on 0.0.0.0:$PORT
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+

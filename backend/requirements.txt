@@ -12,6 +12,7 @@ pillow>=11.0.0
 pandas>=2.0.0
 PyJWT>=2.8.0
 razorpay>=1.5.0
+slowapi>=0.1.9
 
 # Voice / AI dependencies (used by voice_service.py)
 groq>=0.11.0

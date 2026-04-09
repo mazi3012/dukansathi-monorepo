@@ -13,9 +13,13 @@ It handles:
 - Multilingual AI (English, Hinglish, Kolkata Bangla)
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from dotenv import load_dotenv
 import os
 import sys
@@ -95,6 +99,15 @@ app = FastAPI(
     description="Voice-first shop management backend for Indian small businesses",
     version="1.0.0"
 )
+
+# --- SlowAPI Enterprise Rate Limiter ---
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["60/minute"],  # Global safety net
+    storage_uri="memory://",       # In-memory (upgrade to Redis when scaling)
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- Rate Limiter (per IP) — shared by WebSocket + REST ---
 from collections import defaultdict
@@ -184,6 +197,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SlowAPIMiddleware)
+
+# --- Layer 3: Security Headers Middleware ---
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Inject security headers on every response (OWASP best practices)."""
+    response = await call_next(request)
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+    # Prevent MIME-type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Prevent reflected XSS
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    # Force HTTPS (Cloud Run already does, belt + suspenders)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Control referrer leakage
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Restrict browser features (no camera/mic/geolocation from API domain)
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # Prevent caching of sensitive API responses
+    if "/api/" in str(request.url):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+# --- Layer 5: Request Body Size Limit ---
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    """Block oversized request bodies (max 5MB) to prevent payload DoS."""
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > 5 * 1024 * 1024:  # 5MB
+        return JSONResponse(status_code=413, content={"detail": "Request too large (max 5MB)"})
+    return await call_next(request)
 
 @app.middleware("http")
 async def cors_fallback_middleware(request: Request, call_next):
@@ -264,18 +310,21 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check():
+@limiter.limit("120/minute")
+async def health_check(request: Request):
     """Lightweight health check for Cloud Run"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 @app.options("/health")
-async def health_check_options():
+async def health_check_options(request: Request):
     """Handle OPTIONS preflight / bot probe for /health"""
+    origin = request.headers.get("origin", "")
+    allowed = origin if origin in [o for o in ALLOWED_ORIGINS if o] else "https://dukansathi.com"
     return JSONResponse(
         status_code=200,
         content={"status": "ok"},
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": allowed,
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
         }
@@ -497,14 +546,15 @@ class NotificationReadRequest(BaseModel):
     notification_id: int
 
 @app.post("/api/tts-preview")
-async def tts_preview(request: TTSRequest, user_id: str = Depends(verify_local_auth)):
+@limiter.limit("10/minute")
+async def tts_preview(request: Request, body: TTSRequest = None, user_id: str = Depends(verify_local_auth)):
     """
     Generate a one-off TTS preview for the settings page.
     """
     try:
         from voice_service import speak_text
         # Use existing service
-        base64_audio = await speak_text(request.text, request.voice_id, request.rate)
+        base64_audio = await speak_text(body.text, body.voice_id, body.rate)
         if not base64_audio:
             raise HTTPException(status_code=500, detail="Failed to generate audio")
             
@@ -516,7 +566,8 @@ async def tts_preview(request: TTSRequest, user_id: str = Depends(verify_local_a
 # --- Subscription & Usage Routes ---
 
 @app.get("/api/subscription/usage")
-async def get_usage_token(user_id: str = Depends(verify_local_auth)):
+@limiter.limit("30/minute")
+async def get_usage_token(request: Request, user_id: str = Depends(verify_local_auth)):
     """Get current usage stats and a signed JWT usage token"""
     stats = await sub_service.get_usage_stats(user_id)
     if not stats:
@@ -529,7 +580,8 @@ async def get_usage_token(user_id: str = Depends(verify_local_auth)):
     }
 
 @app.post("/api/subscription/create")
-async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_auth)):
+@limiter.limit("5/minute")
+async def create_subscription(request: Request, plan_id: str = None, user_id: str = Depends(verify_local_auth)):
     """Create a new Razorpay subscription (Trial included)"""
     try:
         subscription = await sub_service.create_checkout_session(user_id, plan_id)
@@ -547,7 +599,8 @@ async def create_subscription(plan_id: str, user_id: str = Depends(verify_local_
 
 
 @app.post("/api/subscription/cancel")
-async def cancel_subscription(user_id: str = Depends(verify_local_auth)):
+@limiter.limit("5/minute")
+async def cancel_subscription(request: Request, user_id: str = Depends(verify_local_auth)):
     """Cancel the current Razorpay subscription and downgrade user to free tier."""
     try:
         # 1. Get the user's current subscription ID
@@ -604,7 +657,9 @@ class VerifyPaymentRequest(BaseModel):
     razorpay_signature: str
 
 @app.post("/api/subscription/verify")
+@limiter.limit("5/minute")
 async def verify_subscription_payment(
+    request: Request,
     payload: VerifyPaymentRequest,
     user_id: str = Depends(verify_local_auth)
 ):
@@ -684,7 +739,9 @@ async def verify_subscription_payment(
 
 
 @app.get("/api/forecast")
+@limiter.limit("30/minute")
 async def get_forecast(
+    request: Request,
     horizon_days: int = 30,
     lookback_days: int = 120,
     user_id: str = Depends(verify_local_auth)
@@ -711,7 +768,9 @@ async def get_forecast(
 
 
 @app.get("/api/inventory-forecast")
+@limiter.limit("30/minute")
 async def get_inventory_forecast(
+    request: Request,
     lookback_days: int = 60,
     user_id: str = Depends(verify_local_auth)
 ):
@@ -734,7 +793,9 @@ async def get_inventory_forecast(
 
 
 @app.get("/api/forecast/ai-insights")
+@limiter.limit("5/minute")
 async def get_forecast_ai_insights(
+    request: Request,
     user_id: str = Depends(verify_local_auth)
 ):
     """Generate a dynamic AI market summary based on current statistical forecasts."""
@@ -803,7 +864,9 @@ async def get_forecast_ai_insights(
 
 
 @app.post("/api/notifications/generate")
+@limiter.limit("5/minute")
 async def generate_notifications(
+    request: Request,
     lookback_days: int = 60,
     risk_days_threshold: int = 14,
     user_id: str = Depends(verify_local_auth)
@@ -835,7 +898,9 @@ async def generate_notifications(
 
 
 @app.get("/api/notifications")
+@limiter.limit("30/minute")
 async def list_notifications(
+    request: Request,
     unread_only: bool = False,
     limit: int = 20,
     user_id: str = Depends(verify_local_auth)
@@ -860,8 +925,10 @@ async def list_notifications(
 
 
 @app.post("/api/notifications/mark-read")
+@limiter.limit("30/minute")
 async def mark_notification_read(
-    body: NotificationReadRequest,
+    request: Request,
+    body: NotificationReadRequest = None,
     user_id: str = Depends(verify_local_auth)
 ):
     """Mark a single notification as read."""
@@ -886,6 +953,7 @@ async def mark_notification_read(
     return {"status": "ok"}
 
 @app.post("/api/subscription/webhook")
+@limiter.limit("30/minute")
 async def razorpay_webhook(request: Request):
     """Handle Razorpay webhook for subscription updates."""
     # Read body ONCE — stream cannot be consumed twice
@@ -988,8 +1056,10 @@ class CreditVerifyRequest(BaseModel):
     pack_id:             str
 
 @app.post("/api/credits/order")
+@limiter.limit("10/minute")
 async def create_credit_order(
-    body: CreditOrderRequest,
+    request: Request,
+    body: CreditOrderRequest = None,
     user_id: str = Depends(verify_local_auth)
 ):
     """Create a Razorpay one-time Order for a credit pack purchase."""
@@ -1011,8 +1081,10 @@ async def create_credit_order(
 
 
 @app.post("/api/credits/verify")
+@limiter.limit("10/minute")
 async def verify_credit_payment(
-    body: CreditVerifyRequest,
+    request: Request,
+    body: CreditVerifyRequest = None,
     user_id: str = Depends(verify_local_auth)
 ):
     """
@@ -1036,7 +1108,8 @@ async def verify_credit_payment(
 
 
 @app.get("/api/credits/balance")
-async def get_credit_balance(user_id: str = Depends(verify_local_auth)):
+@limiter.limit("30/minute")
+async def get_credit_balance(request: Request, user_id: str = Depends(verify_local_auth)):
     """Get current credit balance. Also triggers monthly refresh if not done yet."""
     try:
         # Ensure one-time welcome bonus exists (fallback if signup trigger missed)
@@ -1055,7 +1128,7 @@ async def get_credit_balance(user_id: str = Depends(verify_local_auth)):
 
 
 @app.websocket("/ws/chat")
-async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
     # Rate limit WebSocket connections per IP
     client_ip = websocket.client.host if websocket.client else "unknown"
     if not check_rate_limit(f"ws:{client_ip}", max_requests=30, window_seconds=60):
@@ -1064,6 +1137,30 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
         return
     
     await websocket.accept()
+
+    # Verify Authentication early
+    if not token:
+        logger.warning(f"[WS] Unauthenticated connection attempt from {client_ip}")
+        await websocket.send_json({"type": "error", "content": "Authentication required"})
+        await websocket.close(code=1008, reason="Missing Token")
+        return
+
+    # Verify token
+    try:
+        auth_user = supabase.auth.get_user(token)
+        if not auth_user or not auth_user.user:
+            logger.warning(f"[WS] Invalid token attempt from {client_ip}")
+            await websocket.send_json({"type": "error", "content": "Invalid authentication"})
+            await websocket.close(code=1008, reason="Invalid Token")
+            return
+        user_id = auth_user.user.id
+    except Exception as e:
+        logger.error(f"[WS] Auth validation failed: {e}")
+        await websocket.send_json({"type": "error", "content": "Authentication failed"})
+        await websocket.close(code=1008, reason="Auth Error")
+        return
+    
+    logger.info(f"[WS] Authenticated connection established for user: {user_id}")
     
     # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
     import time
@@ -1616,6 +1713,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str = "anon"):
 
 @app.websocket("/ws/customer_chat/{store_id}")
 async def customer_websocket_endpoint(websocket: WebSocket, store_id: str):
+    # Rate limit customer chat WebSocket per IP (20/min as approved)
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not check_rate_limit(f"ws_cust:{client_ip}", max_requests=20, window_seconds=60):
+        await websocket.close(code=1008, reason="Rate limited")
+        logger.warning(f"[WS-CUST] Rate limited IP: {client_ip}")
+        return
+    
     await websocket.accept()
     
     # LAZY IMPORT HEAVY MODULES ON FIRST CONNECTION!
