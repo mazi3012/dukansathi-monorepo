@@ -347,6 +347,261 @@ def _normalize_sql_timezone_filters(sql: str) -> str:
 
     return sql
 
+
+def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "owner") -> str | None:
+    """
+    Build deterministic SQL for common KPI questions (today/yesterday revenue/profit/bills).
+    This improves reliability for high-frequency asks before falling back to LLM SQL generation.
+    """
+    if not user_id:
+        return None
+
+    q = (user_query or "").lower()
+
+    # Time detection (English/Hinglish/Bangla variants)
+    today_tokens = ["today", "aaj", "aj", "today's", "aaj ka", "aajer", "আজ", "আজকের"]
+    yday_tokens = ["yesterday", "kal", "yday", "yesterday's", "গতকাল", "গতকালের", "কাল"]
+    this_week_tokens = ["this week", "is week", "is hafte", "ei soptaho", "এই সপ্তাহ", "এই সপ্তাহের", "hafta", "week"]
+    last_week_tokens = ["last week", "pichla hafta", "pichhle hafte", "গত সপ্তাহ", "গত সপ্তাহের"]
+    this_month_tokens = ["this month", "is month", "is mahine", "ei mash", "এই মাস", "এই মাসের", "mahina", "month"]
+    last_month_tokens = ["last month", "pichla mahina", "pichhle mahine", "গত মাস", "গত মাসের"]
+    has_today = any(t in q for t in today_tokens)
+    has_yesterday = any(t in q for t in yday_tokens)
+    has_this_week = any(t in q for t in this_week_tokens)
+    has_last_week = any(t in q for t in last_week_tokens)
+    has_this_month = any(t in q for t in this_month_tokens)
+    has_last_month = any(t in q for t in last_month_tokens)
+
+    # Metric detection
+    profit_tokens = ["profit", "fayda", "munafa", "labh", "লাভ", "মুনাফা"]
+    revenue_tokens = ["revenue", "sales", "sale", "bikri", "kamai", "income", "turnover", "বিক্রি", "কামাই"]
+    bill_count_tokens = ["bill count", "how many bill", "kitne bill", "invoice count", "bill kitne", "কত বিল", "कितने बिल"]
+
+    wants_profit = any(t in q for t in profit_tokens)
+    wants_revenue = any(t in q for t in revenue_tokens)
+    wants_bill_count = any(t in q for t in bill_count_tokens) or ("how many" in q and "bill" in q)
+    wants_compare = any(t in q for t in ["vs", "versus", "compare", "comparison", "difference"])
+
+    # Default bare words to today
+    if (
+        (wants_profit or wants_revenue or wants_bill_count)
+        and not has_today
+        and not has_yesterday
+        and not has_this_week
+        and not has_last_week
+        and not has_this_month
+        and not has_last_month
+    ):
+        has_today = True
+
+    ist_today = "DATE(timezone('Asia/Kolkata', NOW()))"
+    ist_yesterday = "DATE(timezone('Asia/Kolkata', NOW()) - INTERVAL '1 day')"
+    ist_this_week_start = "date_trunc('week', timezone('Asia/Kolkata', NOW()))"
+    ist_last_week_start = "(date_trunc('week', timezone('Asia/Kolkata', NOW())) - INTERVAL '1 week')"
+    ist_this_month_start = "date_trunc('month', timezone('Asia/Kolkata', NOW()))"
+    ist_last_month_start = "(date_trunc('month', timezone('Asia/Kolkata', NOW())) - INTERVAL '1 month')"
+    sales_day = "DATE(s.created_at AT TIME ZONE 'Asia/Kolkata')"
+    sales_day_no_alias = "DATE(created_at AT TIME ZONE 'Asia/Kolkata')"
+    sales_ts = "timezone('Asia/Kolkata', s.created_at)"
+    sales_ts_no_alias = "timezone('Asia/Kolkata', created_at)"
+
+    if wants_profit and role == "customer":
+        # Customer role should not expose profit/cost-side metrics.
+        return None
+
+    if wants_profit:
+        if wants_compare and has_this_week and has_last_week:
+            return (
+                "SELECT "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_ts} >= {ist_this_week_start}), 0) AS this_week_profit, "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_ts} >= {ist_last_week_start} AND {sales_ts} < {ist_this_week_start}), 0) AS last_week_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}'"
+            )
+        if wants_compare and has_this_month and has_last_month:
+            return (
+                "SELECT "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_ts} >= {ist_this_month_start}), 0) AS this_month_profit, "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_ts} >= {ist_last_month_start} AND {sales_ts} < {ist_this_month_start}), 0) AS last_month_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}'"
+            )
+        if has_today and has_yesterday:
+            return (
+                "SELECT "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_day} = {ist_today}), 0) AS today_profit, "
+                f"COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity) FILTER (WHERE {sales_day} = {ist_yesterday}), 0) AS yesterday_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}'"
+            )
+        if has_last_week:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS last_week_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}' "
+                f"AND {sales_ts} >= {ist_last_week_start} "
+                f"AND {sales_ts} < {ist_this_week_start}"
+            )
+        if has_this_week:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS this_week_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}' "
+                f"AND {sales_ts} >= {ist_this_week_start}"
+            )
+        if has_last_month:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS last_month_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}' "
+                f"AND {sales_ts} >= {ist_last_month_start} "
+                f"AND {sales_ts} < {ist_this_month_start}"
+            )
+        if has_this_month:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS this_month_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}' "
+                f"AND {sales_ts} >= {ist_this_month_start}"
+            )
+        if has_yesterday:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS yesterday_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}' "
+                f"AND {sales_day} = {ist_yesterday}"
+            )
+        return (
+            "SELECT "
+            "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS today_profit "
+            "FROM sale_items si "
+            "JOIN products p ON si.product_id = p.id "
+            "JOIN sales s ON si.sale_id = s.id "
+            f"WHERE s.user_id = '{user_id}' "
+            f"AND {sales_day} = {ist_today}"
+        )
+
+    if wants_revenue:
+        if wants_compare and has_this_week and has_last_week:
+            return (
+                "SELECT "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_ts_no_alias} >= {ist_this_week_start}), 0) AS this_week_revenue, "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_ts_no_alias} >= {ist_last_week_start} AND {sales_ts_no_alias} < {ist_this_week_start}), 0) AS last_week_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}'"
+            )
+        if wants_compare and has_this_month and has_last_month:
+            return (
+                "SELECT "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_ts_no_alias} >= {ist_this_month_start}), 0) AS this_month_revenue, "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_ts_no_alias} >= {ist_last_month_start} AND {sales_ts_no_alias} < {ist_this_month_start}), 0) AS last_month_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}'"
+            )
+        if has_today and has_yesterday:
+            return (
+                "SELECT "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_day_no_alias} = {ist_today}), 0) AS today_revenue, "
+                f"COALESCE(SUM(total_amount) FILTER (WHERE {sales_day_no_alias} = {ist_yesterday}), 0) AS yesterday_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}'"
+            )
+        if has_last_week:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS last_week_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_ts_no_alias} >= {ist_last_week_start} "
+                f"AND {sales_ts_no_alias} < {ist_this_week_start}"
+            )
+        if has_this_week:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS this_week_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_ts_no_alias} >= {ist_this_week_start}"
+            )
+        if has_last_month:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS last_month_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_ts_no_alias} >= {ist_last_month_start} "
+                f"AND {sales_ts_no_alias} < {ist_this_month_start}"
+            )
+        if has_this_month:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS this_month_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_ts_no_alias} >= {ist_this_month_start}"
+            )
+        if has_yesterday:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS yesterday_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_day_no_alias} = {ist_yesterday}"
+            )
+        return (
+            "SELECT "
+            "COALESCE(SUM(total_amount), 0) AS today_revenue "
+            "FROM sales "
+            f"WHERE user_id = '{user_id}' "
+            f"AND {sales_day_no_alias} = {ist_today}"
+        )
+
+    if wants_bill_count:
+        if has_today and has_yesterday:
+            return (
+                "SELECT "
+                f"COALESCE(COUNT(*) FILTER (WHERE {sales_day_no_alias} = {ist_today}), 0) AS today_bills, "
+                f"COALESCE(COUNT(*) FILTER (WHERE {sales_day_no_alias} = {ist_yesterday}), 0) AS yesterday_bills "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}'"
+            )
+        if has_yesterday:
+            return (
+                "SELECT COUNT(*) AS yesterday_bills "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}' "
+                f"AND {sales_day_no_alias} = {ist_yesterday}"
+            )
+        return (
+            "SELECT COUNT(*) AS today_bills "
+            "FROM sales "
+            f"WHERE user_id = '{user_id}' "
+            f"AND {sales_day_no_alias} = {ist_today}"
+        )
+
+    return None
+
 # Agent State - tracks conversation context
 class AgentState(TypedDict):
     messages: list
@@ -570,6 +825,92 @@ async def generate_sql_query(user_query: str, user_id: str, history_context: str
     if sql.endswith(";"):
         sql = sql[:-1]
     return sql
+
+
+async def generate_sql_query_repair(
+    user_query: str,
+    user_id: str,
+    previous_sql: str,
+    history_context: str = "",
+    model: str = "gemini-3.1-flash-lite-preview",
+    role: str = "owner",
+) -> str:
+    """
+    One-shot SQL repair prompt used when primary SQL attempt fails execution/validation.
+    """
+    prompt = f"""
+    You are a PostgreSQL SQL repair assistant for a shop database.
+
+    SCHEMA:
+    {DATABASE_SCHEMA}
+
+    USER QUERY: "{user_query}"
+    USER_ID: "{user_id}"
+    PREVIOUS SQL (FAILED):
+    {previous_sql}
+
+    RECENT CONVERSATION HISTORY:
+    {history_context if history_context else "(No recent history)"}
+
+    HARD RULES:
+    1. Return ONE valid SELECT query only.
+    2. Every table must be scoped with user_id = '{user_id}' (or alias equivalent).
+    3. Use IST-safe date filtering with DATE(created_at AT TIME ZONE 'Asia/Kolkata').
+    4. For profit use: SUM((si.unit_price - p.cost_price) * si.quantity) with sale_items + products + sales join.
+    5. Use COALESCE for all SUM outputs.
+    6. No markdown, no explanation, no semicolon.
+    7. Keep query simple and robust.
+    {"8. CUSTOMER ROLE: never expose cost_price/profit/stock quantities." if role == "customer" else ""}
+    """
+
+    llm = get_llm(model)
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    sql = response.content.replace("```sql", "").replace("```", "").strip()
+    sql = _normalize_sql_timezone_filters(sql)
+    if sql.endswith(";"):
+        sql = sql[:-1]
+    return sql
+
+
+def _is_failed_data_result(result_str: str) -> bool:
+    if not result_str:
+        return True
+    r = result_str.lower()
+    return (
+        "i couldn't retrieve that data right now" in r
+        or "i can only run read-only lookup queries" in r
+        or "database is currently unavailable" in r
+        or "security violation" in r
+        or "database error" in r
+    )
+
+
+def _telemetry_user_key(user_id: str) -> str:
+    if not user_id:
+        return "anon"
+    return hashlib.sha256(user_id.encode()).hexdigest()[:10]
+
+
+def _log_ai_query_telemetry(
+    user_id: str,
+    category: str,
+    sql_source: str,
+    sql_query: str,
+    result_preview: str,
+    status: str,
+    duration_ms: int,
+):
+    payload = {
+        "event": "ai_query_telemetry",
+        "user": _telemetry_user_key(user_id),
+        "category": category,
+        "sql_source": sql_source,
+        "status": status,
+        "duration_ms": duration_ms,
+        "sql_preview": (sql_query or "")[:220],
+        "result_preview": (result_preview or "")[:220],
+    }
+    logger.info(json.dumps(payload, ensure_ascii=True))
 
 async def generate_sql_local(user_query: str, model: str = "gemini-3.1-flash-lite-preview") -> str:
     """
@@ -2379,8 +2720,50 @@ async def chat_node(state: AgentState):
         if is_cloud_llm and not use_local_data:
             # CLOUD PATH: Use Supabase (full real-time data)
             try:
-                sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
+                # Fast deterministic KPI path for frequent metric questions.
+                t0 = datetime.now(dt_timezone.utc)
+                sql_source = "deterministic"
+                sql_query = _build_deterministic_kpi_sql(last_msg, user_id, role=role)
+                if not sql_query:
+                    sql_source = "llm_primary"
+                    sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
+
                 cloud_results = await execute_sql(sql_query, user_id)
+                status = "ok"
+
+                # Retry path: deterministic -> llm_primary -> llm_repair
+                if _is_failed_data_result(cloud_results) and sql_source == "deterministic":
+                    sql_source = "llm_primary"
+                    sql_query = await generate_sql_query(last_msg, user_id, history_context=history_text, model=selected_model, role=role)
+                    cloud_results = await execute_sql(sql_query, user_id)
+
+                if _is_failed_data_result(cloud_results) and sql_source == "llm_primary":
+                    sql_source = "llm_repair"
+                    repaired_sql = await generate_sql_query_repair(
+                        last_msg,
+                        user_id,
+                        previous_sql=sql_query,
+                        history_context=history_text,
+                        model=selected_model,
+                        role=role,
+                    )
+                    sql_query = repaired_sql
+                    cloud_results = await execute_sql(sql_query, user_id)
+
+                if _is_failed_data_result(cloud_results):
+                    status = "failed"
+
+                duration_ms = int((datetime.now(dt_timezone.utc) - t0).total_seconds() * 1000)
+                _log_ai_query_telemetry(
+                    user_id=user_id,
+                    category=category,
+                    sql_source=sql_source,
+                    sql_query=sql_query,
+                    result_preview=cloud_results,
+                    status=status,
+                    duration_ms=duration_ms,
+                )
+
                 specialist_data = cloud_results
                 
                 # Fallback to local context only if cloud is explicitly empty/errored
@@ -2579,7 +2962,11 @@ async def process_user_input(
             # If the response indicates an interception (not empty and not '...', etc based on Colang rules)
             # Since our colang stops and replies directly:
             nemo_msg = nemo_response.get("content", "")
-            if nemo_msg and nemo_msg.strip() and "I cannot fulfill this request" in nemo_msg or "I can only answer questions" in nemo_msg:
+            guard_block_messages = [
+                "i cannot fulfill this request due to security policies.",
+                "i can only answer questions related to your shop's billing, inventory, customers, and retail management.",
+            ]
+            if nemo_msg and nemo_msg.strip() and any(m in nemo_msg.lower() for m in guard_block_messages):
                 logger.warning(f"[NEMO_GUARD] Intercepted query from {session_id}: {text}")
                 return nemo_msg
                 
