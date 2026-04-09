@@ -318,7 +318,7 @@ export const ChatProvider = ({ children }) => {
         onMessageHandlerRef.current = onMessageHandler;
     }, [onMessageHandler]);
 
-    const connectWebSocket = useCallback(() => {
+    const connectWebSocket = useCallback(async () => {
         // Don't create a duplicate if already open or connecting
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
         if (wsRef.current?.readyState === WebSocket.CONNECTING) return;
@@ -328,6 +328,12 @@ export const ChatProvider = ({ children }) => {
             const currentHost = window.location.hostname;
             const apiUrl = import.meta.env.VITE_BACKEND_API_URL || `http://${currentHost}:8000`;
             wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws/chat';
+        }
+
+        // Attach JWT Token for Layer 6b Backend Security
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            wsUrl += `?token=${session.access_token}`;
         }
 
         const socket = new WebSocket(wsUrl);
