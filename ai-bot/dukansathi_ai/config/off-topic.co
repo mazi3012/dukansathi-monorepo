@@ -1,0 +1,5 @@
+define flow check off-topic
+  $is_off_topic = execute check_off_topic(user_input=$user_message)
+  if $is_off_topic == "YES"
+    bot respond "I can only answer questions related to your shop's billing, inventory, customers, and retail management."
+    stop

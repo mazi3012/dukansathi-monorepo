@@ -1,0 +1,5 @@
+define flow check jailbreak
+  $is_jailbreak = execute check_jailbreak(user_input=$user_message)
+  if $is_jailbreak == "YES"
+    bot respond "I cannot fulfill this request due to security policies."
+    stop

@@ -2558,6 +2558,36 @@ async def process_user_input(
     session_id = hashlib.sha256(user_token.encode()).hexdigest()[:16]
     now = datetime.now(dt_timezone.utc)
 
+    # --- Nvidia NeMo Guardrails (Layer 7 Pre-Flight) ---
+    if os.environ.get("ENABLE_NEMO_GUARDRAILS") == "true":
+        try:
+            import time
+            t0 = time.time()
+            from nemoguardrails import LLMRails, RailsConfig
+            
+            # Lazy initialize rails globally to avoid reloading on every request
+            if not hasattr(process_user_input, "rails_app"):
+                config_path = os.path.join(os.path.dirname(__file__), "config")
+                config = RailsConfig.from_path(config_path)
+                process_user_input.rails_app = LLMRails(config)
+                logger.info(f"NeMo Guardrails Initialized in {time.time()-t0:.2f}s")
+            
+            # Run intercept
+            nemo_response = await process_user_input.rails_app.generate_async(
+                messages=[{"role": "user", "content": text}]
+            )
+            # If the response indicates an interception (not empty and not '...', etc based on Colang rules)
+            # Since our colang stops and replies directly:
+            nemo_msg = nemo_response.get("content", "")
+            if nemo_msg and nemo_msg.strip() and "I cannot fulfill this request" in nemo_msg or "I can only answer questions" in nemo_msg:
+                logger.warning(f"[NEMO_GUARD] Intercepted query from {session_id}: {text}")
+                return nemo_msg
+                
+        except ImportError:
+            logger.error("ENABLE_NEMO_GUARDRAILS is true but nemoguardrails is not installed.")
+        except Exception as e:
+            logger.error(f"NeMo Guardrails error: {e}")
+
     # Evict stale / overflow sessions on each call
     _evict_stale_sessions()
 
