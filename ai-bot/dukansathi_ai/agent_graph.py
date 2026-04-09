@@ -427,6 +427,12 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite-preview"):
             print(f"DEBUG: Using Vertex AI Model Garden/Tuned -> {actual_model_name}")
         else:
             actual_model_name = model_name
+            
+        # Fallback to gemini-1.5-flash if on Vertex classic without Unified SDK
+        if "3.1" in actual_model_name and not HAS_GOOGLE_GENAI:
+            print(f"WARN: Google GenAI SDK missing. Mapping {actual_model_name} to gemini-1.5-flash for compatibility.")
+            actual_model_name = "gemini-1.5-flash"
+            model_name = "gemini-1.5-flash"
         
         # Use the NEW Google GenAI SDK for Gemini 3.1 to support the 'global' endpoint
         if "3.1" in model_name and HAS_GOOGLE_GENAI:
