@@ -22,6 +22,7 @@ import { syncEngine } from './lib/db/syncEngine';
 import { registerSW } from 'virtual:pwa-register';
 import Plans from './pages/Plans';
 import Credits from './pages/Credits';
+import ContactUs from './pages/ContactUs';
 
 // Register PWA Service Worker
 registerSW({ immediate: true });
@@ -118,6 +119,7 @@ const AnimatedRoutes = () => {
           <Route path="plans" element={<Plans />} />
           <Route path="credits" element={<Credits />} />
           <Route path="terms" element={<TermsPolicy />} />
+          <Route path="contact" element={<ContactUs />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

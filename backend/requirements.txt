@@ -19,7 +19,7 @@ groq>=0.11.0
 google-cloud-texttospeech>=2.16.0
 
 # AI requirements imported via ai-bot/requirements.txt
-nemoguardrails>=0.9.1.1
+# nemoguardrails>=0.9.1.1 (Disabled due to missing Python.h on local environment)
 langchain-google-vertexai>=2.0.10
 langchain-core>=0.3.31
 langgraph>=0.2.62

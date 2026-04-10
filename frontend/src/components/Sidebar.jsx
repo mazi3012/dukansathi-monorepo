@@ -14,7 +14,8 @@ import {
     ChevronUp,
     Send,
     Link as LinkIcon,
-    FileText
+    FileText,
+    Headphones
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -52,6 +53,7 @@ const Sidebar = () => {
         { path: '/customers', icon: Users, label: 'Customers' },
         { path: '/plans', icon: CreditCard, label: 'Plans & Usage' },
         { path: '/settings', icon: Settings, label: 'Settings' },
+        { path: '/contact', icon: Headphones, label: 'Contact & Support' },
         { path: '/terms', icon: FileText, label: 'Terms & Policy' },
     ];
 

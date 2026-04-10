@@ -23,6 +23,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from dotenv import load_dotenv
 import os
 import sys
+import requests
 import asyncio
 import base64
 import logging
@@ -544,6 +545,49 @@ class TTSRequest(BaseModel):
 
 class NotificationReadRequest(BaseModel):
     notification_id: int
+
+class SupportTicketRequest(BaseModel):
+    name: str
+    email: str
+    phone: str = ""
+    category: str
+    priority: str
+    subject: str
+    message: str
+    submitted_at: str
+    source: str = "dukansathi-app"
+
+@app.post("/api/support/ticket")
+@limiter.limit("5/minute")
+async def create_support_ticket(request: Request, body: SupportTicketRequest):
+    """
+    Proxy support ticket to n8n webhook to avoid CORS issues.
+    """
+    N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "http://n8n-ticket-system.onrender.com/webhook/dukan-sathi-ticket")
+    
+    try:
+        # Use requests for a simple synchronous POST from server-to-server
+        # (This avoids CORS since it's not a browser-based request)
+        response = requests.post(
+            N8N_WEBHOOK_URL,
+            json=body.dict(),
+            timeout=10
+        )
+        
+        if response.status_code == 404:
+            logger.error(f"Support Webhook Not Found (404). Check if n8n workflow is Active. URL: {N8N_WEBHOOK_URL}")
+            raise HTTPException(status_code=502, detail="Support webhook not found. Please ensure the n8n workflow is Active and uses the correct URL.")
+            
+        if response.status_code >= 400:
+            logger.error(f"n8n webhook error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=502, detail=f"Support system error (HTTP {response.status_code})")
+            
+        return {"status": "success", "n8n_response": response.status_code}
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to forward ticket to n8n: {e}")
+        raise HTTPException(status_code=502, detail="Failed to connect to support system (Network Error)")
+
 
 @app.post("/api/tts-preview")
 @limiter.limit("10/minute")

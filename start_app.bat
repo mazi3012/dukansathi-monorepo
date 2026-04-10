@@ -1,6 +1,12 @@
 @echo off
+setlocal enabledelayedexpansion
 title Dukan Sathi - Local Dev Server
 color 0A
+
+:: Get the directory where the batch file is located
+set "ROOT_DIR=%~dp0"
+:: Change to the root directory
+cd /d "%ROOT_DIR%"
 
 echo.
 echo  =====================================================
@@ -10,7 +16,7 @@ echo.
 
 :: Check Python is available
 where python >nul 2>&1
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo  [ERROR] Python is not found in PATH. Please install Python 3.11+.
     pause
     exit /b 1
@@ -18,7 +24,7 @@ if %errorlevel% neq 0 (
 
 :: Check Node.js is available
 where node >nul 2>&1
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo  [ERROR] Node.js is not found in PATH. Please install Node.js 18+.
     pause
     exit /b 1
@@ -36,21 +42,21 @@ if not exist "backend\venv\Scripts\activate.bat" (
 :: Check if frontend node_modules exist
 if not exist "frontend\node_modules" (
     echo  [INFO] Frontend dependencies not installed. Running npm install...
-    cd /d e:\dukanv22\frontend
-    npm install
-    cd /d e:\dukanv22
+    pushd "frontend"
+    call npm install
+    popd
 )
 
 echo  [1/2] Starting Backend (FastAPI + Uvicorn) ...
 echo        URL: http://localhost:8000
-start "Dukan Sathi Backend" cmd /k "cd /d e:\dukanv22\backend && venv\Scripts\activate.bat && uvicorn main:app --reload --reload-dir e:\dukanv22\backend --reload-dir e:\dukanv22\ai-bot --port 8000 --host 0.0.0.0"
+start "Dukan Sathi Backend" cmd /k "cd /d "%ROOT_DIR%backend" && venv\Scripts\activate.bat && uvicorn main:app --reload --reload-dir "%ROOT_DIR%backend" --reload-dir "%ROOT_DIR%ai-bot" --port 8000 --host 0.0.0.0"
 
 :: Brief wait so backend starts binding before frontend connects
 timeout /t 3 /nobreak >nul
 
 echo  [2/2] Starting Frontend (Vite + React) ...
 echo        URL: http://localhost:5173
-start "Dukan Sathi Frontend" cmd /k "cd /d e:\dukanv22\frontend && npm run dev"
+start "Dukan Sathi Frontend" cmd /k "cd /d "%ROOT_DIR%frontend" && npm run dev"
 
 echo.
 echo  =====================================================
