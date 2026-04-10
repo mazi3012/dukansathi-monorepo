@@ -563,7 +563,7 @@ async def create_support_ticket(request: Request, body: SupportTicketRequest):
     """
     Proxy support ticket to n8n webhook to avoid CORS issues.
     """
-    N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "http://n8n-ticket-system.onrender.com/webhook/dukan-sathi-ticket")
+    N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "https://n8n-ticket-system.onrender.com/webhook/dukan-sathi-ticket")
     
     try:
         # Use requests for a simple synchronous POST from server-to-server
