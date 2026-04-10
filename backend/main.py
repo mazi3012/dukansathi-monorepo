@@ -566,17 +566,20 @@ async def create_support_ticket(request: Request, body: SupportTicketRequest):
     N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "https://n8n-ticket-system.onrender.com/webhook/dukan-sathi-ticket")
     
     try:
-        # Use requests for a simple synchronous POST from server-to-server
-        # (This avoids CORS since it's not a browser-based request)
-        response = requests.post(
-            N8N_WEBHOOK_URL,
-            json=body.dict(),
-            timeout=10
-        )
+        # Use asyncio.to_thread to run the synchronous requests.post in a separate thread
+        # This prevents blocking the FastAPI event loop during the network call.
+        def send_to_n8n():
+            return requests.post(
+                N8N_WEBHOOK_URL,
+                json=body.dict(),
+                timeout=15  # Slightly longer timeout for n8n/render cold starts
+            )
+
+        response = await asyncio.to_thread(send_to_n8n)
         
         if response.status_code == 404:
             logger.error(f"Support Webhook Not Found (404). Check if n8n workflow is Active. URL: {N8N_WEBHOOK_URL}")
-            raise HTTPException(status_code=502, detail="Support webhook not found. Please ensure the n8n workflow is Active and uses the correct URL.")
+            raise HTTPException(status_code=502, detail="Support webhook not found. Please ensure the n8n workflow is Active.")
             
         if response.status_code >= 400:
             logger.error(f"n8n webhook error: {response.status_code} - {response.text}")

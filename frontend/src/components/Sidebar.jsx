@@ -53,7 +53,7 @@ const Sidebar = () => {
         { path: '/customers', icon: Users, label: 'Customers' },
         { path: '/plans', icon: CreditCard, label: 'Plans & Usage' },
         { path: '/settings', icon: Settings, label: 'Settings' },
-        { path: '/contact', icon: Headphones, label: 'Contact & Support' },
+        { path: '/contact', icon: Headphones, label: 'Raise a Ticket' },
         { path: '/terms', icon: FileText, label: 'Terms & Policy' },
     ];
 

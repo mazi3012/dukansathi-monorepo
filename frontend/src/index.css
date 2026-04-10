@@ -27,6 +27,7 @@
   --animate-float-delayed: float 6s ease-in-out 3s infinite;
   --animate-spin-slow: spin 8s linear infinite;
   --animate-shimmer: shimmer 2s infinite linear;
+  --animate-shimmer-slide: shimmer-slide 2.5s infinite;
 
   @keyframes float {
 
@@ -47,6 +48,16 @@
 
     100% {
       background-position: 200% 0;
+    }
+  }
+
+  @keyframes shimmer-slide {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(100%);
     }
   }
 }

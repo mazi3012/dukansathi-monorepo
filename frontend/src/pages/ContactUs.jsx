@@ -122,17 +122,25 @@ const ContactUs = () => {
     return (
         <div className="pb-16 max-w-5xl mx-auto space-y-8">
             {/* Header */}
-            <div>
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500">
-                        <Headphones size={22} />
+            <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative z-10"
+            >
+                <div className="flex items-center gap-4 mb-3">
+                    <div className="p-3 rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-500/20 text-white">
+                        <Headphones size={24} strokeWidth={2.5} />
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-text-main">Contact & Support</h1>
+                    <div>
+                        <h1 className="text-4xl font-black tracking-tight text-text-main">Contact & Support</h1>
+                        <div className="h-1.5 w-12 bg-indigo-600 rounded-full mt-1.5" />
+                    </div>
                 </div>
-                <p className="text-sm text-text-muted ml-[52px]">
-                    Raise a support ticket and our team will reach out to you shortly.
+                <p className="text-base text-text-muted ml-1 inline-block max-w-xl">
+                    Need help? Raise a support ticket and our expert team will reach out to you shortly. 
+                    We're here to ensure your <span className="text-indigo-600 font-bold">Dukan Sathi</span> experience is perfect.
                 </p>
-            </div>
+            </motion.div>
 
             {/* Info Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -163,10 +171,18 @@ const ContactUs = () => {
                 transition={{ duration: 0.4, ease: 'easeOut' }}
                 className="glass-card rounded-3xl p-6 md:p-8 border border-card-border"
             >
-                <h2 className="text-lg font-bold text-text-main mb-6 flex items-center gap-2">
-                    <FileText size={18} className="text-indigo-500" />
-                    Raise a Support Ticket
-                </h2>
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-xl font-black text-text-main flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                            <FileText size={18} className="text-indigo-600" />
+                        </div>
+                        Raise a Support Ticket
+                    </h2>
+                    <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-indigo-500 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                        <Zap size={12} className="fill-current" />
+                        Priority Support
+                    </div>
+                </div>
 
                 <AnimatePresence mode="wait">
                     {status === 'success' ? (
@@ -229,7 +245,7 @@ const ContactUs = () => {
                                         onChange={handleChange}
                                         placeholder="Your name"
                                         required
-                                        className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-text-main text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        className="w-full px-4 py-3.5 rounded-2xl bg-card-bg/50 border border-card-border text-text-main text-sm placeholder:text-text-muted/40 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -243,7 +259,7 @@ const ContactUs = () => {
                                         onChange={handleChange}
                                         placeholder="you@example.com"
                                         required
-                                        className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-text-main text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        className="w-full px-4 py-3.5 rounded-2xl bg-card-bg/50 border border-card-border text-text-main text-sm placeholder:text-text-muted/40 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner"
                                     />
                                 </div>
                             </div>
@@ -260,7 +276,7 @@ const ContactUs = () => {
                                         value={form.phone}
                                         onChange={handleChange}
                                         placeholder="+91 9876543210"
-                                        className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-text-main text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        className="w-full px-4 py-3.5 rounded-2xl bg-card-bg/50 border border-card-border text-text-main text-sm placeholder:text-text-muted/40 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner"
                                     />
                                 </div>
 
@@ -272,7 +288,7 @@ const ContactUs = () => {
                                     <button
                                         type="button"
                                         onClick={() => setCategoryOpen(o => !o)}
-                                        className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-sm text-left flex items-center justify-between focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        className="w-full px-4 py-3.5 rounded-2xl bg-card-bg/50 border border-card-border text-sm text-left flex items-center justify-between focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner"
                                     >
                                         <span className={selectedCategory ? 'text-text-main' : 'text-text-muted/50'}>
                                             {selectedCategory?.label || 'Select issue type...'}
@@ -346,7 +362,7 @@ const ContactUs = () => {
                                     placeholder="Brief description of your issue..."
                                     required
                                     maxLength={120}
-                                    className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-text-main text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    className="w-full px-4 py-3.5 rounded-2xl bg-card-bg/50 border border-card-border text-text-main text-sm placeholder:text-text-muted/40 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner"
                                 />
                             </div>
 
@@ -362,7 +378,7 @@ const ContactUs = () => {
                                     placeholder="Please describe your issue in detail — steps to reproduce, screenshots info, expected vs actual behavior..."
                                     required
                                     rows={5}
-                                    className="w-full px-4 py-3 rounded-xl bg-card-bg border border-card-border text-text-main text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none"
+                                    className="w-full px-4 py-4 rounded-2xl bg-card-bg/50 border border-card-border text-text-main text-sm placeholder:text-text-muted/40 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner resize-none"
                                 />
                                 <p className="text-right text-[10px] text-text-muted">{form.message.length} chars</p>
                             </div>
@@ -371,19 +387,20 @@ const ContactUs = () => {
                             <motion.button
                                 type="submit"
                                 disabled={status === 'loading'}
-                                whileHover={{ scale: status === 'loading' ? 1 : 1.01 }}
+                                whileHover={{ scale: status === 'loading' ? 1 : 1.01, boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.4)" }}
                                 whileTap={{ scale: 0.98 }}
-                                className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 transition-all"
+                                className="w-full relative overflow-hidden group py-4 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-xl shadow-indigo-500/25 transition-all flex items-center justify-center gap-3"
                             >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer-slide" />
                                 {status === 'loading' ? (
                                     <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Submitting Ticket...
+                                        <Loader2 size={20} className="animate-spin" />
+                                        <span>Submitting Your Request...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Send size={16} />
-                                        Submit Support Ticket
+                                        <Send size={18} strokeWidth={2.5} />
+                                        <span>Submit Support Ticket</span>
                                     </>
                                 )}
                             </motion.button>
