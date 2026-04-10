@@ -105,6 +105,9 @@ const ContactUs = () => {
                 throw new Error(errorData.detail || `HTTP ${res.status}`);
             }
 
+            const data = await res.json();
+            console.log('[Support] Ticket submitted successfully:', data);
+            
             setStatus('success');
             setForm(f => ({ ...f, category: '', priority: 'medium', subject: '', message: '' }));
         } catch (err) {

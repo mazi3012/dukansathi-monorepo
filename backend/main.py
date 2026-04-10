@@ -568,24 +568,35 @@ async def create_support_ticket(request: Request, body: SupportTicketRequest):
     try:
         # Use asyncio.to_thread to run the synchronous requests.post in a separate thread
         # This prevents blocking the FastAPI event loop during the network call.
+        payload = body.dict()
         def send_to_n8n():
+            logger.info(f"[Support] Forwarding ticket to n8n: {N8N_WEBHOOK_URL}")
+            logger.debug(f"[Support] Payload: {payload}")
             return requests.post(
                 N8N_WEBHOOK_URL,
-                json=body.dict(),
-                timeout=15  # Slightly longer timeout for n8n/render cold starts
+                json=payload,
+                headers={"Content-Type": "application/json"}, # Explicitly set for n8n
+                timeout=20  # Increased timeout for reliable delivery
             )
 
         response = await asyncio.to_thread(send_to_n8n)
         
+        logger.info(f"[Support] n8n response status: {response.status_code}")
+        logger.debug(f"[Support] n8n response body: {response.text}")
+
         if response.status_code == 404:
-            logger.error(f"Support Webhook Not Found (404). Check if n8n workflow is Active. URL: {N8N_WEBHOOK_URL}")
-            raise HTTPException(status_code=502, detail="Support webhook not found. Please ensure the n8n workflow is Active.")
+            logger.error(f"Support Webhook Not Found (404). URL: {N8N_WEBHOOK_URL}")
+            raise HTTPException(status_code=502, detail="Support webhook not found. Path is incorrect or n8n workflow is inactive.")
             
         if response.status_code >= 400:
             logger.error(f"n8n webhook error: {response.status_code} - {response.text}")
             raise HTTPException(status_code=502, detail=f"Support system error (HTTP {response.status_code})")
             
-        return {"status": "success", "n8n_response": response.status_code}
+        return {
+            "status": "success", 
+            "n8n_response_status": response.status_code,
+            "n8n_response_body": response.text[:200]
+        }
         
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to forward ticket to n8n: {e}")
