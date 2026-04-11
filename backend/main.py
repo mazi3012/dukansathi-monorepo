@@ -563,7 +563,7 @@ async def create_support_ticket(request: Request, body: SupportTicketRequest):
     """
     Proxy support ticket to n8n webhook to avoid CORS issues.
     """
-    N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "https://n8n-ticket-system.onrender.com/webhook/dukan-sathi-ticket")
+    N8N_WEBHOOK_URL = os.getenv("SUPPORT_WEBHOOK_URL", "https://n8n-ticket-system.onrender.com/webhook/eb9dd753-2b79-455a-b769-25614cebf385")
     
     try:
         # Use asyncio.to_thread to run the synchronous requests.post in a separate thread
