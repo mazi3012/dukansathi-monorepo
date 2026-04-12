@@ -8,6 +8,18 @@ import { toast } from 'react-hot-toast';
 // ── Credit Pack Definitions (must match backend CREDIT_PACKS) ──────────
 const CREDIT_PACKS = [
     {
+        id: 'daily_pass',
+        name: '1-Day Pass',
+        price: '₹2',
+        credits: 30,
+        icon: Zap,
+        color: 'emerald',
+        gradient: 'from-emerald-500 to-teal-500',
+        tagline: 'Quick 30 credits for today!',
+        perAction: '₹0.06 / action',
+        popular: false,
+    },
+    {
         id: 'micro',
         name: 'Micro-Topup',
         price: '₹49',

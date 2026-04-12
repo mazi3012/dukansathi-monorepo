@@ -34,6 +34,7 @@ CREDIT_COSTS = {
 
 # Credit Pack definitions (price in paise for Razorpay)
 CREDIT_PACKS = {
+    "daily_pass": {"credits": 30,  "amount_paise": 200,   "label": "1-Day Pass (₹2)"},
     "micro":    {"credits": 200,   "amount_paise": 4900,  "label": "Micro-Topup (₹49)"},
     "small":    {"credits": 500,   "amount_paise": 9900,  "label": "Small Shop (₹99)"},
     "business": {"credits": 2000,  "amount_paise": 24900, "label": "Business (₹249)"},
