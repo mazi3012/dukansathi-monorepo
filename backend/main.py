@@ -759,9 +759,9 @@ async def verify_subscription_payment(
     
     # ── Step 3: Map plan_id → tier (server-side, not from client) ──────
     PLAN_TIER_MAP = {
-        "plan_SZvL8EkGvNvdg2": "starter",
-        "plan_SYJ1ZJWBFTgZWx": "pro",
-        "plan_SYJ1a3OcE6bwDB": "ultra",
+        os.getenv("RAZORPAY_PLAN_STARTER", "plan_SZvL8EkGvNvdg2"): "starter",
+        os.getenv("RAZORPAY_PLAN_PRO", "plan_SYJ1ZJWBFTgZWx"): "pro",
+        os.getenv("RAZORPAY_PLAN_ULTRA", "plan_SYJ1a3OcE6bwDB"): "ultra",
     }
     tier = PLAN_TIER_MAP.get(plan_id)
     
@@ -1052,9 +1052,9 @@ async def razorpay_webhook(request: Request):
     
     # Plan-ID → Tier mapping (must match Plans.jsx rzpPlanId values)
     PLAN_TIER_MAP = {
-        "plan_SZvL8EkGvNvdg2": "starter",
-        "plan_SYJ1ZJWBFTgZWx": "pro",
-        "plan_SYJ1a3OcE6bwDB": "ultra",
+        os.getenv("RAZORPAY_PLAN_STARTER", "plan_SZvL8EkGvNvdg2"): "starter",
+        os.getenv("RAZORPAY_PLAN_PRO", "plan_SYJ1ZJWBFTgZWx"): "pro",
+        os.getenv("RAZORPAY_PLAN_ULTRA", "plan_SYJ1a3OcE6bwDB"): "ultra",
     }
     tier = PLAN_TIER_MAP.get(plan_id)
     

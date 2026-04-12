@@ -46,7 +46,7 @@ const Plans = () => {
             limits: { products: 500, customers: 500, bills: 1000 },
             color: 'blue',
             buttonText: 'Upgrade to Starter',
-            rzpPlanId: 'plan_SZvL8EkGvNvdg2'
+            rzpPlanId: import.meta.env.VITE_RAZORPAY_PLAN_STARTER || 'plan_SZvL8EkGvNvdg2'
         },
         {
             id: 'pro',
@@ -66,7 +66,7 @@ const Plans = () => {
             limits: { products: 2000, customers: 2000, bills: 5000 },
             color: 'indigo',
             buttonText: 'Go Pro',
-            rzpPlanId: 'plan_SYJ1ZJWBFTgZWx'
+            rzpPlanId: import.meta.env.VITE_RAZORPAY_PLAN_PRO || 'plan_SYJ1ZJWBFTgZWx'
         },
         {
             id: 'ultra',
@@ -85,7 +85,7 @@ const Plans = () => {
             limits: { products: 10000, customers: 10000, bills: 20000 },
             color: 'purple',
             buttonText: 'Get Ultra',
-            rzpPlanId: 'plan_SYJ1a3OcE6bwDB'
+            rzpPlanId: import.meta.env.VITE_RAZORPAY_PLAN_ULTRA || 'plan_SYJ1a3OcE6bwDB'
         },
         {
             id: 'enterprise',
