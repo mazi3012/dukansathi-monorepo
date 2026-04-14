@@ -192,12 +192,33 @@ export const ChatProvider = ({ children }) => {
         }
     }, []);
 
+    // Session state — tracks whether the user is authenticated
+    const [hasSession, setHasSession] = useState(false);
+
     useEffect(() => {
+        // Check session on mount and subscribe to auth changes
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setHasSession(!!session);
+        };
+        checkSession();
+
+        const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setHasSession(!!session);
+        });
+        return () => authSub.unsubscribe();
+    }, []);
+
+    useEffect(() => {
+        // Only poll mic permissions when the user is authenticated
+        // On iOS Safari, querying permissions for unauthenticated visitors
+        // causes a repeated microphone permission prompt loop.
+        if (!hasSession) return;
         checkPermissions();
         // Fallback polling for browsers where onchange is unreliable
         const interval = setInterval(checkPermissions, 3000);
         return () => clearInterval(interval);
-    }, [checkPermissions]);
+    }, [checkPermissions, hasSession]);
 
     const playAudio = useCallback((base64Data) => {
         if (isMutedRef.current) return;
@@ -368,6 +389,11 @@ export const ChatProvider = ({ children }) => {
     }, []);;
 
     useEffect(() => {
+        // Don't attempt WebSocket connection or chat history load
+        // if there is no authenticated session (e.g. user is on Landing page).
+        // This prevents the infinite WS reconnect loop on iOS Safari.
+        if (!hasSession) return;
+
         const initChat = async () => {
             const { data: { session } } = await supabase.auth.getSession();
 
@@ -433,7 +459,7 @@ export const ChatProvider = ({ children }) => {
                 wsRef.current = null; // The next mount will create a fresh socket
             }
         };
-    }, [connectWebSocket]);
+    }, [connectWebSocket, hasSession]);
 
     const sendMessage = useCallback(async (text, attachment = null) => {
         unlockAudio();
