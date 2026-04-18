@@ -885,6 +885,56 @@ def _is_failed_data_result(result_str: str) -> bool:
     )
 
 
+def _is_empty_data_result(result_data) -> bool:
+    """Return True only for truly empty/no-data snapshots; keep valid numeric results."""
+    if result_data is None:
+        return True
+
+    text = result_data if isinstance(result_data, str) else str(result_data)
+    normalized = text.strip().lower()
+    if not normalized:
+        return True
+
+    # Known textual empty responses from data layer.
+    no_data_markers = [
+        "no data",
+        "no records",
+        "no local data available",
+        "data lookup failed",
+        "database is currently unavailable",
+    ]
+    if any(marker in normalized for marker in no_data_markers):
+        return True
+
+    # Parse JSON snapshots and detect real empties while preserving valid 0/count values.
+    try:
+        parsed = json.loads(text)
+        if parsed is None:
+            return True
+        if isinstance(parsed, list):
+            if len(parsed) == 0:
+                return True
+            # List with only null-like rows should count as empty.
+            all_rows_empty = True
+            for row in parsed:
+                if isinstance(row, dict):
+                    if any(v not in (None, "", [], {}) for v in row.values()):
+                        all_rows_empty = False
+                        break
+                elif row not in (None, "", [], {}):
+                    all_rows_empty = False
+                    break
+            if all_rows_empty:
+                return True
+        if isinstance(parsed, dict) and len(parsed) == 0:
+            return True
+    except Exception:
+        # Non-JSON plain text: don't assume empty unless explicit markers matched.
+        pass
+
+    return False
+
+
 def _telemetry_user_key(user_id: str) -> str:
     if not user_id:
         return "anon"
@@ -2793,7 +2843,7 @@ async def chat_node(state: AgentState):
             )
         else:
             # For English queries with no data, provide helpful error message
-            if detected_lang == "english" and ("[]" in specialist_data or "No " in specialist_data or len(specialist_data) < 50):
+            if detected_lang == "english" and _is_empty_data_result(specialist_data):
                 input_prompt = (
                     f"SYSTEM: {PERSONA_LOCK}\n"
                     f"DATA SNAPSHOT: No data found for this query.\n"

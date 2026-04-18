@@ -326,21 +326,48 @@ const Chat = () => {
 
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
+                    let resolvedHsn = item.hsn_code;
+                    let resolvedTaxPercent = item.tax_percent;
                     
                     // CRITICAL: Look up product price from inventory if not already provided
                     let rawRate = parseFloat(item.price ?? item.unit_price) || 0;
-                    if (rawRate === 0 && (item.product_name || item.name)) {
+                    const itemName = (item.product_name || item.name || '').trim();
+                    if (rawRate === 0 && itemName) {
                         try {
-                            const { data: prodData } = await supabase.from('products')
-                                .select('selling_price').ilike('name', `%${(item.product_name || item.name).trim()}%`).eq('user_id', user.id).limit(1).single();
+                            // Prefer fuzzy RPC for better real-world matching, fallback to ilike.
+                            let prodData = null;
+                            try {
+                                const { data: fuzzyProd } = await supabase.rpc('fuzzy_match_product', {
+                                    query: itemName,
+                                    uid: user.id
+                                });
+                                if (fuzzyProd && fuzzyProd.length > 0) {
+                                    prodData = fuzzyProd[0];
+                                }
+                            } catch (_) {
+                                // RPC unavailable; continue with SQL fallback.
+                            }
+
+                            if (!prodData) {
+                                const { data: ilikeProd } = await supabase.from('products')
+                                    .select('selling_price, cost_price, hsn_code, tax_percent, id')
+                                    .ilike('name', `%${itemName}%`)
+                                    .eq('user_id', user.id)
+                                    .limit(1)
+                                    .maybeSingle();
+                                prodData = ilikeProd;
+                            }
+
                             if (prodData && prodData.selling_price) {
                                 rawRate = parseFloat(prodData.selling_price);
+                                resolvedHsn = resolvedHsn || prodData.hsn_code;
+                                resolvedTaxPercent = resolvedTaxPercent ?? prodData.tax_percent;
                             }
                         } catch (e) {
-                            console.warn(`Could not find price for ${item.product_name || item.name}:`, e);
+                            console.warn(`Could not find price for ${itemName}:`, e);
                         }
                     }
-                    const hsn = item.hsn_code || "1905"; // Default if missing
+                    const hsn = resolvedHsn || "1905"; // Default if missing
 
                     const forceInterState = actionData.isOutOfState || false;
                     const taxCalc = TaxCalculator.calculate({
@@ -351,7 +378,7 @@ const Chat = () => {
                         buyerGstin: buyerGstin,
                         placeOfSupply: forceInterState ? null : (actionData.state_code || actionData.customer_state || businessProfile?.state_name),
                         forceInterState,
-                        taxRate: item.tax_percent !== undefined ? parseFloat(item.tax_percent) : null,
+                        taxRate: resolvedTaxPercent !== undefined ? parseFloat(resolvedTaxPercent) : null,
                         isInclusive: item.tax_type === 'inclusive'
                     });
 
@@ -365,13 +392,13 @@ const Chat = () => {
                     let prodId = null;
                     try {
                         const { data: fuzzyProd } = await supabase.rpc('fuzzy_match_product', {
-                            query: (item.product_name || item.name).trim(),
+                            query: itemName,
                             uid: user.id
                         });
                         if (fuzzyProd && fuzzyProd.length > 0) prodId = fuzzyProd[0].id;
                     } catch (_) {
                         const { data: ilikeProd } = await supabase.from('products')
-                            .select('id').ilike('name', (item.product_name || item.name).trim()).eq('user_id', user.id).maybeSingle();
+                            .select('id').ilike('name', `%${itemName}%`).eq('user_id', user.id).limit(1).maybeSingle();
                         if (ilikeProd) prodId = ilikeProd.id;
                     }
 

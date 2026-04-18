@@ -74,14 +74,32 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                     const enrichedItems = await Promise.all(
                         actionData.items.map(async (item) => {
                             // If price is 0 or missing, try to look it up
-                            if ((parseFloat(item.price) || 0) === 0 && item.product_name) {
+                            const itemName = (item.product_name || item.name || '').trim();
+                            if ((parseFloat(item.price) || 0) === 0 && itemName) {
                                 try {
-                                    const { data: prodData } = await supabase.from('products')
-                                        .select('selling_price, cost_price, hsn_code, tax_percent, unit')
-                                        .ilike('name', `%${item.product_name.trim()}%`)
-                                        .eq('user_id', user.id)
-                                        .limit(1)
-                                        .single();
+                                    let prodData = null;
+
+                                    try {
+                                        const { data: fuzzyProd } = await supabase.rpc('fuzzy_match_product', {
+                                            query: itemName,
+                                            uid: user.id
+                                        });
+                                        if (fuzzyProd && fuzzyProd.length > 0) {
+                                            prodData = fuzzyProd[0];
+                                        }
+                                    } catch (_) {
+                                        // RPC may not exist in some environments.
+                                    }
+
+                                    if (!prodData) {
+                                        const { data: ilikeProd } = await supabase.from('products')
+                                            .select('selling_price, cost_price, hsn_code, tax_percent, unit')
+                                            .ilike('name', `%${itemName}%`)
+                                            .eq('user_id', user.id)
+                                            .limit(1)
+                                            .maybeSingle();
+                                        prodData = ilikeProd;
+                                    }
                                     
                                     if (prodData && prodData.selling_price) {
                                         return {
