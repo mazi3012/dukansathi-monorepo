@@ -326,7 +326,20 @@ const Chat = () => {
 
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
-                    const rawRate = parseFloat(item.price ?? item.unit_price) || 0;
+                    
+                    // CRITICAL: Look up product price from inventory if not already provided
+                    let rawRate = parseFloat(item.price ?? item.unit_price) || 0;
+                    if (rawRate === 0 && (item.product_name || item.name)) {
+                        try {
+                            const { data: prodData } = await supabase.from('products')
+                                .select('selling_price').ilike('name', `%${(item.product_name || item.name).trim()}%`).eq('user_id', user.id).limit(1).single();
+                            if (prodData && prodData.selling_price) {
+                                rawRate = parseFloat(prodData.selling_price);
+                            }
+                        } catch (e) {
+                            console.warn(`Could not find price for ${item.product_name || item.name}:`, e);
+                        }
+                    }
                     const hsn = item.hsn_code || "1905"; // Default if missing
 
                     const forceInterState = actionData.isOutOfState || false;

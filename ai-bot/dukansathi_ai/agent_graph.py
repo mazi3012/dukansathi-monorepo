@@ -373,9 +373,9 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
     has_last_month = any(t in q for t in last_month_tokens)
 
     # Metric detection
-    profit_tokens = ["profit", "fayda", "munafa", "labh", "লাভ", "মুনাফা"]
-    revenue_tokens = ["revenue", "sales", "sale", "bikri", "kamai", "income", "turnover", "বিক্রি", "কামাই"]
-    bill_count_tokens = ["bill count", "how many bill", "kitne bill", "invoice count", "bill kitne", "কত বিল", "कितने बिल"]
+    profit_tokens = ["profit", "fayda", "munafa", "labh", "লাভ", "মুনাফা", "earnings", "net"]
+    revenue_tokens = ["revenue", "sales", "sale", "bikri", "kamai", "income", "turnover", "বিক্রি", "কামাই", "earned", "made", "total sales"]
+    bill_count_tokens = ["bill count", "how many bill", "kitne bill", "invoice count", "bill kitne", "কত বিল", "कितने बिल", "bills made", "invoices created"]
 
     wants_profit = any(t in q for t in profit_tokens)
     wants_revenue = any(t in q for t in revenue_tokens)
@@ -1831,7 +1831,7 @@ def fast_parse_action(user_query: str) -> str:
                 items.append({
                     "product_name": prod.title(),
                     "quantity": int(qty_str),
-                    "price": 0,
+                    "price": 0,  # Will be enriched with actual selling_price from inventory lookup
                     "tax_percent": 0,
                     "hsn_code": ""
                 })
@@ -2792,12 +2792,21 @@ async def chat_node(state: AgentState):
                 f"GOAL: Answer using DATA SNAPSHOT only. If no data, say clearly you don't have that info. MAX 2 sentences."
             )
         else:
-            input_prompt = (
-                f"SYSTEM: {PERSONA_LOCK}\n"
-                f"DATA SNAPSHOT (GROUND TRUTH): {specialist_data}\n"
-                f"USER: \"{last_msg}\"\n"
-                f"GOAL: Answer DIRECTLY from DATA SNAPSHOT. "
-                f"FORMAT: Use ₹ with Indian commas (₹1,50,000 not 150000). Use lakh/crore not million. "
+            # For English queries with no data, provide helpful error message
+            if detected_lang == "english" and ("[]" in specialist_data or "No " in specialist_data or len(specialist_data) < 50):
+                input_prompt = (
+                    f"SYSTEM: {PERSONA_LOCK}\n"
+                    f"DATA SNAPSHOT: No data found for this query.\n"
+                    f"USER: \"{last_msg}\"\n"
+                    f"GOAL: Respond that no data was found. Be helpful and suggest checking database or trying different query. MAX 2 sentences."
+                )
+            else:
+                input_prompt = (
+                    f"SYSTEM: {PERSONA_LOCK}\n"
+                    f"DATA SNAPSHOT (GROUND TRUTH): {specialist_data}\n"
+                    f"USER: \"{last_msg}\"\n"
+                    f"GOAL: Answer DIRECTLY from DATA SNAPSHOT. "
+                    f"FORMAT: Use ₹ with Indian commas (₹1,50,000 not 150000). Use lakh/crore not million. "
                 f"If snapshot has a single number like [{{\"sum\": 12500}}] or [{{\"coalesce\": 12500}}], say it naturally: "
                 f"'Boss, aaj ka total ₹12,500 hai.' (Hinglish) or 'দাদা, আজকের মোট ₹12,500।' (Bangla). "
                 f"If the snapshot has a number (even 0), report it accurately. "

@@ -62,6 +62,57 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
         setLocalData(updatedData);
     }, [actionData]);
 
+    // Enrich invoice items with product prices from inventory (for display)
+    useEffect(() => {
+        const enrichPricesForDisplay = async () => {
+            if (actionData.type === 'invoice_draft' && actionData.items) {
+                try {
+                    const { supabase } = await import('../lib/supabase');
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    const enrichedItems = await Promise.all(
+                        actionData.items.map(async (item) => {
+                            // If price is 0 or missing, try to look it up
+                            if ((parseFloat(item.price) || 0) === 0 && item.product_name) {
+                                try {
+                                    const { data: prodData } = await supabase.from('products')
+                                        .select('selling_price, cost_price, hsn_code, tax_percent, unit')
+                                        .ilike('name', `%${item.product_name.trim()}%`)
+                                        .eq('user_id', user.id)
+                                        .limit(1)
+                                        .single();
+                                    
+                                    if (prodData && prodData.selling_price) {
+                                        return {
+                                            ...item,
+                                            price: prodData.selling_price,
+                                            hsn_code: item.hsn_code || prodData.hsn_code,
+                                            tax_percent: item.tax_percent || prodData.tax_percent
+                                        };
+                                    }
+                                } catch (e) {
+                                    // Product not found, keep original
+                                    return item;
+                                }
+                            }
+                            return item;
+                        })
+                    );
+
+                    setLocalData(prev => ({
+                        ...prev,
+                        items: enrichedItems
+                    }));
+                } catch (err) {
+                    console.warn('Failed to enrich prices for display:', err);
+                }
+            }
+        };
+
+        enrichPricesForDisplay();
+    }, [actionData]);
+
     if (!localData) return null;
 
     const { type, items, customer_name, name, selling_price, stock_quantity, category, phone, address } = localData;
