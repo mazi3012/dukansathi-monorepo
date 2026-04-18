@@ -327,7 +327,10 @@ const Chat = () => {
                 const enrichedItems = await Promise.all(actionData.items.map(async (item) => {
                     const qty = parseFloat(item.quantity) || 0;
                     let resolvedHsn = item.hsn_code;
-                    let resolvedTaxPercent = item.tax_percent;
+                    let resolvedTaxPercent = parseFloat(item.tax_percent);
+                    if (!Number.isFinite(resolvedTaxPercent)) {
+                        resolvedTaxPercent = null;
+                    }
                     
                     // CRITICAL: Look up product price from inventory if not already provided
                     let rawRate = parseFloat(item.price ?? item.unit_price) || 0;
@@ -361,7 +364,12 @@ const Chat = () => {
                             if (prodData && prodData.selling_price) {
                                 rawRate = parseFloat(prodData.selling_price);
                                 resolvedHsn = resolvedHsn || prodData.hsn_code;
-                                resolvedTaxPercent = resolvedTaxPercent ?? prodData.tax_percent;
+                                if (!(Number.isFinite(resolvedTaxPercent) && resolvedTaxPercent > 0)) {
+                                    const parsedProductTax = parseFloat(prodData.tax_percent);
+                                    if (Number.isFinite(parsedProductTax) && parsedProductTax > 0) {
+                                        resolvedTaxPercent = parsedProductTax;
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.warn(`Could not find price for ${itemName}:`, e);
@@ -378,7 +386,7 @@ const Chat = () => {
                         buyerGstin: buyerGstin,
                         placeOfSupply: forceInterState ? null : (actionData.state_code || actionData.customer_state || businessProfile?.state_name),
                         forceInterState,
-                        taxRate: resolvedTaxPercent !== undefined ? parseFloat(resolvedTaxPercent) : null,
+                        taxRate: Number.isFinite(resolvedTaxPercent) && resolvedTaxPercent > 0 ? resolvedTaxPercent : null,
                         isInclusive: item.tax_type === 'inclusive'
                     });
 

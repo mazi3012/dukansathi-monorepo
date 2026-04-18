@@ -15,6 +15,8 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
             const qty = parseFloat(item.quantity) || 0;
             const rate = parseFloat(item.price) || 0;
             const hsn = item.hsn_code || "1905"; // Fallback to 18% slab (e.g. Biscuits) if AI missed it
+            const parsedItemTax = parseFloat(item.tax_percent);
+            const effectiveTaxRate = Number.isFinite(parsedItemTax) && parsedItemTax > 0 ? parsedItemTax : null;
 
             const taxCalc = TaxCalculator.calculate({
                 sellingPrice: rate,
@@ -24,7 +26,7 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                 buyerGstin: forceInterState ? 'OTHER_STATE' : localData.gstin,
                 placeOfSupply: forceInterState ? null : localData.state_code,
                 forceInterState,
-                taxRate: item.tax_percent !== undefined ? parseFloat(item.tax_percent) : null,
+                taxRate: effectiveTaxRate,
                 isInclusive: item.tax_type === 'inclusive'
             });
 
@@ -102,11 +104,18 @@ const ActionCard = ({ actionData, onApprove, onDiscard, businessProfile }) => {
                                     }
                                     
                                     if (prodData && prodData.selling_price) {
+                                        const parsedItemTax = parseFloat(item.tax_percent);
+                                        const parsedProductTax = parseFloat(prodData.tax_percent);
+                                        const nextTaxPercent =
+                                            Number.isFinite(parsedItemTax) && parsedItemTax > 0
+                                                ? parsedItemTax
+                                                : (Number.isFinite(parsedProductTax) && parsedProductTax > 0 ? parsedProductTax : item.tax_percent);
+
                                         return {
                                             ...item,
                                             price: prodData.selling_price,
                                             hsn_code: item.hsn_code || prodData.hsn_code,
-                                            tax_percent: item.tax_percent || prodData.tax_percent
+                                            tax_percent: nextTaxPercent
                                         };
                                     }
                                 } catch (e) {
