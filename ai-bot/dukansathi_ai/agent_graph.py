@@ -156,7 +156,23 @@ except ImportError:
     local_db = None
 
 
-load_dotenv()
+# Load .env from the backend directory (works for both standalone and imported contexts)
+# When imported via main.py, env vars are already set. When run standalone from ai-bot/,
+# the bare load_dotenv() would fail because there's no .env in ai-bot/.
+_env_candidates = [
+    os.path.join(os.path.dirname(__file__), '../../backend/.env'),  # ai-bot/dukansathi_ai/ -> backend/
+    os.path.join(os.path.dirname(__file__), '../backend/.env'),     # ai-bot/ -> backend/
+    os.path.join(os.path.dirname(__file__), '.env'),                # Same directory
+]
+_env_loaded = False
+for _env_path in _env_candidates:
+    if os.path.exists(_env_path):
+        load_dotenv(_env_path)
+        _env_loaded = True
+        logger.info(f"Loaded environment from: {os.path.abspath(_env_path)}")
+        break
+if not _env_loaded:
+    load_dotenv()  # Fallback to default CWD search
 
 # Initialize Supabase Client
 url: str = os.environ.get("SUPABASE_URL")
@@ -308,18 +324,22 @@ def is_cloud_model(model_name: str) -> bool:
 # Database schema for AI context - this helps Llama understand our data structure
 DATABASE_SCHEMA = """
 TABLES:
-1. profiles (id, business_name, business_category, is_gst_registered)
-2. products (id, name, selling_price, cost_price, stock_quantity, category, user_id)
-3. customers (id, name, phone, credit_balance, user_id)
-4. sales (id, customer_id, total_amount, payment_method, payment_status, created_at, user_id)
-5. sale_items (id, sale_id, product_id, quantity, unit_price, total_price, user_id)
-6. draft_invoices (id, customer_name, items, total_amount, user_id)
+1. profiles (id, business_name, business_category, is_gst_registered, owner_name, whatsapp_number, subscription_tier)
+2. products (id, name, selling_price, cost_price, mrp, stock_quantity, min_stock_level, category, unit, discount, hsn_code, tax_percent, cgst_percent, sgst_percent, supplier_id, user_id, created_at)
+3. customers (id, name, phone, email, address, credit_balance, total_spend, last_visit, user_id, created_at)
+4. sales (id, customer_id, invoice_number, subtotal, discount_amount, total_amount, total_tax_amount, payment_method, payment_status, amount_paid, balance_due, created_at, user_id)
+5. sale_items (id, sale_id, product_id, quantity, unit_price, discount_amount, total_price, user_id, created_at)
+6. customer_ledger (id, user_id, customer_id, amount, type ['credit'|'payment'], mode, note, created_at)
+7. suppliers (id, user_id, name, phone, email, address, gstin, payment_terms, notes, created_at)
+8. draft_invoices (id, customer_name, items, total_amount, user_id)
 
 BUSINESS INTELLIGENCE RULES:
 - Revenue = SUM(sales.total_amount)
 - Profit = SUM((si.unit_price - p.cost_price) * si.quantity) JOIN sale_items si ON p.id = si.product_id
 - Postgres IST date filter: DATE(created_at AT TIME ZONE 'Asia/Kolkata') = DATE(timezone('Asia/Kolkata', NOW()))
 - SQLite date filter: date(created_at) = date('now', 'localtime')
+- Customer payment history: query customer_ledger table filtered by customer_id and type
+- Low stock: products WHERE stock_quantity <= min_stock_level
 """
 
 
@@ -365,12 +385,14 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
     last_week_tokens = ["last week", "pichla hafta", "pichhle hafte", "গত সপ্তাহ", "গত সপ্তাহের"]
     this_month_tokens = ["this month", "is month", "is mahine", "ei mash", "এই মাস", "এই মাসের", "mahina", "month"]
     last_month_tokens = ["last month", "pichla mahina", "pichhle mahine", "গত মাস", "গত মাসের"]
+    all_time_tokens = ["all time", "total revenue", "overall", "starting", "shuru se", "purana", "shob somoy", "সব সময়", "সব সময়ের", "সব টোটাল"]
     has_today = any(t in q for t in today_tokens)
     has_yesterday = any(t in q for t in yday_tokens)
     has_this_week = any(t in q for t in this_week_tokens)
     has_last_week = any(t in q for t in last_week_tokens)
     has_this_month = any(t in q for t in this_month_tokens)
     has_last_month = any(t in q for t in last_month_tokens)
+    has_all_time = any(t in q for t in all_time_tokens)
 
     # Metric detection
     profit_tokens = ["profit", "fayda", "munafa", "labh", "লাভ", "মুনাফা", "earnings", "net"]
@@ -382,7 +404,7 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
     wants_bill_count = any(t in q for t in bill_count_tokens) or ("how many" in q and "bill" in q)
     wants_compare = any(t in q for t in ["vs", "versus", "compare", "comparison", "difference"])
 
-    # Default bare words to today
+    # Default bare words to today, unless "all time" is requested
     if (
         (wants_profit or wants_revenue or wants_bill_count)
         and not has_today
@@ -391,6 +413,7 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
         and not has_last_week
         and not has_this_month
         and not has_last_month
+        and not has_all_time
     ):
         has_today = True
 
@@ -492,6 +515,15 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
                 f"WHERE s.user_id = '{user_id}' "
                 f"AND {sales_day} = {ist_yesterday}"
             )
+        if has_all_time:
+            return (
+                "SELECT "
+                "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS total_profit "
+                "FROM sale_items si "
+                "JOIN products p ON si.product_id = p.id "
+                "JOIN sales s ON si.sale_id = s.id "
+                f"WHERE s.user_id = '{user_id}'"
+            )
         return (
             "SELECT "
             "COALESCE(SUM((si.unit_price - p.cost_price) * si.quantity), 0) AS today_profit "
@@ -568,6 +600,13 @@ def _build_deterministic_kpi_sql(user_query: str, user_id: str, role: str = "own
                 "FROM sales "
                 f"WHERE user_id = '{user_id}' "
                 f"AND {sales_day_no_alias} = {ist_yesterday}"
+            )
+        if has_all_time:
+            return (
+                "SELECT "
+                "COALESCE(SUM(total_amount), 0) AS total_revenue "
+                "FROM sales "
+                f"WHERE user_id = '{user_id}'"
             )
         return (
             "SELECT "
@@ -1401,6 +1440,7 @@ _NAME_TRANSLITERATION_MAP = {
     "das":    ["দাস", "दास"],
     "patel":  ["প্যাটেল", "पटेल"],
     "kakeel": ["কাকীল", "काकील"],
+    "faizul": ["ফয়জুল", "फैजुल", "ফয়জুল"],
 }
 
 def normalize_customer_name(name: str, store_directory: str = "") -> str:
@@ -1866,8 +1906,8 @@ def fast_parse_action(user_query: str) -> str:
         items_text = ql[customer_pos:].lower()  # Only parse items from text AFTER customer name
         
         # Extract items: "2 rice", "1 oil", etc.
-        # More strict pattern: quantity + product name, stop at common delimiters
-        items_raw = re.findall(r'(\d+)\s+([a-z][a-z\s]*?)(?=\s+(?:\d+|and|with|for|paid|payment|₹|rs\.?|$))', items_text)
+        # Improved pattern: quantity + product name (including spaces), stop at next quantity or common delimiters
+        items_raw = re.findall(r'(\d+)\s+([a-z0-9\s\.\-\(\)]+?)(?=\s*(?:\b\d+\b|and|with|for|paid|payment|₹|rs\.?|$))', items_text)
         items = []
         skip_words = {'for', 'to', 'and', 'with', 'rs', 'rupees', 'liya', 'diya', 'kiya', 'paid', 'cash', 'online', 'usne', 'ne', 'le', 'de'}
         
@@ -2857,12 +2897,10 @@ async def chat_node(state: AgentState):
                     f"USER: \"{last_msg}\"\n"
                     f"GOAL: Answer DIRECTLY from DATA SNAPSHOT. "
                     f"FORMAT: Use ₹ with Indian commas (₹1,50,000 not 150000). Use lakh/crore not million. "
-                f"If snapshot has a single number like [{{\"sum\": 12500}}] or [{{\"coalesce\": 12500}}], say it naturally: "
-                f"'Boss, aaj ka total ₹12,500 hai.' (Hinglish) or 'দাদা, আজকের মোট ₹12,500।' (Bangla). "
-                f"If the snapshot has a number (even 0), report it accurately. "
-                f"If snapshot is empty/null/[], say: 'Boss, is period mein koi data nahi mila.' "
-                f"NEVER guess. NEVER say a number not in the snapshot. MAX 2 sentences."
-            )
+                    f"If snapshot has a single number like [{{\"sum\": 12500}}] or [{{\"coalesce\": 12500}}], say it naturally. "
+                    f"If the snapshot is empty (`[]`) or `null`, say naturally that you don't have any records for that query. "
+                    f"NEVER guess. NEVER say a number not in the snapshot. MAX 2 sentences."
+                )
 
     llm = get_llm(selected_model)
 
